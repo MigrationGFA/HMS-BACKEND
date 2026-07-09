@@ -1,0 +1,38 @@
+// Legacy: AUDITS
+
+model Audits {
+  AUDIT_ID        Int       @id @default(autoincrement())
+  ITEM            String?   @db.VarChar(255)
+  NEW_VALUE       String?   @db.Text
+  OLD_VALUE       String?   @db.Text
+  STATUS          String?   @db.VarChar(50)
+  CREATED_BY      String?   @db.VarChar(100)
+  APPROVED_BY     String?   @db.VarChar(100)
+  CREATE_DATE     DateTime?
+  APPROVED_DATE   DateTime?
+  PERSON_ID       Int?
+  USER_ID         Int?
+  BRANCH_ID       Int?
+  CREATED_BY_DEC  String?   @db.VarChar(255)
+  APPROVED_BY_DEC String?   @db.VarChar(255)
+  PERSON_ID_DEC   String?   @db.VarChar(255)
+
+  user Users? @relation(fields: [USER_ID], references: [USER_ID])
+
+  @@index([USER_ID])
+  @@index([PERSON_ID])
+  @@index([CREATE_DATE])
+  @@map("AUDITS")
+}
+
+model ErrorHandlerTbl {
+  ERROR_ID     Int       @id @default(autoincrement())
+  ACTIVITY_NAME String?  @db.VarChar(255)
+  V_CODE       String?   @db.VarChar(50)
+  V_ERRM       String?   @db.Text
+  ERROR_DESC   String?   @db.Text
+  CREATED_DATE DateTime?
+  CREATED_BY   String?   @db.VarChar(100)
+
+  @@map("ERROR_HANDLER_TBL")
+}

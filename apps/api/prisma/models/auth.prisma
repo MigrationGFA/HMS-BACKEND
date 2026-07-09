@@ -1,0 +1,93 @@
+// Legacy: ROLES, AUTHORIZATIONS, AUTH_OTP, MODULES, MENUS
+
+model Roles {
+  ROLE_ID            Int       @id @default(autoincrement())
+  ROLE_NAME          String?   @db.VarChar(255)
+  CREATED_BY         String?   @db.VarChar(100)
+  CREATED_DATE       DateTime?
+  LAST_MODIFIED_BY   String?   @db.VarChar(100)
+  LAST_MODIFIED_DATE DateTime?
+  MODULE_ID          Int?
+
+  users          Users[]
+  authorizations Authorizations[]
+
+  @@map("ROLES")
+}
+
+model Modules {
+  MODULE_ID   Int     @id @default(autoincrement())
+  MODULE_NAME String? @db.VarChar(255)
+  HINT        String? @db.VarChar(500)
+
+  menus Menus[]
+
+  @@map("MODULES")
+}
+
+model Menus {
+  MENU_ID    Int     @id @default(autoincrement())
+  MENU_NAME  String? @db.VarChar(255)
+  PARENT_ID  Int?
+  TIPS       String? @db.VarChar(500)
+  MENU_LEVEL Int?
+  URL        String? @db.VarChar(500)
+  PAGE_NO    Int?
+
+  MODULE_ID Int?
+  module    Modules? @relation(fields: [MODULE_ID], references: [MODULE_ID])
+
+  authorizations Authorizations[]
+
+  @@index([MODULE_ID])
+  @@map("MENUS")
+}
+
+model Authorizations {
+  AUTHORIZATION_ID   Int       @id @default(autoincrement())
+  ROLE_ID            Int?
+  MODULE_ID          Int?
+  MENU_ID            Int?
+  CREATED_BY         String?   @db.VarChar(100)
+  LAST_MODIFIED_BY   String?   @db.VarChar(100)
+  CREATED_DATE       DateTime?
+  LAST_MODIFIED_DATE DateTime?
+  STATUS             String?   @db.VarChar(50)
+  PAGE_NO            Int?
+  PARENT_ID          Int?
+  DISPLAY_SEQUENCE   Int?
+
+  role Roles? @relation(fields: [ROLE_ID], references: [ROLE_ID])
+  menu Menus? @relation(fields: [MENU_ID], references: [MENU_ID])
+
+  @@index([ROLE_ID])
+  @@index([MENU_ID])
+  @@map("AUTHORIZATIONS")
+}
+
+model AuthOtp {
+  ID           Int       @id @default(autoincrement())
+  OTP          String?   @db.VarChar(50)
+  USER_NAME    String?   @db.VarChar(100)
+  EXPIRY_TIME  DateTime?
+  CREATED_BY   String?   @db.VarChar(100)
+  CREATED_DATE DateTime?
+  SESSION_ID   String?   @db.VarChar(255)
+
+  @@index([USER_NAME])
+  @@map("AUTH_OTP")
+}
+
+model RefreshToken {
+  ID         Int       @id @default(autoincrement())
+  TOKEN_HASH String    @unique @db.VarChar(255)
+  USER_ID    Int
+  EXPIRES_AT DateTime
+  CREATED_AT DateTime  @default(now())
+  REVOKED_AT DateTime?
+
+  user Users @relation(fields: [USER_ID], references: [USER_ID], onDelete: Cascade)
+
+  @@index([USER_ID])
+  @@map("REFRESH_TOKENS")
+}

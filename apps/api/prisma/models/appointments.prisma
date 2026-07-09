@@ -1,0 +1,64 @@
+// Legacy: APPOITEMENTS (typo preserved), QUE_APPOINTMENTS, QUE_TOKENS
+
+model Appoitements {
+  APPOINTMENT_ID     Int       @id @default(autoincrement())
+  DOCTOR_ID          Int?
+  DESCIPTION         String?   @db.VarChar(1000)
+  APPOINTMENT_DATE   DateTime?
+  STATUS             String?   @db.VarChar(50)
+  APPOINTMENT_TIME   String?   @db.VarChar(50)
+  CLINIC_ID          Int?
+  ADMISSION_ID       Int?
+  PERSON_ID          Int?
+  BOOKING_DATE       DateTime?
+  BOOKING_LOCATION   String?   @db.VarChar(255)
+  CREATED_BY         String?   @db.VarChar(100)
+  APPOINTMENT_TYPE   String?   @db.VarChar(50)
+  RETURN_FLAG        String?   @db.VarChar(10)
+  HOSPITAL_ID        Int?
+  BRANCH_ID          Int?
+  PART_OF            Int?
+  CASE_FILE_ID       Int?
+  ZOOM_MEETING_ID    Int?
+  CONSULTATION_TYPE  String?   @db.VarChar(50)
+  PP                 String?   @db.VarChar(50)
+  BOOKING_BRANCH_ID  Int?
+
+  person   Persons?  @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  clinic   Clinics?  @relation(fields: [CLINIC_ID], references: [CLINIC_ID])
+  admission Admission? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  caseFile CaseFile? @relation(fields: [CASE_FILE_ID], references: [CASE_FILE_ID])
+  notifications Notifications[]
+
+  @@index([PERSON_ID, APPOINTMENT_DATE])
+  @@index([DOCTOR_ID, APPOINTMENT_DATE])
+  @@index([CLINIC_ID])
+  @@map("APPOITEMENTS")
+}
+
+model QueAppointments {
+  QUE_APPOINTMENT_ID    Int       @id @default(autoincrement())
+  PATIENT_ID            Int?
+  HOSPITAL_ID           Int?
+  BRANCH_ID             Int?
+  CLINIC_ID             Int?
+  APPOINTMENT_DATE_TIME DateTime?
+
+  @@index([CLINIC_ID, APPOINTMENT_DATE_TIME])
+  @@map("QUE_APPOINTMENTS")
+}
+
+model QueTokens {
+  QUE_TOKEN_ID       Int       @id @default(autoincrement())
+  PERSON_ID          Int?
+  HOSPITAL_ID        Int?
+  BRANCH_ID          Int?
+  CLINIC_ID          Int?
+  CREATION_DATE_TIME DateTime?
+  TOKEN_NO           String?   @db.VarChar(50)
+  TOKEN_CLINIC_CODE  String?   @db.VarChar(50)
+
+  @@index([PERSON_ID])
+  @@index([CLINIC_ID])
+  @@map("QUE_TOKENS")
+}

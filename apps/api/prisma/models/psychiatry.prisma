@@ -1,0 +1,144 @@
+// Legacy mental health / specialty clinical tables used for psychiatry specialty clinics
+// Uses shared clinical tables (COMPLAINTS, NOTES, ADMISSION, DIAGNOSIS) plus specialty extras
+
+model TreatmentGiven {
+  TREATMENT_GIVEN_ID Int       @id @default(autoincrement())
+  DESCRIPTION        String?   @db.Text
+  CREATED_BY         String?   @db.VarChar(100)
+  CREATED_DATE       DateTime?
+  PERSON_ID          Int?
+  UPDATED_BY         String?   @db.VarChar(100)
+  UPDATED_DATE       DateTime?
+  MSG_LOG_ID         Int?
+  ADMISSION_ID       Int?
+
+  @@index([PERSON_ID])
+  @@map("TREATMENT_GIVEN")
+}
+
+model TreatmentDone {
+  TREATMENT_DONE_ID Int       @id @default(autoincrement())
+  DESCRIPTION       String?   @db.Text
+  CREATED_BY        String?   @db.VarChar(100)
+  CREATED_DATED     DateTime?
+  PERSON_ID         Int?
+  UPDATED_BY        String?   @db.VarChar(100)
+  UPDATED_DATE      DateTime?
+
+  @@index([PERSON_ID])
+  @@map("TREATMENT_DONE")
+}
+
+model CallNote {
+  CALL_NOTE_ID    Int       @id @default(autoincrement())
+  PERSON_ID       Int?
+  NOTE_AREA       String?   @db.Text
+  DATE_TIME       DateTime?
+  DOCTOR_CODE_NO String? @map("DOCTOR担_CODE_NO") @db.VarChar(100)
+  USER_ID         Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  REQUEST_LOCATION String?  @db.VarChar(255)
+  FLAG            String?   @db.VarChar(10)
+
+  @@index([PERSON_ID])
+  @@map("CALL_NOTE")
+}
+
+model OldHistory {
+  OLD_HISTORY_ID Int       @id @default(autoincrement())
+  DETAILS        String?   @db.Text
+  PERSON_ID      Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+
+  @@index([PERSON_ID])
+  @@map("OLD_HISTORY")
+}
+
+model IcuNote {
+  ICU_NOTE_ID    Int       @id @default(autoincrement())
+  DOSE_TYPE      String?   @db.VarChar(50)
+  DRUG_NAME      String?   @db.VarChar(255)
+  DRUG_UNIT      String?   @db.VarChar(50)
+  DRUG_QTY       String?   @db.VarChar(50)
+  P_CATEGORY     String?   @db.VarChar(100)
+  P_REMARKS      String?   @db.Text
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  MODIFIED_BY    String?   @db.VarChar(100)
+  MODIFIED_DATE  DateTime?
+  HRS            Int?
+  MINUTE         Int?
+  VITAL_CATEGORY String?   @db.VarChar(100)
+  VITAL_REMARKS  String?   @db.Text
+  DATED          DateTime?
+
+  @@map("ICU_NOTE")
+}
+
+model Fluids {
+  FLUID_ID       Int       @id @default(autoincrement())
+  I_PERIOD       String?   @db.VarChar(50)
+  I_WARD_ID      Int?
+  I_TYPE         String?   @db.VarChar(50)
+  I_TUBE         String?   @db.VarChar(50)
+  I_ORAL         String?   @db.VarChar(50)
+  I_IV           String?   @db.VarChar(50)
+  I_TOTAL        String?   @db.VarChar(50)
+  I_TOTAL_TUBE   String?   @db.VarChar(50)
+  I_TOTAL_ORAL   String?   @db.VarChar(50)
+  I_TOTAL_IV     String?   @db.VarChar(50)
+  I_TOTAL_IN     String?   @db.VarChar(50)
+  I_TOTAL_OUT    String?   @db.VarChar(50)
+  I_BALANCE      String?   @db.VarChar(50)
+  I_TIME         String?   @db.VarChar(50)
+  O_TIME         String?   @db.VarChar(50)
+  O_PERIOD       String?   @db.VarChar(50)
+  O_URINE        String?   @db.VarChar(50)
+  O_TUBE_VOMIT   String?   @db.VarChar(50)
+  O_FAECES       String?   @db.VarChar(50)
+  O_TYPE         String?   @db.VarChar(50)
+  O_OTHERS       String?   @db.VarChar(50)
+  O_TOTAL        String?   @db.VarChar(50)
+  O_TOTAL_URINE  String?   @db.VarChar(50)
+  O_TOTAL_TUBE   String?   @db.VarChar(50)
+  O_TOTAL_FAECES String?   @db.VarChar(50)
+  O_TOTAL_OUT    String?   @db.VarChar(50)
+  O_TOTAL_SUMMARY String?  @db.VarChar(50)
+  PERSON_ID      Int?
+  IN_OUT         String?   @db.VarChar(20)
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+  ADMISSION_ID   Int?
+  CASE_FILE_ID   Int?
+  REMARK         String?   @db.Text
+
+  @@index([PERSON_ID])
+  @@map("FLUIDS")
+}
+
+model Surgery {
+  SURGERY_ID    Int       @id @default(autoincrement())
+  SURGERY_NAME  String?   @db.VarChar(255)
+  CLINIC_ID     Int?
+  PERSON_ID     Int?
+  SURGERY_TYPE  String?   @db.VarChar(50)
+  BOOKIN_DATE   DateTime?
+  SURGERY_DATE  DateTime?
+  REMARK        String?   @db.Text
+  FLAG          String?   @db.VarChar(10)
+  ADMISSION_ID  Int?
+  ITEM_ID       Int?
+  STATUS        String?   @db.VarChar(50)
+  END_DATE      DateTime?
+  F_TIME        String?   @db.VarChar(50)
+  T_TIME        String?   @db.VarChar(50)
+  MACRO_DATE    DateTime?
+  INTERVAL      Int?
+  MACRO_ID      Int?
+
+  @@index([PERSON_ID])
+  @@map("SURGERY")
+}

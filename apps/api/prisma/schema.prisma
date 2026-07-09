@@ -1,0 +1,10 @@
+// Main Prisma entry — generator and datasource only.
+// Domain models live in ./models/
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}

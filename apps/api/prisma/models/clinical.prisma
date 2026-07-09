@@ -1,0 +1,359 @@
+// Legacy: DIAGNOSIS, DISEASES, COMPLAINTS, NOTES, VS, VITAL_SIGNS, MSG_LOGS, PATIENT_MED_HIST, THESAURUS
+
+model Diseases {
+  DISEASE_ID       Int     @id @default(autoincrement())
+  CODE             String? @db.VarChar(50)
+  DISEASE_NAME     String? @db.VarChar(255)
+  DESCRIPTION      String? @db.VarChar(1000)
+  DISEASE_TYPE     String? @db.VarChar(50)
+  IS_HEAD          String? @db.VarChar(10)
+  DISCONTINUE_FLAG String? @db.VarChar(10)
+
+  diagnoses Diagnosis[]
+
+  @@map("DISEASES")
+}
+
+model Diagnosis {
+  DIAGNOSIS_ID       Int       @id @default(autoincrement())
+  PERSON_ID          Int?
+  DISEASE_ID         Int?
+  DESCRIPTION        String?   @db.VarChar(1000)
+  DIAGNOSIS_DATE     DateTime?
+  DOCTOR_ID          Int?
+  ADMISSION_ID       Int?
+  MSG_LOG_ID         Int?
+  CREATED_BY         String?   @db.VarChar(100)
+  IS_PRIMARY         String?   @db.VarChar(10)
+  STATUS             String?   @db.VarChar(50)
+  THESAURUS_ID       Int?
+  UPDATED_BY         String?   @db.VarChar(100)
+  CREATED_DATE       DateTime?
+  UPDATED_DATE       DateTime?
+  DIAGNOSIS_CATEGORY String?   @db.VarChar(50)
+  THESAURUS_TYPE     String?   @db.VarChar(50)
+
+  person    Persons?   @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  disease   Diseases?  @relation(fields: [DISEASE_ID], references: [DISEASE_ID])
+  admission Admission? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  thesaurus Thesaurus? @relation(fields: [THESAURUS_ID], references: [THESAURUS_ID])
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@map("DIAGNOSIS")
+}
+
+model Thesaurus {
+  THESAURUS_ID    Int     @id @default(autoincrement())
+  TERMS           String? @db.VarChar(500)
+  ICD_CODE        String? @db.VarChar(50)
+  ICD_LABLE       String? @db.VarChar(255)
+  EXTENSION       String? @db.VarChar(255)
+  SEE_TYPE        String? @db.VarChar(50)
+  ICPC_CODE       String? @db.VarChar(50)
+  ICPC_LABLE      String? @db.VarChar(255)
+  IS_USER_DEFINED String? @db.VarChar(10)
+
+  diagnoses Diagnosis[]
+
+  @@map("THESAURUS")
+}
+
+model Complaints {
+  COMPLAINT_ID             Int       @id @default(autoincrement())
+  PERSON_ID                Int?
+  COMPLAINT_DATE           DateTime?
+  DOCTOR_ID                Int?
+  ADMISSION_ID             Int?
+  CREATED_BY               String?   @db.VarChar(100)
+  CREATED_DATE             DateTime?
+  UPDATED_BY               String?   @db.VarChar(100)
+  UPDATED_DATE             DateTime?
+  MSG_LOG_ID               Int?
+  ACTION                   String?   @db.VarChar(100)
+  DESCRIPTION              String?   @db.Text
+  GENERIC_TEMPLATE_ID      Int?
+  CASE_FILE_ID             Int?
+  REVIEW_SYSTEM_ID         Int?
+  HISTORY_TYPE_ID          Int?
+  PAST_MEDICAL_HISTORY_ID  Int?
+  HISTORY_OF_COMPIANTS     String?   @db.Text
+  HISTORY_TYPE             String?   @db.VarChar(50)
+  PHYSICAL_EXAMINATION_ID  Int?
+  HOSPITAL_ID              Int?
+  SURGERY_ID               Int?
+
+  person    Persons?  @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission Admission? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  caseFile  CaseFile? @relation(fields: [CASE_FILE_ID], references: [CASE_FILE_ID])
+  details   ComplaintDetails[]
+
+  @@index([PERSON_ID])
+  @@map("COMPLAINTS")
+}
+
+model ComplaintDetails {
+  COMPLAINT_DETAIL_ID      Int     @id @default(autoincrement())
+  COMPLAINT_ID             Int?
+  P_TITLE                  String? @db.VarChar(255)
+  P_VALUE                  String? @db.Text
+  CONTROL                  String? @db.VarChar(100)
+  P_NOTE                   String? @db.Text
+  CASE_FILE_ID             Int?
+  TEMP_DETAIL_ID           Int?
+  GENERIC_TEMPLATE_DETAIL_ID Int?
+  GENERIC_TEMPLATE_ID      Int?
+
+  complaint Complaints? @relation(fields: [COMPLAINT_ID], references: [COMPLAINT_ID])
+
+  @@index([COMPLAINT_ID])
+  @@map("COMPLAINT_DETAILS")
+}
+
+model Notes {
+  NOTE_ID      Int       @id @default(autoincrement())
+  NOTE_TITLE   String?   @db.VarChar(255)
+  CREATED_BY   String?   @db.VarChar(100)
+  CREATED_DATE DateTime?
+  UPDATED_BY   String?   @db.VarChar(100)
+  UPDATED_DATE DateTime?
+  NURSE_DOCTOR String?   @db.VarChar(50)
+  ADMISSION_ID Int?
+  CASE_FILE_ID Int?
+  PERSON_ID    Int?
+  DESCRIPTION  String?   @db.Text
+
+  person    Persons?  @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission Admission? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  caseFile  CaseFile? @relation(fields: [CASE_FILE_ID], references: [CASE_FILE_ID])
+  details   NoteDetails[]
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@map("NOTES")
+}
+
+model NoteDetails {
+  NOTE_DETAIL_ID Int     @id @default(autoincrement())
+  NOTE_ID        Int?
+  P_TITLE        String? @db.VarChar(255)
+  CONTROL        String? @db.VarChar(100)
+
+  note Notes? @relation(fields: [NOTE_ID], references: [NOTE_ID])
+
+  @@index([NOTE_ID])
+  @@map("NOTE_DETAILS")
+}
+
+model Vs {
+  VS_ID             Int       @id @default(autoincrement())
+  PERSON_ID         Int?
+  ADMISSION_ID      Int?
+  BP                String?   @db.VarChar(50)
+  TEMPERATURE       String?   @db.VarChar(50)
+  WEIGHT            String?   @db.VarChar(50)
+  HEIGHT            String?   @db.VarChar(50)
+  CREATED_DATE      DateTime?
+  CRETAED_BY        String?   @db.VarChar(100)
+  BP_H              String?   @db.VarChar(20)
+  BP_L              String?   @db.VarChar(20)
+  PULSE             String?   @db.VarChar(20)
+  RESPIRATION       String?   @db.VarChar(20)
+  TONOMETRY         String?   @db.VarChar(50)
+  FETAL_HEART_RATE  String?   @db.VarChar(50)
+  VISION_TEST       String?   @db.VarChar(50)
+  UFG               String?   @db.VarChar(50)
+  UFR               String?   @db.VarChar(50)
+  BFR               String?   @db.VarChar(50)
+  POST_DIALYSIS     String?   @db.VarChar(50)
+  PRE_DIALYSIS      String?   @db.VarChar(50)
+  REMARKS           String?   @db.Text
+  MSG_LOG_ID        Int?
+  SPO2              String?   @db.VarChar(20)
+  BODY_MAX_INDEX    String?   @db.VarChar(20)
+  BMI_VALUE         String?   @db.VarChar(20)
+  IDEAL_BODY_WEIGHT String?   @db.VarChar(20)
+  PAIN_SCORE        String?   @db.VarChar(20)
+  RBS               String?   @db.VarChar(20)
+  FBS               String?   @db.VarChar(20)
+
+  person    Persons?  @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission Admission? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@map("VS")
+}
+
+model VitalSigns {
+  VITAL_SIGN_ID Int       @id @default(autoincrement())
+  ADMISSION_ID  Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+  REMARK        String?   @db.Text
+
+  admission Admission? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  details   VitalSignDetails[]
+
+  @@index([ADMISSION_ID])
+  @@map("VITAL_SIGNS")
+}
+
+model VitalSignDetails {
+  VITAL_SIGN_DETAIL_ID Int       @id @default(autoincrement())
+  VITAL_SIGN_ID        Int?
+  ADMISSION_ID         Int?
+  LOINC_CODE           String?   @db.VarChar(50)
+  VITAL_TYPE           String?   @db.VarChar(50)
+  VITAL_NAME           String?   @db.VarChar(100)
+  ENTRY_VALUE          String?   @db.VarChar(100)
+  LOW_BAND             String?   @db.VarChar(50)
+  HIGH_BAND            String?   @db.VarChar(50)
+  FLAG                 String?   @db.VarChar(10)
+  CREATED_BY           String?   @db.VarChar(100)
+  CREATED_DATE         DateTime?
+  UPDATED_BY           String?   @db.VarChar(100)
+  UPDATED_DATE         DateTime?
+  REMARK               String?   @db.Text
+
+  vitalSign VitalSigns? @relation(fields: [VITAL_SIGN_ID], references: [VITAL_SIGN_ID])
+
+  @@index([VITAL_SIGN_ID])
+  @@map("VITAL_SIGN_DETAILS")
+}
+
+model MasterVitals {
+  MASTER_VITAL_ID Int     @id @default(autoincrement())
+  VITAL_NAME      String? @db.VarChar(100)
+  DEFAULT_VALUE   String? @db.VarChar(50)
+  LOW_BAND        String? @db.VarChar(50)
+  HIGH_BAND       String? @db.VarChar(50)
+  LOINC_CODE      String? @db.VarChar(50)
+  UNIT            String? @db.VarChar(50)
+  VITAL_TYPE      String? @db.VarChar(50)
+
+  @@map("MASTER_VITALS")
+}
+
+model MsgLogs {
+  MSG_LOG_ID     Int       @id @default(autoincrement())
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  MODIFIED_BY    String?   @db.VarChar(100)
+  MODIFIED_DATE  DateTime?
+  PERSON_ID      Int?
+  HOSPITAL_ID    Int?
+  LOG_WRITER_ID  Int?
+  TITLE          String?   @db.VarChar(255)
+  USER_LOCATION  String?   @db.VarChar(255)
+  DESCRIPTION    String?   @db.Text
+  ADMISSION_ID   Int?
+
+  person    Persons?  @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission Admission? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+
+  @@index([PERSON_ID])
+  @@map("MSG_LOGS")
+}
+
+model PatientMedHist {
+  PATIENT_MED_HIST_ID Int       @id @default(autoincrement())
+  PATIENT_HISTORY     String?   @db.Text
+  TREATMENT_PLAN      String?   @db.Text
+  TREATMENT_GIVEN     String?   @db.Text
+  TREATMENT_DONE      String?   @db.Text
+  OTHER_TREATMENT     String?   @db.Text
+  PERSON_ID           Int?
+  CREATED_BY          String?   @db.VarChar(100)
+  CREATED_DATE        DateTime?
+  UPDATED_BY          String?   @db.VarChar(100)
+  UPDATED_DATE        DateTime?
+  MSG_LOG_ID          Int?
+  ADMISSION_ID        Int?
+
+  @@index([PERSON_ID])
+  @@map("PATIENT_MED_HIST")
+}
+
+model NursCarePlan {
+  NURS_CARE_PLAN_ID    Int       @id @default(autoincrement())
+  PERSON_ID            Int?
+  DATE_TIME            DateTime?
+  S_NO                 Int?
+  NURS_DIAGNOSIS       String?   @db.Text
+  OBJECTIVES           String?   @db.Text
+  NURS_ACTION          String?   @db.Text
+  EVALUATION           String?   @db.Text
+  NURSES_INITIALS      String?   @db.VarChar(50)
+  SCIENTIFIC_RATIONALE String?   @db.Text
+  REMARK               String?   @db.Text
+  CREATED_BY           String?   @db.VarChar(100)
+
+  @@index([PERSON_ID])
+  @@map("NURS_CARE_PLAN")
+}
+
+model NursesReportSheet {
+  NURSES_REPORT_SHEET_ID Int       @id @default(autoincrement())
+  PERSON_ID              Int?
+  WARD_ID                Int?
+  HOSPITAL_NO            String?   @db.VarChar(50)
+  S_NO                   Int?
+  DATE_TIME              DateTime?
+  SHIFT                  String?   @db.VarChar(50)
+  REPORT                 String?   @db.Text
+  NURSE_NAME             String?   @db.VarChar(255)
+  CREATED_BY             String?   @db.VarChar(100)
+  CREATED_DATE           DateTime?
+  UPDATED_BY             String?   @db.VarChar(100)
+  UPDATED_DATE           DateTime?
+  ADMISSION_ID           Int?
+  REVIEW_FLAG            String?   @db.VarChar(10)
+  REVIEWER_COMMENT       String?   @db.Text
+
+  ward      Wards?     @relation(fields: [WARD_ID], references: [WARD_ID])
+  admission Admission? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+
+  @@index([ADMISSION_ID])
+  @@map("NURSES_REPORT_SHEET")
+}
+
+model DrugChart {
+  DRUG_CHART_ID     Int       @id @default(autoincrement())
+  PERSON_ID         Int?
+  DOSAGE_DATE       DateTime?
+  NAME_DRUG         String?   @db.VarChar(255)
+  DOSAGE            String?   @db.VarChar(100)
+  ADMISSION_ID      Int?
+  WARD_ID           Int?
+  FLAG              String?   @db.VarChar(10)
+  REQUEST_DETAIL_ID Int?
+  CREATED_BY        String?   @db.VarChar(100)
+  CREATED_DATE      DateTime?
+  UPDATED_BY        String?   @db.VarChar(100)
+  UPDATED_DATE      DateTime?
+
+  admission Admission? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  ward      Wards?     @relation(fields: [WARD_ID], references: [WARD_ID])
+  details   DrugChartDetails[]
+
+  @@index([PERSON_ID])
+  @@map("DRUG_CHART")
+}
+
+model DrugChartDetails {
+  DRUG_CHART_DETAIL_ID Int       @id @default(autoincrement())
+  DRUG_CHART_ID        Int?
+  DOSAGE               String?   @db.VarChar(100)
+  STATUS               String?   @db.VarChar(50)
+  DATE_TIME            DateTime?
+  NURSE_ID             Int?
+  ADMINISTER_DATE      DateTime?
+
+  drugChart DrugChart? @relation(fields: [DRUG_CHART_ID], references: [DRUG_CHART_ID])
+
+  @@index([DRUG_CHART_ID])
+  @@map("DRUG_CHART_DETAILS")
+}

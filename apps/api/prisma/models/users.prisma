@@ -1,0 +1,84 @@
+// Legacy: USERS, USER_TYPE, GLOBAL_USER
+
+model Users {
+  USER_ID                 Int       @id @default(autoincrement())
+  USER_NAME               String?   @unique @db.VarChar(100)
+  PWD                     String?   @db.VarChar(255)
+  CREATED_DATE            DateTime?
+  IS_ADMIN                String?   @db.VarChar(10)
+  CAPTURE                 String?   @db.VarChar(10)
+  IDENTIFY                String?   @db.VarChar(10)
+  AWARD                   String?   @db.VarChar(10)
+  GENERATE_PIN            String?   @db.VarChar(10)
+  LOCK_ACCOUNT            String?   @db.VarChar(10)
+  ROLE_ID                 Int?
+  EMPLOYEE_ID             Int?
+  ALLOW_SELF_PASSING      String?   @db.VarChar(10)
+  EXPENDITURE_LIMIT       String?   @db.VarChar(10)
+  EXPENDITURE_LIMIT_AMOUNT Decimal? @db.Decimal(14, 2)
+  MODULE_ID               Int?
+  CLINIC_ID               Int?
+  WARD_ID                 Int?
+  STORE_ID                Int?
+  FIRST_NAME              String?   @db.VarChar(100)
+  LAST_NAME               String?   @db.VarChar(100)
+  USER_TYPE               String?   @db.VarChar(50)
+  STATIONED_AT            String?   @db.VarChar(100)
+  LAB_GROUP_ID            Int?
+  CREATED_BY              String?   @db.VarChar(100)
+  UPDATED_BY              String?   @db.VarChar(100)
+  UPDATED_DATE            DateTime?
+  APPOINTMENT_COUNTER     Int?
+  DOCTOR_IS_CONSULTANT    String?   @db.VarChar(10)
+  PHONE_NO                String?   @db.VarChar(50)
+  USER_CATEGORY           String?   @db.VarChar(50)
+  EXPIRY_DATE             DateTime?
+  IS_LOGIN_FLAG           String?   @db.VarChar(10)
+  SBU                     String?   @db.VarChar(50)
+  HOSPITAL_ID             Int?
+  BRANCH_ID               Int?
+  PERSON_ID               Int?
+  LICENSE_NUMBER          String?   @db.VarChar(100)
+  SPECIALTIES             String?   @db.VarChar(255)
+  PASSWORD                String?   @db.VarChar(255)
+  EMAIL_ADDRESS           String?   @db.VarChar(255)
+  PINCODE                 String?   @db.VarChar(50)
+  IS_APPROVING_OFFICER    String?   @db.VarChar(10)
+  USER_ALISE              String?   @db.VarChar(100)
+
+  role     Roles?    @relation(fields: [ROLE_ID], references: [ROLE_ID])
+  person   Persons?  @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  hospital Hospitals? @relation(fields: [HOSPITAL_ID], references: [HOSPITAL_ID])
+  branch   Branches? @relation(fields: [BRANCH_ID], references: [BRANCH_ID])
+  clinic   Clinics?  @relation(fields: [CLINIC_ID], references: [CLINIC_ID])
+  ward     Wards?    @relation(fields: [WARD_ID], references: [WARD_ID])
+  store    Stores?   @relation(fields: [STORE_ID], references: [STORE_ID])
+  employee Forms?    @relation(fields: [EMPLOYEE_ID], references: [FORM_ID])
+
+  notifications Notifications[]
+  audits        Audits[]
+  refreshTokens RefreshToken[]
+
+  @@index([ROLE_ID])
+  @@index([PERSON_ID])
+  @@index([HOSPITAL_ID, BRANCH_ID])
+  @@map("USERS")
+}
+
+model UserType {
+  USER_TYPE_ID Int     @id @default(autoincrement())
+  NAME         String? @db.VarChar(100)
+
+  @@map("USER_TYPE")
+}
+
+model GlobalUser {
+  GLOBAL_USER_ID Int  @id @default(autoincrement())
+  HOSPITAL_ID    Int?
+  BRANCH_ID      Int?
+  USER_ID        Int?
+  PERSON_ID      Int?
+
+  @@index([USER_ID])
+  @@map("GLOBAL_USER")
+}

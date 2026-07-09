@@ -1,0 +1,93 @@
+---
+description: HMS domain context, module patterns, and project-specific conventions
+globs: apps/api/src/**/*.ts
+alwaysApply: false
+---
+
+# HMS Project Rules
+
+## Domain Context
+
+This is a **Hospital Management System** backend. Key domains:
+
+- **Patients** — registration, MRN, demographics, search
+- **Appointments** — scheduling, doctor availability
+- **Queues** — walk-in triage with realtime updates
+- **Clinical** — encounters, vitals, prescriptions
+- **Lab** — orders and async result processing
+- **Pharmacy** — inventory and dispensing
+- **Billing** — invoices and payments
+- **Auth/RBAC** — staff access control
+
+Read `docs/PROJECT_CONTEXT.md` and `docs/WORKFLOWS.md` before implementing features.
+
+## Module Structure
+
+When creating a new feature module:
+
+```
+src/<domain>/
+├── <domain>.module.ts
+├── <domain>.controller.ts
+├── <domain>.service.ts
+└── dto/
+    ├── create-<domain>.dto.ts
+    └── update-<domain>.dto.ts
+```
+
+Register in `AppModule.imports`. Export the service if other modules need it.
+
+## RBAC Permissions
+
+Format: `resource:action` (e.g. `patient:read`, `lab:create`).
+
+```typescript
+@Permissions('patient:create')
+@Post()
+create(@Body() dto: CreatePatientDto) { ... }
+```
+
+## Audit Logging
+
+Log create/update/delete on sensitive entities:
+
+```typescript
+await this.auditService.log({
+  userId: user.id,
+  action: 'patient:create',
+  entity: 'patient',
+  entityId: patient.id,
+});
+```
+
+## Async Work
+
+| Use case | Tool |
+|----------|------|
+| SMS, email, lab, reports | RabbitMQ (`QueueModule`) |
+| Lightweight API jobs | BullMQ (Redis) |
+| Realtime UI updates | Socket.IO (`EventsModule`) |
+| Hot data caching | Redis (`CacheModule`) |
+
+Do not block API responses for notification delivery — publish to RabbitMQ.
+
+## API Response Shape
+
+```typescript
+return { data: result };
+// Lists include meta: { page, limit, total }
+```
+
+## Database Models
+
+- UUID primary keys (`@default(uuid())`)
+- `created_at` / `updated_at` timestamps on all mutable tables
+- Snake_case column names via `@map` / `@@map`
+- Index foreign keys and query-heavy columns
+
+## Before Submitting
+
+1. DTO validation decorators present
+2. Guards applied to protected endpoints
+3. `docs/API_REFERENCE.md` updated
+4. `docs/TODO.md` item checked off

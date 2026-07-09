@@ -1,0 +1,80 @@
+---
+description: 
+alwaysApply: true
+---
+
+# General Coding Standards
+
+## TypeScript
+
+- Use strict mode (already enabled in `tsconfig.json`).
+- Prefer `interface` for object shapes; use `type` for unions and mapped types.
+- Avoid `any`. Use `unknown` and narrow with type guards.
+- Use explicit return types on public service methods.
+
+## NestJS Patterns
+
+- One domain per module (controller + service + DTOs).
+- Inject dependencies via constructor — never instantiate services manually.
+- Use DTOs with `class-validator` for all request bodies and query params.
+- Apply guards at controller or method level, not inside services.
+- Business logic belongs in services, not controllers.
+
+## Error Handling
+
+```typescript
+// BAD — silent catch
+try { await this.prisma.user.create({ data }); } catch (e) {}
+
+// GOOD — let Prisma errors propagate or map explicitly
+const user = await this.prisma.user.create({ data });
+```
+
+Use NestJS built-in exceptions: `NotFoundException`, `ConflictException`, `ForbiddenException`.
+
+## Database
+
+- Use `prisma.$transaction()` for multi-table writes.
+- Add indexes for foreign keys and frequent query columns.
+- Never edit applied migrations — create a new one.
+- Use `@@map` and `@map` for snake_case DB columns.
+
+## Security
+
+- Never commit secrets or `.env` files.
+- Hash passwords with bcrypt (cost factor 12).
+- Validate and sanitize all user input via DTOs.
+- Log sensitive actions to `audit_logs`.
+
+## Documentation
+
+- Update `docs/API_REFERENCE.md` when adding endpoints.
+- Update `docs/FEATURES.md` status when completing features.
+- Add ADR entries to `docs/DECISIONS.md` for architectural choices.
+- Log changes in `docs/CHANGELOG.md`.
+
+## Testing
+
+- Unit test services with mocked dependencies.
+- E2E test critical flows (auth, patient CRUD).
+- Run `npm run lint` before committing.
+
+for any code changes made or create, always update the appropriate below 
+
+├── docs/
+│   ├── README.md
+│   ├── PROJECT_CONTEXT.md
+│   ├── SYSTEM_ARCHITECTURE.md
+│   ├── FEATURES.md
+│   ├── DATABASE.md
+│   ├── API_REFERENCE.md
+│   ├── MODULES.md
+│   ├── WORKFLOWS.md
+│   ├── CHANGELOG.md
+│   ├── DECISIONS.md
+│   └── TODO.md
+│
+├── .cursor/
+│   └── rules/
+│       ├── general.mdc
+│       └── hms-project.mdc

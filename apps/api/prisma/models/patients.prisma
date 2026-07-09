@@ -1,0 +1,145 @@
+// Legacy: PERSONS, PERSON_GROUP, ALLERGIES, NHIS
+
+model Persons {
+  PERSON_ID                Int       @id @default(autoincrement())
+  HOSPITAL_NO              String?   @unique @db.VarChar(50)
+  FIRST_NAME               String?   @db.VarChar(100)
+  LAST_NAME                String?   @db.VarChar(100)
+  SEX                      String?   @db.VarChar(20)
+  M_STATUS                 String?   @db.VarChar(20)
+  DATE_OF_BIRTH            DateTime?
+  RELIGON                  String?   @db.VarChar(50)
+  TRIBE                    String?   @db.VarChar(50)
+  RESIDENTIAL_ADDRESS      String?   @db.VarChar(500)
+  HOME_TOWN                String?   @db.VarChar(100)
+  STATE_OF_ORIGIN          String?   @db.VarChar(100)
+  NATIONALITY              String?   @db.VarChar(100)
+  PATIENT_PHONE_NO         String?   @db.VarChar(50)
+  DATE_OF_REGISTRATION     DateTime?
+  OCCUPATION               String?   @db.VarChar(100)
+  NAME_OF_EMPLOYER         String?   @db.VarChar(255)
+  NAME_OF_NEXT_OF_KIN      String?   @db.VarChar(255)
+  RELATIONSHIP             String?   @db.VarChar(100)
+  ADDRESS_OF_NEXT_OF_KIN   String?   @db.VarChar(500)
+  TELEPHONE_OF_NEXT_OF_KIN String?   @db.VarChar(50)
+  PICTURE                  Bytes?
+  FILE_NAME                String?   @db.VarChar(255)
+  LOCATION_ID              Int?
+  HMO_ID                   Int?
+  NHIS_NO                  String?   @db.VarChar(50)
+  REG_TYPE                 String?   @db.VarChar(50)
+  MIME                     String?   @db.VarChar(100)
+  CARD_NO                  String?   @db.VarChar(50)
+  CARD_STATUS              String?   @db.VarChar(50)
+  ETHNIC_GROUP             String?   @db.VarChar(50)
+  HUSBAND_NAME             String?   @db.VarChar(255)
+  HUSBAND_OCCUPATION       String?   @db.VarChar(100)
+  HUSBAND_EMPLOYER         String?   @db.VarChar(255)
+  HUSBAND_TELL             String?   @db.VarChar(50)
+  STATUS                   String?   @db.VarChar(50)
+  NHIS_REG_TYPE            String?   @db.VarChar(50)
+  EXPIRED_DATE             DateTime?
+  DISCONTINUE_FLAG         String?   @db.VarChar(10)
+  CREATED_BY               String?   @db.VarChar(100)
+  CREATED_DATE             DateTime?
+  UPDATED_BY               String?   @db.VarChar(100)
+  UPDATED_DATE             DateTime?
+  WALLET_ACCT_ID           Int?
+  LOAN_ACCT_ID             Int?
+  MIDDLE_NAME              String?   @db.VarChar(100)
+  IDENTITY_TYPE            String?   @db.VarChar(50)
+  IDENTITY_NO              String?   @db.VarChar(100)
+  BIOMETRIC_NO             String?   @db.VarChar(100)
+  PRINCIPAL_DEPENDANT      String?   @db.VarChar(10)
+  PRINCIPAL_ID             Int?
+  SBU                      String?   @db.VarChar(50)
+  HOSPITAL_ID              Int?
+  BRANCH_ID                Int?
+  E_MAIL                   String?   @db.VarChar(255)
+  PERSON_GROUP_ID          Int?
+  BLOOD_GROUP              String?   @db.VarChar(20)
+  DEATH_DATE               DateTime?
+  DEATH_CAUSE              String?   @db.VarChar(500)
+  IS_DEATH                 String?   @db.VarChar(10)
+  GLOBAL_PERSON_ID         Int?
+  BANK_CUSTOMER_CODE       String?   @db.VarChar(100)
+  BANK_CUSTOMER_ACCT_NO    String?   @db.VarChar(50)
+  BANK_CUSTOMER_ACCT_NAME  String?   @db.VarChar(255)
+  BANK_NAME                String?   @db.VarChar(100)
+  ACCOUNT_TYPE             String?   @db.VarChar(50)
+  PATIENT_TYPE             String?   @db.VarChar(50)
+  SERVICE_NO               String?   @db.VarChar(50)
+  RANK                     String?   @db.VarChar(50)
+  UNIT                     String?   @db.VarChar(50)
+  PRIMARY_CONSULTANT       String?   @db.VarChar(255)
+
+  personGroup PersonGroup? @relation(fields: [PERSON_GROUP_ID], references: [PERSON_GROUP_ID])
+  hospital    Hospitals?   @relation(fields: [HOSPITAL_ID], references: [HOSPITAL_ID])
+  branch      Branches?    @relation(fields: [BRANCH_ID], references: [BRANCH_ID])
+
+  users           Users[]
+  allergies       Allergies[]
+  appointments    Appoitements[]
+  admissions      Admission[]
+  caseFiles       CaseFile[]
+  bills           Bills[]
+  invoices        Invoices[]
+  requestForms    RequestForm[]
+  diagnoses       Diagnosis[]
+  vitalSignsVs    Vs[]
+  notes           Notes[]
+  complaints      Complaints[]
+  msgLogs         MsgLogs[]
+  claims          Claims[]
+
+  @@index([LAST_NAME, FIRST_NAME])
+  @@index([HOSPITAL_ID, BRANCH_ID])
+  @@index([HMO_ID])
+  @@map("PERSONS")
+}
+
+model PersonGroup {
+  PERSON_GROUP_ID Int       @id @default(autoincrement())
+  GROUP_NAME      String?   @db.VarChar(255)
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime?
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+
+  persons Persons[]
+
+  @@map("PERSON_GROUP")
+}
+
+model Allergies {
+  ALLERGIE_ID  Int       @id @default(autoincrement())
+  PERSON_ID    Int?
+  NAME         String?   @db.VarChar(255)
+  CREATED_BY   String?   @db.VarChar(100)
+  CREATED_DATE DateTime?
+  UPDATED_BY   String?   @db.VarChar(100)
+  UPDATED_DATE DateTime?
+
+  person Persons? @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@map("ALLERGIES")
+}
+
+model Nhis {
+  NHIS_ID        Int       @id @default(autoincrement())
+  NHIS_NO        String?   @db.VarChar(50)
+  FULL_NAME      String?   @db.VarChar(255)
+  DATE_OF_BIRTH  DateTime?
+  JOIN_DATE      DateTime?
+  FLAG           String?   @db.VarChar(10)
+  IS_REG_ON_HIMS String?   @db.VarChar(10)
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATE_DATE    DateTime?
+  MODIFIED_BY    String?   @db.VarChar(100)
+  MODIFIED_DATE  DateTime?
+  HMO_ID         Int?
+
+  @@index([NHIS_NO])
+  @@map("NHIS")
+}
