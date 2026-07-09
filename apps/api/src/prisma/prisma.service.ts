@@ -11,7 +11,6 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly pool: Pool;
-  refreshToken: any;
 
   constructor(configService: ConfigService) {
     const host = configService.get<string>('database.host');
