@@ -1,4 +1,4 @@
-// Legacy: PERSONS, PERSON_GROUP, ALLERGIES, NHIS
+// Core identity: PERSONS (patients)
 
 model Persons {
   PERSON_ID                Int       @id @default(autoincrement())
@@ -73,73 +73,11 @@ model Persons {
   UNIT                     String?   @db.VarChar(50)
   PRIMARY_CONSULTANT       String?   @db.VarChar(255)
 
-  personGroup PersonGroup? @relation(fields: [PERSON_GROUP_ID], references: [PERSON_GROUP_ID])
-  hospital    Hospitals?   @relation(fields: [HOSPITAL_ID], references: [HOSPITAL_ID])
-  branch      Branches?    @relation(fields: [BRANCH_ID], references: [BRANCH_ID])
-
-  users           Users[]
-  allergies       Allergies[]
-  appointments    Appoitements[]
-  admissions      Admission[]
-  caseFiles       CaseFile[]
-  bills           Bills[]
-  invoices        Invoices[]
-  requestForms    RequestForm[]
-  diagnoses       Diagnosis[]
-  vitalSignsVs    Vs[]
-  notes           Notes[]
-  complaints      Complaints[]
-  msgLogs         MsgLogs[]
-  claims          Claims[]
+  users  Users[]
+  triage Triage[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])
   @@index([HMO_ID])
   @@map("PERSONS")
-}
-
-model PersonGroup {
-  PERSON_GROUP_ID Int       @id @default(autoincrement())
-  GROUP_NAME      String?   @db.VarChar(255)
-  CREATED_BY      String?   @db.VarChar(100)
-  CREATED_DATE    DateTime?
-  UPDATED_BY      String?   @db.VarChar(100)
-  UPDATED_DATE    DateTime?
-
-  persons Persons[]
-
-  @@map("PERSON_GROUP")
-}
-
-model Allergies {
-  ALLERGIE_ID  Int       @id @default(autoincrement())
-  PERSON_ID    Int?
-  NAME         String?   @db.VarChar(255)
-  CREATED_BY   String?   @db.VarChar(100)
-  CREATED_DATE DateTime?
-  UPDATED_BY   String?   @db.VarChar(100)
-  UPDATED_DATE DateTime?
-
-  person Persons? @relation(fields: [PERSON_ID], references: [PERSON_ID])
-
-  @@index([PERSON_ID])
-  @@map("ALLERGIES")
-}
-
-model Nhis {
-  NHIS_ID        Int       @id @default(autoincrement())
-  NHIS_NO        String?   @db.VarChar(50)
-  FULL_NAME      String?   @db.VarChar(255)
-  DATE_OF_BIRTH  DateTime?
-  JOIN_DATE      DateTime?
-  FLAG           String?   @db.VarChar(10)
-  IS_REG_ON_HIMS String?   @db.VarChar(10)
-  CREATED_BY     String?   @db.VarChar(100)
-  CREATE_DATE    DateTime?
-  MODIFIED_BY    String?   @db.VarChar(100)
-  MODIFIED_DATE  DateTime?
-  HMO_ID         Int?
-
-  @@index([NHIS_NO])
-  @@map("NHIS")
 }

@@ -8,6 +8,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Slimmed Prisma schema to active core: PERSONS, USERS, ROLES, REFRESH_TOKENS, AUDITS, TRIAGE
+- `TRIAGE` table for post-registration queue + vitals (`PERSON_ID` FK only — no duplicated demographics)
+- `AUDITS.AUDIT_TYPE` (+ ENTITY / ENTITY_ID) for frontend filtering
+- `POST/GET/PATCH /api/triage` triage endpoints with audit logging
+- `GET /api/audit/logs?type=` audit query
+- Person registration writes `person:create` audit
+- `POST /api/patients` — register person into `PERSONS` (hospital number `FNPH/ARO/YYYY/######`)
+- `GET /api/patients` — search persons by hospital no / name / phone / NIN
+- `GET /api/patients/:id` — person detail by `PERSON_ID`
+- CORS enabled on API for fnph-aro frontend integration
 - Multi-file Prisma schema under `apps/api/prisma/models/`
 - `prisma.config.ts` for Prisma 7 directory-based schema loading
 - Prisma models aligned to legacy Aro HMS table/column names for easier migration

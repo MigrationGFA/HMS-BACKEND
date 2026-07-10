@@ -1,0 +1,43 @@
+// Post-registration triage queue + vitals.
+// Demographics / NOK / allergies live on PERSONS — store PERSON_ID only.
+
+model Triage {
+  TRIAGE_ID        Int       @id @default(autoincrement())
+  PERSON_ID        Int
+  QUEUE_NO         String    @unique @db.VarChar(50)
+  CLINIC           String?   @db.VarChar(100)
+  /// Waiting | In Triage | Triage Completed | Sent to Consultation | Cancelled
+  STATUS           String    @db.VarChar(50)
+  /// Routine | Urgent | Emergency | VIP | Elderly / Special Needs
+  PRIORITY         String    @default("Routine") @db.VarChar(50)
+  PRIORITY_REASON  String?   @db.VarChar(500)
+  /// New | Returning | Emergency (visit context for this queue entry)
+  PATIENT_TYPE     String?   @db.VarChar(50)
+  ARRIVAL_AT       DateTime  @default(now())
+  WEIGHT_KG        Decimal?  @db.Decimal(8, 2)
+  HEIGHT_CM        Decimal?  @db.Decimal(8, 2)
+  BMI              Decimal?  @db.Decimal(8, 2)
+  BLOOD_PRESSURE   String?   @db.VarChar(20)
+  TEMPERATURE_C    Decimal?  @db.Decimal(5, 2)
+  PULSE_BPM        Int?
+  RESPIRATORY_RATE Int?
+  SPO2_PCT         Decimal?  @db.Decimal(5, 2)
+  NOTES            String?   @db.Text
+  CREATED_BY_ID    Int?
+  UPDATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+
+  person    Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  createdBy Users?  @relation("TriageCreatedBy", fields: [CREATED_BY_ID], references: [USER_ID])
+  updatedBy Users?  @relation("TriageUpdatedBy", fields: [UPDATED_BY_ID], references: [USER_ID])
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([PRIORITY])
+  @@index([ARRIVAL_AT])
+  @@index([CLINIC])
+  @@map("TRIAGE")
+}

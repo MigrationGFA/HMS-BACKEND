@@ -91,3 +91,6 @@ return { data: result };
 2. Guards applied to protected endpoints
 3. `docs/API_REFERENCE.md` updated
 4. `docs/TODO.md` item checked off
+
+
+ FOR fnph-aro  Implement autosave and draft recovery on the Doctor Consultation form.  Follow the project rule: .cursor/rules/hms-autosave-and-draft.mdc  Use the existing Next.js, React Hook Form, TanStack Query, Dexie, NestJS, Prisma and PostgreSQL architecture.  Requirements: - Autosave three seconds after the user stops typing. - Save only changed fields through PATCH. - Store unsynchronized changes in IndexedDB. - Show accurate save and synchronization status. - Restore the draft after refresh or system failure. - Use optimistic locking with a version field. - Use idempotency keys for retry requests. - Do not submit or sign the note automatically. - Add an explicit Review and Sign action. - Add backend authorization and audit logging. - Add unit and integration tests. - Reuse existing shared infrastructure and do not duplicate services.

@@ -27,6 +27,7 @@ import { DischargeModule } from './discharge/discharge.module';
 import { PsychiatryModule } from './psychiatry/psychiatry.module';
 import { AlliedHealthModule } from './allied-health/allied-health.module';
 import { IcuModule } from './icu/icu.module';
+import { TriageModule } from './triage/triage.module';
 
 // Diagnostics & pharmacy
 import { LaboratoryModule } from './laboratory/laboratory.module';
@@ -74,6 +75,7 @@ import { HrModule } from './hr/hr.module';
     RecordsModule,
     AppointmentsModule,
     QueuesModule,
+    TriageModule,
 
     // Clinical & care
     ClinicalModule,

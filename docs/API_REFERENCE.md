@@ -150,13 +150,127 @@ Returns a hello message from the default scaffold.
 
 ### Patients (`/patients`)
 
+Patients are stored in the **`PERSONS`** table (Prisma model `Persons`). API responses use camelCase person fields (`personId`, `hospitalNo`, `firstName`, `lastName`, …).
+
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/patients` | Search/list patients | `patient:read` |
-| POST | `/patients` | Register patient | `patient:create` |
-| GET | `/patients/:id` | Get patient detail | `patient:read` |
-| PATCH | `/patients/:id` | Update patient | `patient:update` |
-| GET | `/patients/:id/history` | Visit history | `patient:read` |
+| GET | `/patients` | Search/list persons (`q`, `page`, `limit`) | JWT (`patient:read` when RBAC wired) |
+| POST | `/patients` | Register person | JWT (`patient:create` when RBAC wired) |
+| GET | `/patients/:id` | Get person by `PERSON_ID` | JWT (`patient:read` when RBAC wired) |
+| PATCH | `/patients/:id` | Update person | `patient:update` (planned) |
+| GET | `/patients/:id/history` | Visit history | `patient:read` (planned) |
+
+#### `POST /api/patients` — Register person
+
+**Purpose:** Create a new `PERSONS` row (patient registration from Records / Patient Entry Engine).
+
+**Required permission:** Authenticated staff (JWT). Granular `patient:create` when RBAC guards are enabled.
+
+**Request body (JSON):**
+
+```json
+{
+  "firstName": "Ada",
+  "lastName": "Okonkwo",
+  "middleName": "Chioma",
+  "sex": "Female",
+  "dateOfBirth": "1992-06-15",
+  "maritalStatus": "Single",
+  "religion": "Christianity",
+  "tribe": "Igbo",
+  "ethnicGroup": "Igbo",
+  "residentialAddress": "12 Broad St, Abeokuta, Ogun, Nigeria",
+  "homeTown": "Abeokuta South",
+  "stateOfOrigin": "Ogun",
+  "nationality": "Nigerian",
+  "patientPhoneNo": "08012345678",
+  "email": "ada@example.com",
+  "occupation": "Teacher",
+  "nameOfEmployer": "Ogun State Ministry of Education",
+  "nameOfNextOfKin": "Chidi Okonkwo",
+  "relationship": "Spouse",
+  "addressOfNextOfKin": "12 Broad St, Abeokuta",
+  "telephoneOfNextOfKin": "08087654321",
+  "identityType": "NIN",
+  "identityNo": "12345678901",
+  "nhisNo": "NHIS-998877",
+  "bloodGroup": "O+",
+  "patientType": "Outpatient",
+  "regType": "Walk-In Patient",
+  "idempotencyKey": "DR-abc123"
+}
+```
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "personId": 152,
+    "hospitalNo": "FNPH/ARO/2026/000152",
+    "firstName": "Ada",
+    "lastName": "Okonkwo",
+    "middleName": "Chioma",
+    "sex": "Female",
+    "patientPhoneNo": "08012345678",
+    "status": "Active",
+    "dateOfRegistration": "2026-07-10T11:00:00.000Z"
+  }
+}
+```
+
+**Error cases:**
+- `400` — validation failure (missing required fields)
+- `401` — missing/invalid JWT
+- `409` — duplicate `identityNo` or same name + phone
+
+---
+
+### Triage (`/triage`)
+
+Triage stores **queue + vitals** and a **`personId`** only. Demographics / NOK are joined from `PERSONS`.
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| POST | `/triage` | Create triage entry (after registration) | JWT |
+| GET | `/triage` | List queue (`status`, `clinic`, `priority`, `q`) | JWT |
+| GET | `/triage/:id` | Get triage + joined person | JWT |
+| PATCH | `/triage/:id` | Update status / priority / vitals | JWT |
+
+#### `POST /api/triage`
+
+**Request body:**
+
+```json
+{
+  "personId": 152,
+  "clinic": "General OPD",
+  "status": "Waiting",
+  "priority": "Routine",
+  "patientType": "New",
+  "weightKg": 70,
+  "heightCm": 170,
+  "bloodPressure": "120/80",
+  "temperatureC": 36.8,
+  "pulseBpm": 78,
+  "respiratoryRate": 16,
+  "spo2Pct": 98
+}
+```
+
+**Response:** `{ data: { triageId, queueNo, personId, person: { hospitalNo, firstName, ... }, ... } }`
+
+**Errors:** `400`, `401`, `404` person not found. Writes audit `triage:create`.
+
+---
+
+### Audit (`/audit`) — Admin
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/audit/logs` | Query audit logs | JWT |
+
+Query params: `type` (`person:create`, `triage:create`, `triage:update`, …), `personId`, `userId`, `page`, `limit`
 
 ---
 

@@ -1,8 +1,12 @@
-// Legacy: AUDITS
+// Audit trail — every create/update/delete must write a row
 
 model Audits {
   AUDIT_ID        Int       @id @default(autoincrement())
+  /// Filterable action type, e.g. person:create | triage:create | triage:update | auth:login
+  AUDIT_TYPE      String?   @db.VarChar(100)
   ITEM            String?   @db.VarChar(255)
+  ENTITY          String?   @db.VarChar(100)
+  ENTITY_ID       String?   @db.VarChar(100)
   NEW_VALUE       String?   @db.Text
   OLD_VALUE       String?   @db.Text
   STATUS          String?   @db.VarChar(50)
@@ -21,18 +25,7 @@ model Audits {
 
   @@index([USER_ID])
   @@index([PERSON_ID])
+  @@index([AUDIT_TYPE])
   @@index([CREATE_DATE])
   @@map("AUDITS")
-}
-
-model ErrorHandlerTbl {
-  ERROR_ID     Int       @id @default(autoincrement())
-  ACTIVITY_NAME String?  @db.VarChar(255)
-  V_CODE       String?   @db.VarChar(50)
-  V_ERRM       String?   @db.Text
-  ERROR_DESC   String?   @db.Text
-  CREATED_DATE DateTime?
-  CREATED_BY   String?   @db.VarChar(100)
-
-  @@map("ERROR_HANDLER_TBL")
 }

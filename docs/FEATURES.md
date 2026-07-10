@@ -45,7 +45,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 
 | Sub-feature | Status |
 |-------------|--------|
-| Patient registration & MRN | 📋 |
+| Patient registration & MRN (`POST /patients` → PERSONS) | 🚧 |
+| Person search (`GET /patients?q=`) | 🚧 |
 | Medical records management | 📋 |
 | Appointment booking | 📋 |
 | Walk-in queue | 📋 |
