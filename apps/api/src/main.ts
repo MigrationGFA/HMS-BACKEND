@@ -22,8 +22,8 @@ async function bootstrap() {
     }),
   );
 
-  // const port = configService.get<number>('app.port', 3030);
-  const port = process.env.PORT || configService.get<number>('app.port', 3030);
-  await app.listen(port);
+  const port = Number(process.env.PORT) || configService.get<number>('app.port', 3030);
+  // Bind 0.0.0.0 so cloud hosts (Render, etc.) can detect the open port.
+  await app.listen(port, '0.0.0.0');
 }
 bootstrap();

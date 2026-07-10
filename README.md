@@ -166,7 +166,21 @@ npm run prisma:seed
 npm run start:dev
 ```
 
-The API listens on `http://localhost:3000/api` by default.
+The API listens on `http://localhost:3030/api` by default (`PORT` overrides this).
+
+### Deploy on Render
+
+In the Render dashboard (or via `render.yaml`):
+
+| Setting | Value |
+|---------|--------|
+| **Build Command** | `npm install && npm run build` |
+| **Start Command** | `npm run start:prod` |
+| **Node** | 20 |
+
+Do **not** put `npm run build` in the Start Command — that only compiles and never opens a port. Render sets `PORT`; the app already reads it and binds `0.0.0.0`.
+
+Set at least: `DATABASE_HOST` / `DATABASE_USER` / `DATABASE_PASSWORD` (or `DATABASE_URL_PRISMA`), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `SESSION_SECRET`, `NODE_ENV=production`.
 
 ### Useful Scripts
 
