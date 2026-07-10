@@ -3,6 +3,9 @@
   "compilerOptions": {
     "outDir": "../../dist/apps/api",
     "rootDir": "src",
+    "declaration": false,
+    "sourceMap": false,
+    "incremental": false,
     "tsBuildInfoFile": "../../.tsbuildinfo/api.tsbuildinfo"
   },
   "include": ["src/**/*"],

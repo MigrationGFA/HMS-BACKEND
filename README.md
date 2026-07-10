@@ -174,11 +174,13 @@ In the Render dashboard (or via `render.yaml`):
 
 | Setting | Value |
 |---------|--------|
-| **Build Command** | `npm install && npm run build` |
+| **Build Command** | `NPM_CONFIG_PRODUCTION=false npm install && npm run build` |
 | **Start Command** | `npm run start:prod` |
 | **Node** | 20 |
 
 Do **not** put `npm run build` in the Start Command — that only compiles and never opens a port. Render sets `PORT`; the app already reads it and binds `0.0.0.0`.
+
+If Start fails with `Cannot find module .../dist/apps/api/main.js`, the Build step did not emit `dist` (usually `NODE_ENV=production` skipped Nest CLI / TypeScript). Use the Build Command above.
 
 Set at least: `DATABASE_HOST` / `DATABASE_USER` / `DATABASE_PASSWORD` (or `DATABASE_URL_PRISMA`), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `SESSION_SECRET`, `NODE_ENV=production`.
 

@@ -26,6 +26,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - Render deploy: API binds `0.0.0.0`, build uses 2GB Node heap; added `render.yaml`
+- Moved `@nestjs/cli` + `typescript` to `dependencies` so production installs still produce `dist/apps/api/main.js`
 - `schema.prisma` is now main entry only (generator + datasource)
 - Prisma CLI uses `apps/api/prisma` directory instead of single file path
 - Primary keys switched to integer autoincrement (`PERSON_ID`, `USER_ID`, …) to match Oracle IDs
