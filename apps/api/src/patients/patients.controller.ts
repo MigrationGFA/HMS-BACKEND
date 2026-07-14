@@ -9,26 +9,30 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
+import { PERMISSIONS } from '../common/constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { PatientsService } from './patients.service';
 
 @Controller('patients')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) {}
 
   /**
    * Method: POST
    * URL: /api/patients
-   * Purpose: Register a new patient (PERSONS row)
-   * Required permission: authenticated staff (JWT); patient:create when RBAC is wired
-   * Request body: CreatePersonDto
-   * Response example: { data: { personId, hospitalNo, firstName, lastName, ... } }
-   * Error cases: 400 validation, 401 unauthorized, 409 duplicate identity/phone+name
+   * Purpose: Register a new patient (PERSONS row) + open registration card (payment Pending)
+   * Required permission: patient:create (RECORDS, ADMIN, SUPER_ADMIN, CMD, IT)
+   * Request body: CreatePersonDto (email optional; regFee/consultFee/cardFee optional)
+   * Response example: { data: { personId, hospitalNo, ..., card: { cardId, paymentStatus: "Pending", totalAmount } } }
+   * Error cases: 400 validation, 401 unauthorized, 403 missing permission, 409 duplicate identity/phone+name
    */
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions(PERMISSIONS.PATIENT_CREATE)
   async register(
     @Body() dto: CreatePersonDto,
     @CurrentUser() user: AuthUser,
@@ -41,13 +45,13 @@ export class PatientsController {
    * Method: GET
    * URL: /api/patients?q=&page=&limit=
    * Purpose: Search/list persons
-   * Required permission: authenticated staff (JWT)
+   * Required permission: patient:read
    * Request body: none
    * Response example: { data: { items: [...], meta: { page, limit, total } } }
-   * Error cases: 401 unauthorized
+   * Error cases: 401 unauthorized, 403 missing permission
    */
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions(PERMISSIONS.PATIENT_READ)
   async search(
     @Query('q') q?: string,
     @Query('page') page?: string,
@@ -65,13 +69,13 @@ export class PatientsController {
    * Method: GET
    * URL: /api/patients/:id
    * Purpose: Get person by PERSON_ID
-   * Required permission: authenticated staff (JWT)
+   * Required permission: patient:read
    * Request body: none
    * Response example: { data: { personId, hospitalNo, ... } }
-   * Error cases: 401 unauthorized, 404 not found
+   * Error cases: 401 unauthorized, 403 missing permission, 404 not found
    */
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions(PERMISSIONS.PATIENT_READ)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const person = await this.patientsService.findById(id);
     return { data: person };

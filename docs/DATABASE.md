@@ -15,6 +15,7 @@ apps/api/prisma/
 │   ├── auth.prisma        # ROLES, REFRESH_TOKENS
 │   ├── users.prisma       # USERS
 │   ├── patients.prisma    # PERSONS
+│   ├── cards.prisma       # PATIENT_CARDS (registration card + payment gate)
 │   ├── triage.prisma      # TRIAGE
 │   └── audit.prisma       # AUDITS (with AUDIT_TYPE)
 ├── migrations/
@@ -32,6 +33,7 @@ Other legacy domain model files were removed until those modules are implemented
 | `ROLES` | `Roles` | RBAC roles (seeded) |
 | `REFRESH_TOKENS` | `RefreshToken` | JWT refresh sessions |
 | `TRIAGE` | `Triage` | Queue + vitals; stores `PERSON_ID` only (no duplicated demographics) |
+| `PATIENT_CARDS` | `PatientCards` | Registration card per person; `PAYMENT_STATUS` starts `Pending` and gates the workflow until a cashier confirms |
 | `AUDITS` | `Audits` | Immutable audit trail with filterable `AUDIT_TYPE` |
 
 ### Relationships
@@ -41,6 +43,7 @@ USERS ── ROLE_ID ── ROLES
 USERS ── REFRESH_TOKENS
 USERS ── PERSON_ID ── PERSONS (optional link)
 PERSONS ── TRIAGE (1:N)
+PERSONS ── PATIENT_CARDS (1:N; created by / confirmed by USERS)
 USERS ── AUDITS
 ```
 

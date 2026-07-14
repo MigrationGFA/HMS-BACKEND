@@ -75,6 +75,7 @@ model Persons {
 
   users  Users[]
   triage Triage[]
+  cards  PatientCards[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])

@@ -52,6 +52,8 @@ model Users {
   refreshTokens RefreshToken[]
   triageCreated Triage[]       @relation("TriageCreatedBy")
   triageUpdated Triage[]       @relation("TriageUpdatedBy")
+  cardsCreated  PatientCards[] @relation("CardCreatedBy")
+  cardsConfirmed PatientCards[] @relation("CardConfirmedBy")
 
   @@index([ROLE_ID])
   @@index([PERSON_ID])

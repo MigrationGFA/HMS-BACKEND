@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { CardsService, type CardResponse } from './cards.service';
 import { CreatePersonDto } from './dto/create-person.dto';
 import type { AuthUser } from '../auth/types/auth-user.type';
 
@@ -42,6 +43,8 @@ export type PersonResponse = {
   status: string | null;
   dateOfRegistration: string | null;
   createdAt: string | null;
+  /** Registration card opened at registration; payment starts Pending. */
+  card?: CardResponse | null;
 };
 
 @Injectable()
@@ -49,6 +52,7 @@ export class PatientsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly cards: CardsService,
   ) {}
 
   async register(dto: CreatePersonDto, actor?: AuthUser): Promise<PersonResponse> {
@@ -124,7 +128,7 @@ export class PatientsService {
         PATIENT_TYPE: dto.patientType?.trim() || null,
         REG_TYPE: dto.regType?.trim() || 'Walk-In',
         CARD_NO: dto.cardNo?.trim() || hospitalNo,
-        CARD_STATUS: 'Active',
+        CARD_STATUS: 'Pending Payment',
         STATUS: 'Active',
         DISCONTINUE_FLAG: 'N',
         DATE_OF_REGISTRATION: new Date(),
@@ -149,7 +153,20 @@ export class PatientsService {
       },
     });
 
-    return this.toResponse(created);
+    // Open the registration card. Payment stays Pending until a cashier
+    // confirms it — Records cannot continue the workflow before that.
+    const card = await this.cards.createForPerson(
+      {
+        personId: created.PERSON_ID,
+        cardNo: created.CARD_NO ?? hospitalNo,
+        cardFee: dto.cardFee,
+        regFee: dto.regFee,
+        consultFee: dto.consultFee,
+      },
+      actor,
+    );
+
+    return { ...this.toResponse(created), card };
   }
 
   async findById(personId: number): Promise<PersonResponse> {

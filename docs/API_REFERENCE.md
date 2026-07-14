@@ -154,11 +154,16 @@ Patients are stored in the **`PERSONS`** table (Prisma model `Persons`). API res
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/patients` | Search/list persons (`q`, `page`, `limit`) | JWT (`patient:read` when RBAC wired) |
-| POST | `/patients` | Register person | JWT (`patient:create` when RBAC wired) |
-| GET | `/patients/:id` | Get person by `PERSON_ID` | JWT (`patient:read` when RBAC wired) |
+| GET | `/patients` | Search/list persons (`q`, `page`, `limit`) | `patient:read` |
+| POST | `/patients` | Register person + open card (payment Pending) | `patient:create` |
+| GET | `/patients/:id` | Get person by `PERSON_ID` | `patient:read` |
 | PATCH | `/patients/:id` | Update person | `patient:update` (planned) |
 | GET | `/patients/:id/history` | Visit history | `patient:read` (planned) |
+
+RBAC is enforced via `PermissionsGuard` + `@RequirePermissions()`. The role→permission
+map lives in `apps/api/src/common/constants/permissions.constants.ts`. The standard
+front-desk **RECORDS** role has: `patient:create/read/update`, `card:create/read`,
+`triage:create/read`, `audit:read`, `user:read`.
 
 #### `POST /api/patients` — Register person
 
@@ -222,7 +227,98 @@ Patients are stored in the **`PERSONS`** table (Prisma model `Persons`). API res
 **Error cases:**
 - `400` — validation failure (missing required fields)
 - `401` — missing/invalid JWT
+- `403` — missing `patient:create` permission
 - `409` — duplicate `identityNo` or same name + phone
+
+The response also contains `card` — the registration card opened for the person
+(`{ cardId, cardNo, paymentStatus: "Pending", cardFee, regFee, consultFee, totalAmount }`).
+Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
+
+---
+
+### Registration Cards (`/cards`)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/cards` | List cards (`paymentStatus`, `personId`, `q`, `page`, `limit`) | `card:read` |
+| GET | `/cards/person/:personId` | Latest card + `paymentCleared` gate for a person | `card:read` |
+
+#### `GET /api/cards/person/:personId`
+
+**Purpose:** Records workflow gate — check whether the patient's card payment is cleared.
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "card": {
+      "cardId": 7,
+      "personId": 152,
+      "cardNo": "FNPH/ARO/2026/000152",
+      "paymentStatus": "Pending",
+      "cardFee": 500,
+      "regFee": 2000,
+      "consultFee": 5000,
+      "totalAmount": 7500,
+      "status": "Pending Payment"
+    },
+    "paymentCleared": false
+  }
+}
+```
+
+**Error cases:** `401`, `403` missing `card:read`.
+
+---
+
+### Cashier Card Payments (`/cashier/payments`)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/cashier/payments/cards` | Pending registration-card payments (`paymentStatus`, `q`) | `card:read` |
+| POST | `/cashier/payments/cards/:cardId/confirm` | Confirm card payment | `card:confirm-payment` |
+
+#### `POST /api/cashier/payments/cards/:cardId/confirm`
+
+**Purpose:** Cashier confirms the new-patient card payment; unblocks the Records workflow (triage/consultation).
+
+**Request body:**
+
+```json
+{ "paymentChannel": "Cash", "paymentRef": "RCPT-00123" }
+```
+
+`paymentChannel` ∈ `Cash | POS Card | Bank Transfer | Online Card | Wallet`.
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "cardId": 7,
+    "paymentStatus": "Paid",
+    "status": "Active",
+    "paymentChannel": "Cash",
+    "paidAt": "2026-07-14T11:20:00.000Z",
+    "confirmedBy": "cashier@fnpharo.gov.ng"
+  }
+}
+```
+
+**Error cases:** `400` validation, `401`, `403` missing `card:confirm-payment`, `404` card not found, `409` already Paid/Waived. Writes audit `card:payment-confirm`.
+
+---
+
+### Users identity search (`/users`)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/users` | Search staff users (`q`, `page`, `limit`) — no credentials exposed | `user:read` |
+
+**Response example:** `{ data: { items: [{ userId, userName, email, firstName, lastName, role, isAdmin, locked }], meta } }`
+
+**Error cases:** `401`, `403` missing `user:read`.
 
 ---
 
@@ -260,7 +356,7 @@ Triage stores **queue + vitals** and a **`personId`** only. Demographics / NOK a
 
 **Response:** `{ data: { triageId, queueNo, personId, person: { hospitalNo, firstName, ... }, ... } }`
 
-**Errors:** `400`, `401`, `404` person not found. Writes audit `triage:create`.
+**Errors:** `400`, `401`, `404` person not found, `409` card payment still Pending (cashier must confirm first). Writes audit `triage:create`.
 
 ---
 

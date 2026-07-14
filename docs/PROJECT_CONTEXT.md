@@ -4,7 +4,11 @@
 
 HMS (Hospital Management System) is an enterprise backend API for managing hospital operations: patient records, clinical workflows, admissions, psychiatry, allied health, diagnostics, pharmacy, billing, finance, and real-time operational visibility.
 
-This repository (`HMS-BACKEND`) is the **API layer only**. The frontend lives in a separate project and consumes this API.
+This repository (`HMS-BACKEND`) is the **API layer only**. The frontend (`fnph-aro`) lives in a separate project and consumes this API.
+
+**Deployed API (fnph-aro `VITE_API_BASE_URL`):** `https://hms-backend-1-blmv.onrender.com`
+
+**Test staff logins** are seeded via `npm run prisma:seed` — every role email (`superadmin@fnpharo.gov.ng`, `doctor@fnpharo.gov.ng`, …) uses password `password`.
 
 ## Design Principle: Modules by Hospital Function
 

@@ -8,6 +8,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `PATIENT_CARDS` table: registration card per new patient with fees (reg/consult/card), `PAYMENT_STATUS` starting `Pending`
+- Registration (`POST /api/patients`) now opens a card automatically and returns it in the response (`card:create` audit)
+- RBAC: `permissions.constants.ts` role→permission map (standard front-desk RECORDS role: patient create/read/update, card create/read, triage create/read, audit read, user read), `@RequirePermissions()` decorator + `PermissionsGuard`
+- `GET /api/cards` and `GET /api/cards/person/:personId` — card list / workflow payment gate (permission `card:read`)
+- `GET /api/cashier/payments/cards` — cashier queue of pending registration-card payments
+- `POST /api/cashier/payments/cards/:cardId/confirm` — cashier confirms payment (permission `card:confirm-payment`, writes `card:payment-confirm` audit)
+- Triage creation blocked with 409 while the person's latest card payment is `Pending` (server-side workflow gate)
+- `GET /api/users` — staff identity search for the Records "hms/identity" flow (permission `user:read`, never exposes credentials)
+- `scripts/drop-extra-tables.mjs` (`npm run db:drop-extra[:confirm]`) — drops Postgres tables not in the HMS-BACKEND schema (dry-run by default); executed against Azure DB, removed 124 legacy tables
+
+- Prisma seed: all FNPH Aro staff test accounts (`*@fnpharo.gov.ng`, password `password`) for every role
+- CORS config via `FRONTEND_URL` / `CORS_ORIGINS` (still allows any origin when unset)
 - Slimmed Prisma schema to active core: PERSONS, USERS, ROLES, REFRESH_TOKENS, AUDITS, TRIAGE
 - `TRIAGE` table for post-registration queue + vitals (`PERSON_ID` FK only — no duplicated demographics)
 - `AUDITS.AUDIT_TYPE` (+ ENTITY / ENTITY_ID) for frontend filtering

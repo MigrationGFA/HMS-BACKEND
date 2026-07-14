@@ -1,0 +1,39 @@
+// Patient registration cards + registration charges.
+// Created automatically when a person is registered; payment starts as
+// Pending and must be confirmed by a cashier before the patient proceeds.
+
+model PatientCards {
+  CARD_ID         Int       @id @default(autoincrement())
+  PERSON_ID       Int
+  CARD_NO         String    @db.VarChar(50)
+  CARD_TYPE       String    @default("Standard") @db.VarChar(50)
+  /// Pending | Paid | Waived
+  PAYMENT_STATUS  String    @default("Pending") @db.VarChar(20)
+  CARD_FEE        Decimal   @default(0) @db.Decimal(14, 2)
+  REG_FEE         Decimal   @default(0) @db.Decimal(14, 2)
+  CONSULT_FEE     Decimal   @default(0) @db.Decimal(14, 2)
+  TOTAL_AMOUNT    Decimal   @default(0) @db.Decimal(14, 2)
+  /// Cash | POS Card | Bank Transfer | Online Card | Wallet
+  PAYMENT_CHANNEL String?   @db.VarChar(50)
+  PAYMENT_REF     String?   @db.VarChar(100)
+  PAID_AT         DateTime?
+  CONFIRMED_BY_ID Int?
+  CONFIRMED_BY    String?   @db.VarChar(100)
+  /// Pending Payment | Active | Replaced | Lost | Deactivated
+  STATUS          String    @default("Pending Payment") @db.VarChar(50)
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime  @default(now())
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+
+  person      Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  confirmedBy Users?  @relation("CardConfirmedBy", fields: [CONFIRMED_BY_ID], references: [USER_ID])
+  createdBy   Users?  @relation("CardCreatedBy", fields: [CREATED_BY_ID], references: [USER_ID])
+
+  @@index([PERSON_ID])
+  @@index([PAYMENT_STATUS])
+  @@index([STATUS])
+  @@index([CREATED_DATE])
+  @@map("PATIENT_CARDS")
+}

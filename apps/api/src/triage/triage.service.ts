@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -32,6 +33,23 @@ export class TriageService {
     });
     if (!person || person.DISCONTINUE_FLAG === 'Y') {
       throw new NotFoundException('Person not found');
+    }
+
+    // Workflow gate: registration card payment must be confirmed by a
+    // cashier before Records can send the patient onwards.
+    const latestCard = await this.prisma.patientCards.findFirst({
+      where: { PERSON_ID: dto.personId },
+      orderBy: { CREATED_DATE: 'desc' },
+      select: { CARD_ID: true, CARD_NO: true, PAYMENT_STATUS: true },
+    });
+    if (latestCard?.PAYMENT_STATUS === 'Pending') {
+      throw new ConflictException({
+        message:
+          'Card payment is pending — the cashier must confirm payment before the patient can proceed',
+        cardId: latestCard.CARD_ID,
+        cardNo: latestCard.CARD_NO,
+        paymentStatus: latestCard.PAYMENT_STATUS,
+      });
     }
 
     const queueNo = await this.nextQueueNo();

@@ -2,9 +2,11 @@ import {
   IsDateString,
   IsEmail,
   IsIn,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -150,6 +152,22 @@ export class CreatePersonDto {
   @IsString()
   @MaxLength(50)
   cardNo?: string;
+
+  /** Registration charges (configurable per hospital; passed from the UI). */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  regFee?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  consultFee?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  cardFee?: number;
 
   /** Client idempotency key for safe retries after network failure. */
   @IsOptional()

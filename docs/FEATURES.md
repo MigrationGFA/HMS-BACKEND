@@ -12,7 +12,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Health endpoint `GET /api/health` | ✅ | `app.controller.ts` |
 | API prefix `/api` | ✅ | `main.ts` |
 | Role constants (27 roles) | ✅ | `common/constants/roles.constants.ts` |
-| Prisma role seed script | ✅ | `apps/api/prisma/seed.ts` |
+| Prisma role seed script | ✅ | `apps/api/prisma/seed.ts` — roles + 27 `@fnpharo.gov.ng` test accounts (password `password`) |
 | Future modules README | ✅ | `future-modules/README.md` |
 
 ## Foundation Modules (Scaffolded)
@@ -28,9 +28,11 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 
 | Sub-feature | Status |
 |-------------|--------|
-| JWT login / refresh | 📋 |
-| bcrypt password hashing | 📋 |
-| RBAC guards | 📋 |
+| JWT login / refresh | ✅ |
+| bcrypt password hashing | ✅ |
+| RBAC guards (`PermissionsGuard` + `@RequirePermissions`, role map in `permissions.constants.ts`) | ✅ |
+| Standard RECORDS front-desk role permission set | ✅ |
+| Staff identity search `GET /api/users?q=` (`user:read`) | ✅ |
 | Audit interceptor | 📋 |
 | Departments / branches config | 📋 |
 
@@ -45,8 +47,11 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 
 | Sub-feature | Status |
 |-------------|--------|
-| Patient registration & MRN (`POST /patients` → PERSONS) | 🚧 |
-| Person search (`GET /patients?q=`) | 🚧 |
+| Patient registration & MRN (`POST /patients` → PERSONS, optional email) | ✅ |
+| Registration card auto-opened (`PATIENT_CARDS`, payment Pending) | ✅ |
+| Card payment gate (`GET /cards/person/:id`; triage blocked with 409 while Pending) | ✅ |
+| Cashier confirm card payment (`POST /cashier/payments/cards/:id/confirm`) | ✅ |
+| Person search (`GET /patients?q=`) | ✅ |
 | Medical records management | 📋 |
 | Appointment booking | 📋 |
 | Walk-in queue | 📋 |

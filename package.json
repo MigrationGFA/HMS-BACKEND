@@ -25,7 +25,9 @@
     "prisma:push": "prisma db push",
     "prisma:validate": "prisma validate",
     "prisma:seed": "ts-node apps/api/prisma/seed.ts",
-    "db:test": "node scripts/test-db-connection.mjs"
+    "db:test": "node scripts/test-db-connection.mjs",
+    "db:drop-extra": "node scripts/drop-extra-tables.mjs",
+    "db:drop-extra:confirm": "node scripts/drop-extra-tables.mjs --yes"
   },
   "dependencies": {
     "@golevelup/nestjs-rabbitmq": "^9.0.2",

@@ -9,8 +9,9 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   app.use(helmet());
+  const corsOrigins = configService.get<string[] | true>('app.corsOrigins', true);
   app.enableCors({
-    origin: true,
+    origin: corsOrigins,
     credentials: true,
   });
   app.setGlobalPrefix(configService.get<string>('app.apiPrefix', 'api'));
