@@ -9,6 +9,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /**
  * Registers a patient as a row in PERSONS (canonical patient entity).
@@ -155,16 +156,19 @@ export class CreatePersonDto {
 
   /** Registration charges (configurable per hospital; passed from the UI). */
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   regFee?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   consultFee?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   cardFee?: number;

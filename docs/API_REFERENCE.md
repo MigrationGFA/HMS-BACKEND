@@ -244,6 +244,28 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 | GET | `/cards/person/:personId` | Latest card + `paymentCleared` gate for a person | `card:read` |
 | GET | `/cards/:cardId` | One card + `paymentCleared` (continue-from-payment check) | `card:read` |
 
+#### `GET /api/cards/:cardId`
+
+**Purpose:** Check whether a specific registration card has been paid so Records can continue.
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "card": {
+      "cardId": 7,
+      "paymentStatus": "Pending",
+      "totalAmount": 7500
+    },
+    "paymentCleared": false
+  }
+}
+```
+
+**Error cases:** `401`, `403`, `404` card not found.
+| GET | `/cards/:cardId` | One card + `paymentCleared` (continue-from-payment check) | `card:read` |
+
 #### `GET /api/cards/person/:personId`
 
 **Purpose:** Records workflow gate — check whether the patient's card payment is cleared.
@@ -270,6 +292,66 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 ```
 
 **Error cases:** `401`, `403` missing `card:read`.
+
+---
+
+### Patient Entry / Records (`/records`)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/records/dashboard-stats` | Live summary cards for Patient Entry Engine | `patient:read` |
+| POST | `/records/registrations` | Create PERSONS + pending PATIENT_CARDS after Next of Kin | `patient:create` |
+| GET | `/records/registrations` | Registration queue (`paymentStatus`, `q`, `page`, `limit`) | `card:read` |
+| GET | `/records/registrations/:personId` | Load person + card to continue registration | `patient:read` |
+| GET | `/records/cards/:cardId/payment-status` | Check if a card has been paid | `card:read` |
+| GET | `/records/persons/:personId/payment-status` | Check latest card payment for a person | `card:read` |
+| PATCH | `/records/registrations/:personId/complete` | Complete registration after payment | `patient:update` |
+
+#### `GET /api/records/dashboard-stats`
+
+**Purpose:** Power the 8 live statistic cards on Patient Entry Engine (`/hms/identity`).
+
+**Query:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `timezoneOffsetMinutes` | number | `60` (WAT) | Client offset from UTC for “today” boundary |
+
+**Required permission:** `patient:read`
+
+**Request body:** none
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "asOf": "2026-07-14T13:00:00.000Z",
+    "timezoneOffsetMinutes": 60,
+    "totalToday": 42,
+    "newToday": 12,
+    "returningToday": 30,
+    "walkInToday": 10,
+    "emergencyToday": 2,
+    "pendingRegistration": 5,
+    "awaitingTriage": 8,
+    "awaitingConsultation": 11
+  }
+}
+```
+
+| Field | Source |
+|-------|--------|
+| `newToday` | `PERSONS` created today |
+| `returningToday` | `TRIAGE` arrivals today with patient type Returning |
+| `totalToday` | `newToday + returningToday` |
+| `walkInToday` | New persons today with Walk-In `REG_TYPE` |
+| `emergencyToday` | New persons today with Emergency type |
+| `pendingRegistration` | `PATIENT_CARDS` with `PAYMENT_STATUS=Pending` |
+| `awaitingTriage` | `TRIAGE` status `Waiting` |
+| `awaitingConsultation` | `TRIAGE` status `Triage Completed` or `Sent to Consultation` |
+
+**Error cases:** `401`, `403` missing `patient:read`.
 
 ---
 

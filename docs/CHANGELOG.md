@@ -8,6 +8,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `GET /api/records/dashboard-stats` — live summary cards for Patient Entry Engine (Total/New/Returning/Walk-In/Emergency/Pending Reg/Awaiting Triage/Awaiting Consult)
+- Patient Entry Engine frontend wires those cards to `GET /api/records/dashboard-stats`
 - `PATCH /api/patients/:id` — update person after payment / finalize status to Active
 - `GET /api/cards/:cardId` — payment cleared check for a specific card
 - Early registration flow: create PERSONS + PATIENT_CARDS after Next of Kin (`STATUS=Pending Payment`); cashier payment sets person to `Incomplete`; Complete sets `Active`

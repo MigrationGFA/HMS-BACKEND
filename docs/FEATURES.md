@@ -49,6 +49,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 |-------------|--------|
 | Patient registration & MRN (`POST /patients` → PERSONS, optional email) | ✅ |
 | Registration card auto-opened (`PATIENT_CARDS`, payment Pending) | ✅ |
+| Patient Entry dashboard stats (`GET /records/dashboard-stats`) | ✅ |
+| Records registration queue + payment gate (`/api/records/*`) | ✅ |
 | Card payment gate (`GET /cards/person/:id`; triage blocked with 409 while Pending) | ✅ |
 | Cashier confirm card payment (`POST /cashier/payments/cards/:id/confirm`) | ✅ |
 | Person search (`GET /patients?q=`) | ✅ |
