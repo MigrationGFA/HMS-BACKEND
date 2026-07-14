@@ -155,9 +155,9 @@ Patients are stored in the **`PERSONS`** table (Prisma model `Persons`). API res
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
 | GET | `/patients` | Search/list persons (`q`, `page`, `limit`) | `patient:read` |
-| POST | `/patients` | Register person + open card (payment Pending) | `patient:create` |
+| POST | `/patients` | Early-register after Next of Kin + open card (payment Pending) | `patient:create` |
 | GET | `/patients/:id` | Get person by `PERSON_ID` | `patient:read` |
-| PATCH | `/patients/:id` | Update person | `patient:update` (planned) |
+| PATCH | `/patients/:id` | Update person / finalize (`status: Active`) after payment | `patient:update` |
 | GET | `/patients/:id/history` | Visit history | `patient:read` (planned) |
 
 RBAC is enforced via `PermissionsGuard` + `@RequirePermissions()`. The role→permission
@@ -242,6 +242,7 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 |--------|------|-------------|------------|
 | GET | `/cards` | List cards (`paymentStatus`, `personId`, `q`, `page`, `limit`) | `card:read` |
 | GET | `/cards/person/:personId` | Latest card + `paymentCleared` gate for a person | `card:read` |
+| GET | `/cards/:cardId` | One card + `paymentCleared` (continue-from-payment check) | `card:read` |
 
 #### `GET /api/cards/person/:personId`
 

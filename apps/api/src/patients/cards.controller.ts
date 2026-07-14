@@ -20,7 +20,7 @@ export class CardsController {
   /**
    * Method: GET
    * URL: /api/cards?paymentStatus=&personId=&q=&page=&limit=
-   * Purpose: List registration cards (Records/Cashier view, filter by payment status)
+   * Purpose: List registration cards (Records continue-from-payment table + Cashier queue)
    * Required permission: card:read
    * Request body: none
    * Response example: { data: { items: [{ cardId, cardNo, paymentStatus, totalAmount, person }], meta } }
@@ -59,6 +59,23 @@ export class CardsController {
   async latestForPerson(@Param('personId', ParseIntPipe) personId: number) {
     const card = await this.cardsService.latestForPerson(personId);
     const paymentCleared = !card || card.paymentStatus !== 'Pending';
+    return { data: { card, paymentCleared } };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/cards/:cardId
+   * Purpose: Get one card and whether payment is cleared (continue-from-payment check)
+   * Required permission: card:read
+   * Request body: none
+   * Response example: { data: { card: {...}, paymentCleared: boolean } }
+   * Error cases: 401, 403, 404
+   */
+  @Get(':cardId')
+  @RequirePermissions(PERMISSIONS.CARD_READ)
+  async findOne(@Param('cardId', ParseIntPipe) cardId: number) {
+    const card = await this.cardsService.findById(cardId);
+    const paymentCleared = card.paymentStatus !== 'Pending';
     return { data: { card, paymentCleared } };
   }
 }

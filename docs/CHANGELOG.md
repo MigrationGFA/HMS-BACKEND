@@ -8,6 +8,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `PATCH /api/patients/:id` — update person after payment / finalize status to Active
+- `GET /api/cards/:cardId` — payment cleared check for a specific card
+- Early registration flow: create PERSONS + PATIENT_CARDS after Next of Kin (`STATUS=Pending Payment`); cashier payment sets person to `Incomplete`; Complete sets `Active`
+- Frontend Patient Entry: create record after step 3, Card Payment step shows pending, Registration Queue table to continue after Accounts pay
 - `PATIENT_CARDS` table: registration card per new patient with fees (reg/consult/card), `PAYMENT_STATUS` starting `Pending`
 - Registration (`POST /api/patients`) now opens a card automatically and returns it in the response (`card:create` audit)
 - RBAC: `permissions.constants.ts` role→permission map (standard front-desk RECORDS role: patient create/read/update, card create/read, triage create/read, audit read, user read), `@RequirePermissions()` decorator + `PermissionsGuard`

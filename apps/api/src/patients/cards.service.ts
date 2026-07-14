@@ -197,20 +197,35 @@ export class CardsService {
     }
 
     const actorLabel = actorLabelOf(actor);
-    const card = await this.prisma.patientCards.update({
-      where: { CARD_ID: cardId },
-      data: {
-        PAYMENT_STATUS: 'Paid',
-        STATUS: 'Active',
-        PAYMENT_CHANNEL: input.paymentChannel,
-        PAYMENT_REF: input.paymentRef?.trim() || null,
-        PAID_AT: new Date(),
-        CONFIRMED_BY_ID: actor?.id ?? null,
-        CONFIRMED_BY: actorLabel,
-        UPDATED_BY: actorLabel,
-        UPDATED_DATE: new Date(),
-      },
-      include: { person: { select: PERSON_SELECT } },
+    const card = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.patientCards.update({
+        where: { CARD_ID: cardId },
+        data: {
+          PAYMENT_STATUS: 'Paid',
+          STATUS: 'Active',
+          PAYMENT_CHANNEL: input.paymentChannel,
+          PAYMENT_REF: input.paymentRef?.trim() || null,
+          PAID_AT: new Date(),
+          CONFIRMED_BY_ID: actor?.id ?? null,
+          CONFIRMED_BY: actorLabel,
+          UPDATED_BY: actorLabel,
+          UPDATED_DATE: new Date(),
+        },
+        include: { person: { select: PERSON_SELECT } },
+      });
+
+      // Unlock Records to finish medical/review steps after payment.
+      await tx.persons.update({
+        where: { PERSON_ID: existing.PERSON_ID },
+        data: {
+          STATUS: 'Incomplete',
+          CARD_STATUS: 'Active',
+          UPDATED_BY: actorLabel,
+          UPDATED_DATE: new Date(),
+        },
+      });
+
+      return updated;
     });
 
     await this.audit.log({
@@ -225,11 +240,21 @@ export class CardsService {
       newValue: {
         paymentStatus: 'Paid',
         status: 'Active',
+        personStatus: 'Incomplete',
         paymentChannel: input.paymentChannel,
         paymentRef: input.paymentRef ?? null,
       },
     });
 
+    return this.toResponse(card);
+  }
+
+  async findById(cardId: number): Promise<CardResponse> {
+    const card = await this.prisma.patientCards.findUnique({
+      where: { CARD_ID: cardId },
+      include: { person: { select: PERSON_SELECT } },
+    });
+    if (!card) throw new NotFoundException('Card not found');
     return this.toResponse(card);
   }
 

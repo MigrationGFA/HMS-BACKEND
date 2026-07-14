@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -15,6 +16,7 @@ import { PERMISSIONS } from '../common/constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { CreatePersonDto } from './dto/create-person.dto';
+import { UpdatePersonDto } from './dto/update-person.dto';
 import { PatientsService } from './patients.service';
 
 @Controller('patients')
@@ -25,11 +27,11 @@ export class PatientsController {
   /**
    * Method: POST
    * URL: /api/patients
-   * Purpose: Register a new patient (PERSONS row) + open registration card (payment Pending)
-   * Required permission: patient:create (RECORDS, ADMIN, SUPER_ADMIN, CMD, IT)
+   * Purpose: Early-register a person after Next of Kin (creates PERSONS + PATIENT_CARDS with payment Pending)
+   * Required permission: patient:create
    * Request body: CreatePersonDto (email optional; regFee/consultFee/cardFee optional)
-   * Response example: { data: { personId, hospitalNo, ..., card: { cardId, paymentStatus: "Pending", totalAmount } } }
-   * Error cases: 400 validation, 401 unauthorized, 403 missing permission, 409 duplicate identity/phone+name
+   * Response example: { data: { personId, hospitalNo, status: "Pending Payment", card: { paymentStatus: "Pending", ... } } }
+   * Error cases: 400 validation, 401 unauthorized, 403 missing permission, 409 duplicate
    */
   @Post()
   @RequirePermissions(PERMISSIONS.PATIENT_CREATE)
@@ -78,6 +80,26 @@ export class PatientsController {
   @RequirePermissions(PERMISSIONS.PATIENT_READ)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const person = await this.patientsService.findById(id);
+    return { data: person };
+  }
+
+  /**
+   * Method: PATCH
+   * URL: /api/patients/:id
+   * Purpose: Update person after payment (medical / insurance / complete status → Active)
+   * Required permission: patient:update
+   * Request body: UpdatePersonDto (partial)
+   * Response example: { data: { personId, status: "Active", ... } }
+   * Error cases: 400 validation, 401, 403, 404
+   */
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.PATIENT_UPDATE)
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePersonDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const person = await this.patientsService.update(id, dto, user);
     return { data: person };
   }
 }

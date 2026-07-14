@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CardsService, type CardResponse } from './cards.service';
 import { CreatePersonDto } from './dto/create-person.dto';
+import { UpdatePersonDto } from './dto/update-person.dto';
 import type { AuthUser } from '../auth/types/auth-user.type';
 
 export type PersonResponse = {
@@ -129,7 +130,8 @@ export class PatientsService {
         REG_TYPE: dto.regType?.trim() || 'Walk-In',
         CARD_NO: dto.cardNo?.trim() || hospitalNo,
         CARD_STATUS: 'Pending Payment',
-        STATUS: 'Active',
+        // Awaiting cashier confirmation — Records finishes after payment.
+        STATUS: 'Pending Payment',
         DISCONTINUE_FLAG: 'N',
         DATE_OF_REGISTRATION: new Date(),
         CREATED_BY: actorLabel,
@@ -167,6 +169,117 @@ export class PatientsService {
     );
 
     return { ...this.toResponse(created), card };
+  }
+
+  async update(
+    personId: number,
+    dto: UpdatePersonDto,
+    actor?: AuthUser,
+  ): Promise<PersonResponse> {
+    const existing = await this.prisma.persons.findUnique({
+      where: { PERSON_ID: personId },
+    });
+    if (!existing || existing.DISCONTINUE_FLAG === 'Y') {
+      throw new NotFoundException('Person not found');
+    }
+
+    const actorLabel =
+      actor?.email ||
+      [actor?.firstName, actor?.lastName].filter(Boolean).join(' ') ||
+      'SYSTEM';
+
+    const updated = await this.prisma.persons.update({
+      where: { PERSON_ID: personId },
+      data: {
+        ...(dto.middleName !== undefined
+          ? { MIDDLE_NAME: dto.middleName.trim() || null }
+          : {}),
+        ...(dto.sex !== undefined ? { SEX: dto.sex } : {}),
+        ...(dto.dateOfBirth !== undefined
+          ? { DATE_OF_BIRTH: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null }
+          : {}),
+        ...(dto.maritalStatus !== undefined
+          ? { M_STATUS: dto.maritalStatus.trim() || null }
+          : {}),
+        ...(dto.religion !== undefined
+          ? { RELIGON: dto.religion.trim() || null }
+          : {}),
+        ...(dto.tribe !== undefined ? { TRIBE: dto.tribe.trim() || null } : {}),
+        ...(dto.ethnicGroup !== undefined
+          ? { ETHNIC_GROUP: dto.ethnicGroup.trim() || null }
+          : {}),
+        ...(dto.residentialAddress !== undefined
+          ? { RESIDENTIAL_ADDRESS: dto.residentialAddress.trim() || null }
+          : {}),
+        ...(dto.homeTown !== undefined
+          ? { HOME_TOWN: dto.homeTown.trim() || null }
+          : {}),
+        ...(dto.stateOfOrigin !== undefined
+          ? { STATE_OF_ORIGIN: dto.stateOfOrigin.trim() || null }
+          : {}),
+        ...(dto.nationality !== undefined
+          ? { NATIONALITY: dto.nationality.trim() || null }
+          : {}),
+        ...(dto.patientPhoneNo !== undefined
+          ? { PATIENT_PHONE_NO: dto.patientPhoneNo.trim() }
+          : {}),
+        ...(dto.email !== undefined
+          ? { E_MAIL: dto.email.trim() || null }
+          : {}),
+        ...(dto.occupation !== undefined
+          ? { OCCUPATION: dto.occupation.trim() || null }
+          : {}),
+        ...(dto.nameOfEmployer !== undefined
+          ? { NAME_OF_EMPLOYER: dto.nameOfEmployer.trim() || null }
+          : {}),
+        ...(dto.nameOfNextOfKin !== undefined
+          ? { NAME_OF_NEXT_OF_KIN: dto.nameOfNextOfKin.trim() || null }
+          : {}),
+        ...(dto.relationship !== undefined
+          ? { RELATIONSHIP: dto.relationship.trim() || null }
+          : {}),
+        ...(dto.addressOfNextOfKin !== undefined
+          ? { ADDRESS_OF_NEXT_OF_KIN: dto.addressOfNextOfKin.trim() || null }
+          : {}),
+        ...(dto.telephoneOfNextOfKin !== undefined
+          ? { TELEPHONE_OF_NEXT_OF_KIN: dto.telephoneOfNextOfKin.trim() || null }
+          : {}),
+        ...(dto.identityType !== undefined
+          ? { IDENTITY_TYPE: dto.identityType.trim() || null }
+          : {}),
+        ...(dto.identityNo !== undefined
+          ? { IDENTITY_NO: dto.identityNo.trim() || null }
+          : {}),
+        ...(dto.nhisNo !== undefined
+          ? { NHIS_NO: dto.nhisNo.trim() || null }
+          : {}),
+        ...(dto.bloodGroup !== undefined
+          ? { BLOOD_GROUP: dto.bloodGroup.trim() || null }
+          : {}),
+        ...(dto.patientType !== undefined
+          ? { PATIENT_TYPE: dto.patientType.trim() || null }
+          : {}),
+        ...(dto.regType !== undefined
+          ? { REG_TYPE: dto.regType.trim() || null }
+          : {}),
+        ...(dto.status !== undefined ? { STATUS: dto.status } : {}),
+        UPDATED_BY: actorLabel,
+        UPDATED_DATE: new Date(),
+      },
+    });
+
+    await this.audit.log({
+      type: 'person:update',
+      entity: 'persons',
+      entityId: updated.PERSON_ID,
+      personId: updated.PERSON_ID,
+      userId: actor?.id,
+      createdBy: actorLabel,
+      item: `Person ${updated.HOSPITAL_NO} updated`,
+      newValue: dto,
+    });
+
+    return this.toResponse(updated);
   }
 
   async findById(personId: number): Promise<PersonResponse> {
