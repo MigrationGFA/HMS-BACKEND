@@ -73,9 +73,10 @@ model Persons {
   UNIT                     String?   @db.VarChar(50)
   PRIMARY_CONSULTANT       String?   @db.VarChar(255)
 
-  users  Users[]
-  triage Triage[]
-  cards  PatientCards[]
+  users         Users[]
+  triage        Triage[]
+  cards         PatientCards[]
+  prescriptions Prescriptions[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])

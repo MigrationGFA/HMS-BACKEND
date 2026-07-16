@@ -1,0 +1,69 @@
+// Clinical prescriptions — doctor writes, pharmacy reads/dispenses.
+// Patient demographics live on PERSONS; drugs live on DRUGS.
+// Soft status transitions only — never hard-delete clinical rows.
+
+model Prescriptions {
+  PRESCRIPTION_ID   Int       @id @default(autoincrement())
+  RX_NO             String    @unique @db.VarChar(50)
+  PERSON_ID         Int
+  /// Draft | Sent | Dispensed | Partially Dispensed | Cancelled | Rejected
+  STATUS            String    @default("Draft") @db.VarChar(50)
+  /// Routine | Urgent | Stat
+  URGENCY           String    @default("Routine") @db.VarChar(50)
+  /// Unpaid | Paid | Waived | Emergency
+  PAYMENT_STATUS    String    @default("Unpaid") @db.VarChar(50)
+  DIAGNOSIS         String?   @db.VarChar(500)
+  ALLERGIES_NOTE    String?   @db.VarChar(500)
+  CLINIC            String?   @db.VarChar(100)
+  NOTES             String?   @db.Text
+  PHARMACY_NOTES    String?   @db.Text
+  SENT_AT           DateTime?
+  PRESCRIBED_BY_ID  Int?
+  PRESCRIBED_BY     String?   @db.VarChar(100)
+  CREATED_BY_ID     Int?
+  CREATED_BY        String?   @db.VarChar(100)
+  CREATED_DATE      DateTime?
+  UPDATED_BY_ID     Int?
+  UPDATED_BY        String?   @db.VarChar(100)
+  UPDATED_DATE      DateTime?
+
+  person Persons             @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  items  PrescriptionItems[]
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([PAYMENT_STATUS])
+  @@index([SENT_AT])
+  @@index([PRESCRIBED_BY_ID])
+  @@map("PRESCRIPTIONS")
+}
+
+model PrescriptionItems {
+  ITEM_ID         Int       @id @default(autoincrement())
+  PRESCRIPTION_ID Int
+  DRUG_ID         Int
+  /// Snapshot of catalog name at prescribe time (clinical immutability)
+  DRUG_NAME       String    @db.VarChar(255)
+  STRENGTH        String?   @db.VarChar(100)
+  FORM            String?   @db.VarChar(50)
+  ROUTE           String?   @db.VarChar(50)
+  DOSE            String    @db.VarChar(100)
+  FREQUENCY       String    @db.VarChar(50)
+  DURATION        String?   @db.VarChar(100)
+  QUANTITY        Int
+  QTY_DISPENSED   Int       @default(0)
+  /// Internal Pharmacy | External Purchase | Patient Own Drug
+  SOURCE          String    @default("Internal Pharmacy") @db.VarChar(50)
+  INSTRUCTIONS    String?   @db.Text
+  INDICATION      String?   @db.VarChar(500)
+  /// Active | Stopped | Cancelled
+  LINE_STATUS     String    @default("Active") @db.VarChar(50)
+  UNIT_PRICE      Decimal   @default(0) @db.Decimal(14, 2)
+
+  prescription Prescriptions @relation(fields: [PRESCRIPTION_ID], references: [PRESCRIPTION_ID])
+  drug         Drugs         @relation(fields: [DRUG_ID], references: [DRUG_ID])
+
+  @@index([PRESCRIPTION_ID])
+  @@index([DRUG_ID])
+  @@map("PRESCRIPTION_ITEMS")
+}

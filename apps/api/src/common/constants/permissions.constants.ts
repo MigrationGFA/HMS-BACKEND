@@ -21,6 +21,11 @@ export const PERMISSIONS = {
   TRIAGE_READ: 'triage:read',
   TRIAGE_UPDATE: 'triage:update',
 
+  // Clinical prescriptions
+  PRESCRIPTION_CREATE: 'prescription:create',
+  PRESCRIPTION_READ: 'prescription:read',
+  PRESCRIPTION_UPDATE: 'prescription:update',
+
   // Pharmacy (suppliers, drugs, procurement, inventory)
   PHARMACY_READ: 'pharmacy:read',
   SUPPLIER_CREATE: 'supplier:create',
@@ -79,6 +84,8 @@ const CASHIER_PERMISSIONS: PermissionName[] = [
 const PHARMACY_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_READ,
   PERMISSIONS.PHARMACY_READ,
+  PERMISSIONS.PRESCRIPTION_READ,
+  PERMISSIONS.PRESCRIPTION_UPDATE,
   PERMISSIONS.SUPPLIER_CREATE,
   PERMISSIONS.SUPPLIER_UPDATE,
   PERMISSIONS.DRUG_CREATE,
@@ -93,6 +100,9 @@ const PHARMACY_PERMISSIONS: PermissionName[] = [
 const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_READ,
   PERMISSIONS.TRIAGE_READ,
+  PERMISSIONS.PRESCRIPTION_READ,
+  /** Doctors need catalog lookup while building prescriptions. */
+  PERMISSIONS.PHARMACY_READ,
 ];
 
 const CLINICAL_PERMISSIONS: PermissionName[] = [
@@ -100,6 +110,8 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_UPDATE,
   PERMISSIONS.TRIAGE_CREATE,
   PERMISSIONS.TRIAGE_UPDATE,
+  PERMISSIONS.PRESCRIPTION_CREATE,
+  PERMISSIONS.PRESCRIPTION_UPDATE,
 ];
 
 /**

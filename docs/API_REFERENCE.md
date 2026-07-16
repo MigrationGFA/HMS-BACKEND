@@ -559,6 +559,59 @@ Drugs a supplier supplies are referenced by **drug ID** (from the drug catalog),
 
 ---
 
+### Clinical Prescriptions (`/prescriptions`)
+
+Doctor creates/sends prescriptions; pharmacy lists inbound (`status=Sent`). Drugs must exist in the catalog (`DRUGS`). Patient is referenced by `PERSON_ID` only.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| POST | `/prescriptions` | Create prescription (`send: true` → pharmacy queue) | `prescription:create` |
+| GET | `/prescriptions` | List (`q`, `status`, `personId`, `page`, `limit`) | `prescription:read` |
+| GET | `/prescriptions/:id` | Detail with items + person summary | `prescription:read` |
+| PATCH | `/prescriptions/:id` | Update status / payment / pharmacy notes | `prescription:update` |
+
+#### `POST /api/prescriptions`
+
+**Request body:**
+
+```json
+{
+  "personId": 12,
+  "send": true,
+  "urgency": "Routine",
+  "paymentStatus": "Unpaid",
+  "diagnosis": "Moderate Depressive Episode (F32.1)",
+  "allergiesNote": "Penicillin",
+  "clinic": "OPC",
+  "items": [
+    {
+      "drugId": 3,
+      "strength": "500mg",
+      "form": "Tablet",
+      "route": "PO",
+      "dose": "500mg",
+      "frequency": "OD",
+      "duration": "28 days",
+      "quantity": 28,
+      "source": "Internal Pharmacy",
+      "indication": "Depression"
+    }
+  ]
+}
+```
+
+**Response 201:** `{ data: { prescriptionId, rxNo: "RX-2026-0001", status: "Sent", items: [...], person: {...}, total } }`
+
+**Errors:** `400` validation / unknown drug, `401`, `403` missing `prescription:create`, `404` person not found. Audit: `prescription:send` (or `prescription:create` when `send: false`).
+
+#### `GET /api/prescriptions`
+
+**Query:** `status=Sent` (pharmacy inbound), `personId`, `q`, `page`, `limit`.
+
+**Response:** `{ data: { items: [...], meta: { page, limit, total } } }`
+
+---
+
 ### Pharmacy Drug Catalog (`/pharmacy/drugs`)
 
 Drugs are catalog entries; quantities and expiry live in **batches** created by stock receipts. `stock` is computed as the sum of available batch quantities, and `earliestExpiry` / `stockStatus` (`Active` / `Low` / `Out of Stock` / `Expired`) are derived per drug.
