@@ -78,6 +78,26 @@ Visit completes
 
 ---
 
+## 4b. Nursing Patient Queues (OPD)
+
+Daily nurse workflow linked to Records triage and card payment.
+
+```
+Records creates triage (after registration + payment rules)
+  → Nurse opens /dashboard/nurse/queues
+  → GET /nursing/patient-queues (+ /stats for overview cards)
+  → Sees reason for visit (clinic / type / notes) and payment status
+  → PATCH /nursing/patient-queues/:id/start → In Triage
+  → PATCH /nursing/patient-queues/:id/vitals (allowed even if payment Pending)
+  → PATCH /nursing/patient-queues/:id/send-to-doctor → Sent to Consultation
+       (409 if latest card still Pending — cashier must confirm first)
+```
+
+**Modules:** `NursingModule` (facade), `TriageModule`, `PatientsModule`/`CardsService`, `AuditModule`  
+**Frontend:** `fnph-aro` Patient Queues · tracked in [NURSING_MODULE.md](./NURSING_MODULE.md)
+
+---
+
 ## 5. Doctor Consultation
 
 ```

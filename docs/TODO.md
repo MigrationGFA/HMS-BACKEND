@@ -23,9 +23,10 @@ Active task list for HMS Backend. Update as work progresses.
 
 ## Priority: Low
 
-- [ ] **ClinicalModule** — encounters, vitals, diagnoses
-- [ ] **LabModule** — orders, results, RabbitMQ consumer
-- [ ] **PharmacyModule** — inventory, dispensing
+- [ ] **ClinicalModule** — full encounters/diagnoses (prescriptions bridge ✅ → nursing-ops)
+- [x] **NursingModule (Phase 10–12)** — MAR/orders/samples, ICU/shifts, reports — [NURSING_MODULE.md](./NURSING_MODULE.md)
+- [ ] **LabModule** — dedicated lab domain (requests/samples bridge ✅ → nursing-ops)
+- [ ] **PharmacyModule** — inventory + full dispensing (MAR dispense bridge ✅)
 - [ ] **BillingModule** — invoices, payments
 - [ ] **NotificationsModule** — SMS and email RabbitMQ consumers
 - [ ] **ReportsModule** — report generation worker
@@ -48,6 +49,10 @@ Active task list for HMS Backend. Update as work progresses.
 - [x] Root README
 - [x] Documentation (`docs/` directory)
 - [x] Cursor rules (`.cursor/rules/`)
+- [x] **Nursing Patient Queues** — `/api/nursing/patient-queues*` + fnph-aro `/dashboard/nurse/queues`
+- [x] **Nursing Admissions + care docs (Phases 7–9)** — `/api/admissions*`, nursing notes/vitals/care-plans/incidents/forms/timeline/alerts
+- [x] **AdmissionsModule APIs** — wards/beds/admit/transfer/discharge (`/api/admissions*`)
+- [x] **Nursing Phase 9 care APIs** — notes, vitals, care-plans, observations, incidents, forms, timeline, alerts
 
 ## Notes
 

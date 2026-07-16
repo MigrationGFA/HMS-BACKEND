@@ -16,6 +16,7 @@ Central documentation for the Hospital Management System (HMS) backend API.
 | [CHANGELOG.md](./CHANGELOG.md) | Version history and notable changes |
 | [DECISIONS.md](./DECISIONS.md) | Architecture and technology decisions (ADR log) |
 | [TODO.md](./TODO.md) | Active tasks and backlog |
+| [NURSING_MODULE.md](./NURSING_MODULE.md) | Nursing Patient Queues tracker — phases and checklist |
 
 ## Project Status
 

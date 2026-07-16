@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
+import { AuditModule } from '../audit/audit.module';
 import { AdmissionsController } from './admissions.controller';
 import { WardsController } from './wards.controller';
 import { BedsController } from './beds.controller';
 import { AdmissionsService } from './admissions.service';
 
 @Module({
-  imports: [],
+  imports: [AuditModule],
   controllers: [AdmissionsController, WardsController, BedsController],
   providers: [AdmissionsService],
   exports: [AdmissionsService],

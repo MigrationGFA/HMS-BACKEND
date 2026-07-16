@@ -443,6 +443,118 @@ Triage stores **queue + vitals** and a **`personId`** only. Demographics / NOK a
 
 ---
 
+### Nursing (`/nursing`) — Patient Queues
+
+Nurse-facing facade over **Triage** + latest **PATIENT_CARDS** payment status. See [NURSING_MODULE.md](./NURSING_MODULE.md).
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/nursing/patient-queues` | Daily OPD queue (`status`, `clinic`, `priority`, `q`, `paymentStatus`, `date`, `timezoneOffsetMinutes`) | `triage:read` |
+| GET | `/nursing/patient-queues/stats` | Overview counts for SummaryCards | `triage:read` |
+| GET | `/nursing/patient-queues/:triageId` | Detail + person + payment | `triage:read` |
+| PATCH | `/nursing/patient-queues/:triageId/start` | Status → `In Triage` | `triage:update` |
+| PATCH | `/nursing/patient-queues/:triageId/vitals` | Record/update vitals (allowed while payment Pending) | `triage:update` |
+| PATCH | `/nursing/patient-queues/:triageId/send-to-doctor` | Status → `Sent to Consultation` | `triage:update` |
+
+**List response item extras:** `paymentStatus`, `cardId`, `cardNo`, `totalAmount`, `paymentCleared`, `hasVitals`, `reasonForVisit`.
+
+**Send-to-doctor errors:** `409` when latest card `PAYMENT_STATUS` is `Pending`.
+
+**Audit:** `nursing:start`, `nursing:vitals`, `nursing:send-to-doctor`.
+
+**Frontend:** `fnph-aro` `/dashboard/nurse/queues` via `src/lib/api/nursing.ts`.
+
+---
+
+### Admissions (`/admissions`)
+
+Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`.
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/admissions/wards` | List wards with bed counts | `admission:read` |
+| POST | `/admissions/wards` | Create ward (optional `bedCount`) | `admission:create` |
+| GET | `/admissions/beds` | List beds (`wardId`, `status`) | `admission:read` |
+| GET | `/admissions` | List admissions (`status`, `wardId`, `q`, `page`, `limit`) | `admission:read` |
+| GET | `/admissions/stats` | `active`, `availableBeds`, `dischargeOrdered`, `constantSupervision` | `admission:read` |
+| GET | `/admissions/:id` | Admission detail + person | `admission:read` |
+| POST | `/admissions` | Admit person to bed (occupies bed) | `admission:create` |
+| PATCH | `/admissions/:id/transfer` | `{ bedId }` — free old bed (`CLEANING`), occupy new | `admission:update` |
+| PATCH | `/admissions/:id/order-discharge` | `{ reason? }` → `DISCHARGE_ORDERED` | `admission:update` |
+| PATCH | `/admissions/:id/complete-discharge` | → `DISCHARGED`, bed `CLEANING` | `admission:update` |
+
+**Audit:** `admission:create`, `admission:transfer`, `admission:order-discharge`, `admission:discharge`.
+
+---
+
+### Nursing (`/nursing`) — Care documentation (Phase 9)
+
+Ward clinical docs on Prisma nursing-care models. Patient-queues routes unchanged.
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/nursing/notes` | Notes (`personId`, `admissionId`) | `nursing-note:read` |
+| POST | `/nursing/notes` | Create note | `nursing-note:create` |
+| GET | `/nursing/vitals` | Vitals history (`personId`, `admissionId`, `abnormal`) | `nursing-vital:read` |
+| POST | `/nursing/vitals` | Record vitals (abnormal flags for BP/temp/SpO₂/pulse/resp/pain) | `nursing-vital:create` |
+| GET | `/nursing/care-plans` | Care plans (`personId`, `admissionId`, `status`) | `nursing-care-plan:read` |
+| POST | `/nursing/care-plans` | Create care plan | `nursing-care-plan:create` |
+| PATCH | `/nursing/care-plans/:id` | Update care plan / status | `nursing-care-plan:update` |
+| GET | `/nursing/observations` | Observation charts | `nursing-observation:read` |
+| POST | `/nursing/observations` | `{ personId, chart, fields, … }` | `nursing-observation:create` |
+| GET | `/nursing/incidents` | Incidents (`status`, `personId`) | `nursing-incident:read` |
+| POST | `/nursing/incidents` | Report incident | `nursing-incident:create` |
+| PATCH | `/nursing/incidents/:id/review` | Mark `REVIEWED` | `nursing-incident:update` |
+| GET | `/nursing/forms/templates` | Active form templates | `nursing-form:read` |
+| POST | `/nursing/forms/templates` | Bootstrap template | `nursing-form:create` |
+| GET | `/nursing/forms/instances` | Form instances (`personId`) | `nursing-form:read` |
+| POST | `/nursing/forms/instances` | Submit form instance | `nursing-form:create` |
+| GET | `/nursing/timeline` | Merged recent docs for `personId` | `nursing-note:read` |
+| GET | `/nursing/alerts` | Abnormal vitals (48h), open High/Critical incidents, discharge-ordered count | `nursing-vital:read` |
+
+---
+
+### Nursing (`/nursing`) — Ops (Phases 10–12)
+
+Orders, tasks, MAR, samples, shifts, handover, ICU, messaging, reports, analytics. Prisma: `nursing-ops.prisma`. Frontend: `src/lib/api/nursing-ops.ts`.
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET/POST | `/nursing/orders` | List / create lab\|drug\|imaging orders | `nursing-order:read\|create` |
+| PATCH | `/nursing/orders/:id/acknowledge` | Ack + create nursing task | `nursing-order:update` |
+| GET/POST | `/nursing/tasks` | List / create tasks | `nursing-task:read\|create` |
+| PATCH | `/nursing/tasks/:id` | Update status / assignee | `nursing-task:update` |
+| GET/POST | `/nursing/mar` | List / create MAR | `nursing-mar:read\|create` |
+| POST | `/nursing/mar/external` | External med → MAR | `nursing-mar:create` |
+| POST | `/nursing/mar/:id/{administer,refuse,miss,hold,dispense}` | MAR actions | `nursing-mar:update` |
+| GET | `/nursing/samples` | Lab orders for collection | `nursing-sample:read` |
+| POST | `/nursing/samples/:id/collect` | Collect sample | `nursing-sample:update` |
+| GET | `/nursing/shifts`, `/nursing/shifts/current` | Shift list / active | `nursing-shift:read` |
+| POST | `/nursing/shifts/start` | Clock in | `nursing-shift:create` |
+| PATCH | `/nursing/shifts/:id/end` | Clock out | `nursing-shift:update` |
+| GET/POST | `/nursing/handovers` | List / submit handover | `nursing-handover:read\|create` |
+| PATCH | `/nursing/handovers/:id/acknowledge` | Ack handover | `nursing-handover:update` |
+| GET | `/nursing/icu/board` | ICU admissions board | `nursing-icu:read` |
+| GET/POST | `/nursing/icu/notes`, `/nursing/icu/infusions` | ICU notes / infusions | `nursing-icu:read\|create` |
+| GET/POST | `/nursing/messages` | Channel messages | `nursing-comms:read\|create` |
+| PATCH | `/nursing/messages/:id/read` | Mark read | `nursing-comms:update` |
+| GET | `/nursing/reports` | Report snapshots | `nursing-report:read` |
+| POST | `/nursing/reports/generate` | Aggregate + store snapshot | `nursing-report:create` |
+| GET | `/nursing/analytics/summary` | Ward nursing KPIs | `nursing-analytics:read` |
+
+### Bridge routes (interim — ADR-012)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET/POST | `/prescriptions` | Drug orders → nursing MAR | `nursing-order:read\|create` |
+| GET/POST | `/laboratory/requests` | Lab orders → nursing orders | `nursing-order:read\|create` |
+| GET | `/laboratory/samples` | Same as nursing samples | `nursing-sample:read` |
+| POST | `/laboratory/samples/:id/collect` | Collect via lab facade | `nursing-sample:update` |
+| GET | `/pharmacy/dispensing` | Pending MAR | `nursing-mar:read` |
+| POST | `/pharmacy/dispensing/:marId/dispense` | Mark pharmacy dispensed | `nursing-mar:update` |
+
+---
+
 ### Audit (`/audit`) — Admin
 
 | Method | Path | Description | Permission |

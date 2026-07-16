@@ -316,6 +316,175 @@ async function main() {
   console.log(
     `Seeded ${TEST_ACCOUNTS.length} staff test accounts (password: ${TEST_PASSWORD}).`,
   );
+
+  await seedWardsAndBeds();
+  await seedNursingOpsDemo();
+}
+
+async function seedWardsAndBeds() {
+  const now = new Date();
+
+  const wards: Array<{
+    code: string;
+    name: string;
+    wardType: string;
+    beds: string[];
+  }> = [
+    {
+      code: 'W1C',
+      name: 'Ward 1C',
+      wardType: 'Psychiatric',
+      beds: ['01', '02', '03', '04'],
+    },
+    {
+      code: 'ICU',
+      name: 'ICU',
+      wardType: 'ICU',
+      beds: ['01', '02', '03'],
+    },
+  ];
+
+  for (const w of wards) {
+    let ward = await prisma.wards.findUnique({ where: { CODE: w.code } });
+    if (!ward) {
+      ward = await prisma.wards.create({
+        data: {
+          CODE: w.code,
+          NAME: w.name,
+          WARD_TYPE: w.wardType,
+          STATUS: 'Active',
+          CREATED_BY: 'SYSTEM',
+          CREATED_DATE: now,
+        },
+      });
+      console.log(`Created ward: ${w.name} (${w.code})`);
+    }
+
+    for (const label of w.beds) {
+      const existing = await prisma.beds.findFirst({
+        where: { WARD_ID: ward.WARD_ID, LABEL: label },
+      });
+      if (!existing) {
+        await prisma.beds.create({
+          data: {
+            WARD_ID: ward.WARD_ID,
+            LABEL: label,
+            STATUS: 'AVAILABLE',
+            CREATED_BY: 'SYSTEM',
+            CREATED_DATE: now,
+          },
+        });
+      }
+    }
+  }
+
+  console.log('Seeded wards/beds (Ward 1C, ICU) if missing.');
+}
+
+/** Demo orders / MAR / tasks for nursing Phases 10–12 smoke tests. */
+async function seedNursingOpsDemo() {
+  const existing = await prisma.nursingOrders.count();
+  if (existing > 0) {
+    console.log('Nursing ops demo skipped (orders already present).');
+    return;
+  }
+
+  const person = await prisma.persons.findFirst({
+    orderBy: { PERSON_ID: 'asc' },
+  });
+  if (!person) {
+    console.log('Nursing ops demo skipped (no persons).');
+    return;
+  }
+
+  const admission = await prisma.admissions.findFirst({
+    where: {
+      PERSON_ID: person.PERSON_ID,
+      STATUS: { in: ['ACTIVE', 'Active', 'Admitted'] },
+    },
+    orderBy: { ADMISSION_ID: 'desc' },
+  });
+
+  const now = new Date();
+  const lab = await prisma.nursingOrders.create({
+    data: {
+      PERSON_ID: person.PERSON_ID,
+      ADMISSION_ID: admission?.ADMISSION_ID ?? null,
+      KIND: 'lab',
+      ITEMS_JSON: JSON.stringify([
+        { code: 'FBC', name: 'Full Blood Count', price: 2500 },
+        { code: 'EUCr', name: 'E/U/Cr', price: 3000 },
+      ]),
+      STATUS: 'ORDERED',
+      ORDERED_BY: 'Dr. Seed',
+      PAYMENT_STATUS: 'PAID',
+      LAB_STATUS: 'ORDERED',
+      CREATED_BY_ID: null,
+      CREATED_DATE: now,
+    },
+  });
+
+  const drug = await prisma.nursingOrders.create({
+    data: {
+      PERSON_ID: person.PERSON_ID,
+      ADMISSION_ID: admission?.ADMISSION_ID ?? null,
+      KIND: 'drug',
+      ITEMS_JSON: JSON.stringify([
+        { code: 'SER50', name: 'Sertraline 50mg', price: 500 },
+      ]),
+      STATUS: 'ORDERED',
+      ORDERED_BY: 'Dr. Seed',
+      PAYMENT_STATUS: 'PAID',
+      CREATED_DATE: now,
+    },
+  });
+
+  await prisma.nursingMarEntries.create({
+    data: {
+      PERSON_ID: person.PERSON_ID,
+      ADMISSION_ID: admission?.ADMISSION_ID ?? null,
+      ORDER_ID: drug.ORDER_ID,
+      DRUG: 'Sertraline 50mg',
+      DOSE: '50mg',
+      ROUTE: 'PO',
+      FREQUENCY: 'OD',
+      SCHEDULED_TIME: now,
+      KIND: 'Scheduled',
+      STATUS: 'DUE',
+      PHARMACY_DISPENSED: true,
+      CREATED_DATE: now,
+    },
+  });
+
+  await prisma.nursingTasks.create({
+    data: {
+      PERSON_ID: person.PERSON_ID,
+      ADMISSION_ID: admission?.ADMISSION_ID ?? null,
+      PATIENT_NAME: [person.FIRST_NAME, person.LAST_NAME]
+        .filter(Boolean)
+        .join(' '),
+      TITLE: `Lab order ready for collection (#${lab.ORDER_ID})`,
+      CATEGORY: 'Sample',
+      STATUS: 'PENDING',
+      SOURCE_ORDER_ID: lab.ORDER_ID,
+      CREATED_BY: 'SYSTEM',
+      CREATED_DATE: now,
+    },
+  });
+
+  await prisma.nursingMessages.create({
+    data: {
+      CHANNEL: 'Doctors',
+      BODY: 'Seed message: please acknowledge pending ward orders.',
+      FROM_LABEL: 'Matron (seed)',
+      IS_MINE: false,
+      CREATED_DATE: now,
+    },
+  });
+
+  console.log(
+    `Seeded nursing ops demo (person #${person.PERSON_ID}: lab #${lab.ORDER_ID}, drug #${drug.ORDER_ID}).`,
+  );
 }
 
 main()

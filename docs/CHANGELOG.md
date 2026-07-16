@@ -8,6 +8,19 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Nursing ops (Phases 10–12):** Prisma `nursing-ops` tables; `/api/nursing` orders, tasks, MAR (administer/refuse/miss/hold/dispense), samples, shifts, handovers, ICU board/notes/infusions, messages, reports, analytics; seed demo orders/MAR/task/message; frontend `nursing-ops.ts` dual-path on Orders/Tasks/MAR/Samples/Shifts/Handover/ICU/Comms/Reports/Analytics
+- **Clinical / pharmacy / lab bridges (ADR-012):** `POST/GET /api/prescriptions`, `/api/laboratory/requests|samples`, `/api/pharmacy/dispensing` delegate to nursing ops until dedicated domains exist; LAB/PHARMACIST role perms extended
+- **Admissions APIs:** `/api/admissions` (list, stats, admit, transfer, order/complete discharge), `/api/admissions/wards`, `/api/admissions/beds`; bed occupy/free (`OCCUPIED` / `CLEANING`); audits `admission:create|transfer|order-discharge|discharge`
+- **Nursing care documentation (Phase 9):** `/api/nursing` notes, vitals (abnormal flags), care-plans, observations, incidents, forms, timeline, alerts — Prisma nursing-care models; seed upserts Ward 1C + ICU beds
+- Nursing Patient Queues E2E: `/api/nursing/patient-queues*` facade over triage + card payment; audits `nursing:start` / `nursing:vitals` / `nursing:send-to-doctor`; frontend `/dashboard/nurse/queues` + `lib/api/nursing.ts`; shared `SearchableSelect` on nursing pages; tracker [NURSING_MODULE.md](./NURSING_MODULE.md)
+- Full nursing module audit in [NURSING_MODULE.md](./NURSING_MODULE.md); **Phases 7–12 marked complete**
+
+### Changed
+
+- Normalized `.cursor/rules/` project rules: `general.mdc` (always apply) and `hms-project.mdc` (API TypeScript globs); removed stray frontend task text from backend rules
+
+### Added (earlier)
+
 - `GET /api/records/dashboard-stats` — live summary cards for Patient Entry Engine (Total/New/Returning/Walk-In/Emergency/Pending Reg/Awaiting Triage/Awaiting Consult)
 - Patient Entry Engine frontend wires those cards to `GET /api/records/dashboard-stats`
 - `PATCH /api/patients/:id` — update person after payment / finalize status to Active

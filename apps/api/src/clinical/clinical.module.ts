@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NursingModule } from '../nursing/nursing.module';
 import { EncountersController } from './encounters/encounters.controller';
 import { DiagnosesController } from './diagnoses/diagnoses.controller';
 import { ClinicalNotesController } from './clinical-notes/clinical-notes.controller';
@@ -15,8 +16,33 @@ import { ObservationsService } from './observations/observations.service';
 import { CarePlansService } from './care-plans/care-plans.service';
 
 @Module({
-  controllers: [EncountersController, DiagnosesController, ClinicalNotesController, PrescriptionsController, ReferralsController, ObservationsController, CarePlansController],
-  providers: [EncountersService, DiagnosesService, ClinicalNotesService, PrescriptionsService, ReferralsService, ObservationsService, CarePlansService],
-  exports: [EncountersService, DiagnosesService, ClinicalNotesService, PrescriptionsService, ReferralsService, ObservationsService, CarePlansService],
+  imports: [NursingModule],
+  controllers: [
+    EncountersController,
+    DiagnosesController,
+    ClinicalNotesController,
+    PrescriptionsController,
+    ReferralsController,
+    ObservationsController,
+    CarePlansController,
+  ],
+  providers: [
+    EncountersService,
+    DiagnosesService,
+    ClinicalNotesService,
+    PrescriptionsService,
+    ReferralsService,
+    ObservationsService,
+    CarePlansService,
+  ],
+  exports: [
+    EncountersService,
+    DiagnosesService,
+    ClinicalNotesService,
+    PrescriptionsService,
+    ReferralsService,
+    ObservationsService,
+    CarePlansService,
+  ],
 })
 export class ClinicalModule {}

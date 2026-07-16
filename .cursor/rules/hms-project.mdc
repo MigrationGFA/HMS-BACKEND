@@ -1,6 +1,6 @@
 ---
-description: HMS domain context, module patterns, and project-specific conventions
-globs: apps/api/src/**/*.ts
+description: HMS domain context, NestJS module patterns, RBAC, audit, and async conventions
+globs: apps/api/**/*.ts
 alwaysApply: false
 ---
 
@@ -10,13 +10,13 @@ alwaysApply: false
 
 This is a **Hospital Management System** backend. Key domains:
 
-- **Patients** — registration, MRN, demographics, search
+- **Patients** — registration, hospital number, demographics, search
 - **Appointments** — scheduling, doctor availability
-- **Queues** — walk-in triage with realtime updates
+- **Queues / Triage** — walk-in triage with workflow gates
 - **Clinical** — encounters, vitals, prescriptions
 - **Lab** — orders and async result processing
 - **Pharmacy** — inventory and dispensing
-- **Billing** — invoices and payments
+- **Billing / Cashier** — invoices, cards, payments
 - **Auth/RBAC** — staff access control
 
 Read `docs/PROJECT_CONTEXT.md` and `docs/WORKFLOWS.md` before implementing features.
@@ -36,13 +36,14 @@ src/<domain>/
 ```
 
 Register in `AppModule.imports`. Export the service if other modules need it.
+Organize by hospital function, not by UI role.
 
 ## RBAC Permissions
 
 Format: `resource:action` (e.g. `patient:read`, `lab:create`).
 
 ```typescript
-@Permissions('patient:create')
+@RequirePermissions('patient:create')
 @Post()
 create(@Body() dto: CreatePatientDto) { ... }
 ```
@@ -64,12 +65,12 @@ await this.auditService.log({
 
 | Use case | Tool |
 |----------|------|
-| SMS, email, lab, reports | RabbitMQ (`QueueModule`) |
+| SMS, email, lab, reports | RabbitMQ |
 | Lightweight API jobs | BullMQ (Redis) |
-| Realtime UI updates | Socket.IO (`EventsModule`) |
-| Hot data caching | Redis (`CacheModule`) |
+| Realtime UI updates | Socket.IO |
+| Hot data caching | Redis |
 
-Do not block API responses for notification delivery — publish to RabbitMQ.
+Do not block API responses for notification delivery — publish to the queue.
 
 ## API Response Shape
 
@@ -81,8 +82,8 @@ return { data: result };
 ## Database Models
 
 - UUID primary keys (`@default(uuid())`)
-- `created_at` / `updated_at` timestamps on all mutable tables
-- Snake_case column names via `@map` / `@@map`
+- `created_at` / `updated_at` on mutable tables
+- Snake_case via `@map` / `@@map`
 - Index foreign keys and query-heavy columns
 
 ## Before Submitting
@@ -90,7 +91,4 @@ return { data: result };
 1. DTO validation decorators present
 2. Guards applied to protected endpoints
 3. `docs/API_REFERENCE.md` updated
-4. `docs/TODO.md` item checked off
-
-
- FOR fnph-aro  Implement autosave and draft recovery on the Doctor Consultation form.  Follow the project rule: .cursor/rules/hms-autosave-and-draft.mdc  Use the existing Next.js, React Hook Form, TanStack Query, Dexie, NestJS, Prisma and PostgreSQL architecture.  Requirements: - Autosave three seconds after the user stops typing. - Save only changed fields through PATCH. - Store unsynchronized changes in IndexedDB. - Show accurate save and synchronization status. - Restore the draft after refresh or system failure. - Use optimistic locking with a version field. - Use idempotency keys for retry requests. - Do not submit or sign the note automatically. - Add an explicit Review and Sign action. - Add backend authorization and audit logging. - Add unit and integration tests. - Reuse existing shared infrastructure and do not duplicate services.
+4. `docs/TODO.md` / `docs/CHANGELOG.md` updated

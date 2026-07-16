@@ -1,0 +1,244 @@
+// Nursing operations: orders, tasks, MAR, samples, shifts, handover, ICU, comms, reports
+// Phases 10–12
+
+model NursingOrders {
+  ORDER_ID         Int       @id @default(autoincrement())
+  PERSON_ID        Int
+  ADMISSION_ID     Int?
+  /// lab | drug | imaging
+  KIND             String    @db.VarChar(20)
+  /// JSON array of {code,name,price,covered?}
+  ITEMS_JSON       String    @db.Text
+  /// ORDERED | ACKNOWLEDGED | IN_PROGRESS | COMPLETED | CANCELLED
+  STATUS           String    @default("ORDERED") @db.VarChar(40)
+  ORDERED_BY       String?   @db.VarChar(100)
+  ACKNOWLEDGED_BY  String?   @db.VarChar(100)
+  ACKNOWLEDGED_AT  DateTime?
+  /// Payment / clearance for lab: UNPAID | PENDING | PAID | NHIA_APPROVED | HMO_APPROVED | WAIVED
+  PAYMENT_STATUS   String    @default("UNPAID") @db.VarChar(30)
+  /// Lab workflow: ORDERED | SAMPLE_COLLECTED | RECEIVED | RESULTED
+  LAB_STATUS       String?   @db.VarChar(40)
+  SAMPLE_ID        String?   @db.VarChar(80)
+  SAMPLE_COLLECTED_AT DateTime?
+  SAMPLE_COLLECTED_BY String? @db.VarChar(100)
+  CREATED_BY_ID    Int?
+  CREATED_DATE     DateTime  @default(now())
+  UPDATED_DATE     DateTime?
+
+  person    Persons     @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission Admissions? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  marEntries NursingMarEntries[]
+  tasks      NursingTasks[]
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@index([KIND])
+  @@index([STATUS])
+  @@index([CREATED_DATE])
+  @@map("NURSING_ORDERS")
+}
+
+model NursingTasks {
+  TASK_ID        Int       @id @default(autoincrement())
+  PERSON_ID      Int?
+  ADMISSION_ID   Int?
+  PATIENT_NAME   String?   @db.VarChar(255)
+  TITLE          String    @db.VarChar(500)
+  /// Vitals | Medication | Sample | Procedure | Round | Discharge | Monitoring | Feeding | Dressing | Other
+  CATEGORY       String    @default("Other") @db.VarChar(40)
+  /// PENDING | IN_PROGRESS | COMPLETED | MISSED | ESCALATED
+  STATUS         String    @default("PENDING") @db.VarChar(30)
+  DUE_AT         DateTime?
+  SOURCE_ORDER_ID Int?
+  ASSIGNED_TO    String?   @db.VarChar(100)
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_BY_ID  Int?
+  CREATED_DATE   DateTime  @default(now())
+  UPDATED_DATE   DateTime?
+
+  person    Persons?       @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission Admissions?    @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  sourceOrder NursingOrders? @relation(fields: [SOURCE_ORDER_ID], references: [ORDER_ID])
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([DUE_AT])
+  @@index([SOURCE_ORDER_ID])
+  @@map("NURSING_TASKS")
+}
+
+model NursingMarEntries {
+  MAR_ID              Int       @id @default(autoincrement())
+  PERSON_ID           Int
+  ADMISSION_ID        Int?
+  ORDER_ID            Int?
+  DRUG                String    @db.VarChar(255)
+  DOSE                String    @db.VarChar(100)
+  ROUTE               String    @db.VarChar(50)
+  FREQUENCY           String    @db.VarChar(100)
+  SCHEDULED_TIME      DateTime
+  /// Scheduled | PRN | Emergency | External
+  KIND                String    @default("Scheduled") @db.VarChar(30)
+  /// DUE | GIVEN | MISSED | REFUSED | HELD | PENDING
+  STATUS              String    @default("PENDING") @db.VarChar(20)
+  REASON              String?   @db.Text
+  SIDE_EFFECTS        String?   @db.Text
+  SOURCE              String?   @db.VarChar(255)
+  PRESCRIBER          String?   @db.VarChar(255)
+  NOTES               String?   @db.Text
+  PHARMACY_DISPENSED  Boolean   @default(false)
+  ADMINISTERED_BY     String?   @db.VarChar(100)
+  ADMINISTERED_AT     DateTime?
+  CREATED_BY_ID       Int?
+  CREATED_DATE        DateTime  @default(now())
+  UPDATED_DATE        DateTime?
+
+  person    Persons        @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission Admissions?    @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  order     NursingOrders? @relation(fields: [ORDER_ID], references: [ORDER_ID])
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@index([STATUS])
+  @@index([SCHEDULED_TIME])
+  @@index([KIND])
+  @@map("NURSING_MAR_ENTRIES")
+}
+
+model NursingShifts {
+  SHIFT_ID         Int       @id @default(autoincrement())
+  WARD_ID          Int?
+  /// Morning | Afternoon | Night
+  SHIFT            String    @db.VarChar(20)
+  /// Scheduled | Active | Ended
+  STATUS           String    @default("Scheduled") @db.VarChar(20)
+  LEAD_NURSE       String?   @db.VarChar(100)
+  STAFF_COUNT      Int       @default(0)
+  PATIENTS_COVERED Int       @default(0)
+  START_AT         DateTime?
+  END_AT           DateTime?
+  SUMMARY          String?   @db.Text
+  CREATED_BY_ID    Int?
+  CREATED_DATE     DateTime  @default(now())
+  UPDATED_DATE     DateTime?
+
+  ward Wards? @relation(fields: [WARD_ID], references: [WARD_ID])
+
+  @@index([WARD_ID])
+  @@index([STATUS])
+  @@index([START_AT])
+  @@map("NURSING_SHIFTS")
+}
+
+model NursingHandovers {
+  HANDOVER_ID           Int       @id @default(autoincrement())
+  WARD_ID               Int?
+  WARD_NAME             String?   @db.VarChar(150)
+  /// Morning | Afternoon | Night
+  SHIFT                 String    @db.VarChar(20)
+  SUMMARY               String    @db.Text
+  /// JSON string array of patient names / IDs
+  CRITICAL_PATIENTS_JSON String   @default("[]") @db.Text
+  PENDING_MEDS          String?   @db.Text
+  PENDING_LABS          String?   @db.Text
+  INCIDENTS             String?   @db.Text
+  SPECIAL_INSTRUCTIONS  String?   @db.Text
+  HANDED_OVER_BY        String?   @db.VarChar(100)
+  RECEIVED_BY           String?   @db.VarChar(100)
+  ACKNOWLEDGED          Boolean   @default(false)
+  ACKNOWLEDGED_AT       DateTime?
+  CREATED_BY_ID         Int?
+  CREATED_DATE          DateTime  @default(now())
+
+  ward Wards? @relation(fields: [WARD_ID], references: [WARD_ID])
+
+  @@index([WARD_ID])
+  @@index([CREATED_DATE])
+  @@map("NURSING_HANDOVERS")
+}
+
+model NursingIcuNotes {
+  ICU_NOTE_ID   Int       @id @default(autoincrement())
+  PERSON_ID     Int
+  ADMISSION_ID  Int?
+  BLOOD_PRESSURE String?  @db.VarChar(20)
+  SPO2_PCT      Decimal?  @db.Decimal(5, 2)
+  HEART_RATE    Int?
+  VENT_SETTINGS String?   @db.VarChar(500)
+  NOTE          String?   @db.Text
+  RECORDED_BY   String?   @db.VarChar(100)
+  RECORDED_AT   DateTime  @default(now())
+  CREATED_BY_ID Int?
+
+  person    Persons     @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission Admissions? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@index([RECORDED_AT])
+  @@map("NURSING_ICU_NOTES")
+}
+
+model NursingIcuInfusions {
+  INFUSION_ID   Int       @id @default(autoincrement())
+  PERSON_ID     Int
+  ADMISSION_ID  Int?
+  MEDICATION    String    @db.VarChar(255)
+  CURRENT_RATE  String?   @db.VarChar(100)
+  NEW_RATE      String?   @db.VarChar(100)
+  REASON        String?   @db.VarChar(500)
+  NOTE          String?   @db.Text
+  /// Running | Titrated | Stopped
+  STATUS        String    @default("Running") @db.VarChar(30)
+  RECORDED_BY   String?   @db.VarChar(100)
+  RECORDED_AT   DateTime  @default(now())
+  CREATED_BY_ID Int?
+
+  person    Persons     @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission Admissions? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@index([RECORDED_AT])
+  @@map("NURSING_ICU_INFUSIONS")
+}
+
+model NursingMessages {
+  MESSAGE_ID    Int       @id @default(autoincrement())
+  /// Doctors | Pharmacy | Lab | Ward | Admin
+  CHANNEL       String    @db.VarChar(40)
+  BODY          String    @db.Text
+  FROM_LABEL    String?   @db.VarChar(100)
+  FROM_USER_ID  Int?
+  PERSON_ID     Int?
+  IS_MINE       Boolean   @default(true)
+  READ_AT       DateTime?
+  CREATED_DATE  DateTime  @default(now())
+
+  person Persons? @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([CHANNEL])
+  @@index([CREATED_DATE])
+  @@index([PERSON_ID])
+  @@map("NURSING_MESSAGES")
+}
+
+model NursingReportSnapshots {
+  REPORT_ID     Int       @id @default(autoincrement())
+  /// DailyWard | Shift | Medication | Observation | Admission | Discharge | Monthly | Incident
+  REPORT_TYPE   String    @db.VarChar(40)
+  RANGE_LABEL   String?   @db.VarChar(100)
+  WARD_ID       Int?
+  WARD_NAME     String?   @db.VarChar(150)
+  NOTES         String?   @db.Text
+  /// Aggregated payload JSON
+  PAYLOAD_JSON  String    @db.Text
+  GENERATED_BY  String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+
+  ward Wards? @relation(fields: [WARD_ID], references: [WARD_ID])
+
+  @@index([REPORT_TYPE])
+  @@index([CREATED_DATE])
+  @@map("NURSING_REPORT_SNAPSHOTS")
+}

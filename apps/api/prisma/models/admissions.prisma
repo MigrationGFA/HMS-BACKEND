@@ -1,0 +1,92 @@
+// Inpatient foundation: wards, beds, admissions
+
+model Wards {
+  WARD_ID      Int       @id @default(autoincrement())
+  CODE         String    @unique @db.VarChar(50)
+  NAME         String    @db.VarChar(150)
+  WARD_TYPE    String?   @db.VarChar(50)
+  /// Active | Inactive
+  STATUS       String    @default("Active") @db.VarChar(30)
+  CREATED_BY   String?   @db.VarChar(100)
+  CREATED_DATE DateTime?
+  UPDATED_BY   String?   @db.VarChar(100)
+  UPDATED_DATE DateTime?
+
+  beds        Beds[]
+  admissions  Admissions[]
+  nursingShifts NursingShifts[]
+  nursingHandovers NursingHandovers[]
+  nursingReports NursingReportSnapshots[]
+
+  @@map("WARDS")
+}
+
+model Beds {
+  BED_ID       Int       @id @default(autoincrement())
+  WARD_ID      Int
+  LABEL        String    @db.VarChar(50)
+  /// AVAILABLE | OCCUPIED | CLEANING | RESERVED | OUT_OF_SERVICE
+  STATUS       String    @default("AVAILABLE") @db.VarChar(30)
+  CREATED_BY   String?   @db.VarChar(100)
+  CREATED_DATE DateTime?
+  UPDATED_BY   String?   @db.VarChar(100)
+  UPDATED_DATE DateTime?
+
+  ward       Wards        @relation(fields: [WARD_ID], references: [WARD_ID])
+  admissions Admissions[]
+
+  @@unique([WARD_ID, LABEL])
+  @@index([WARD_ID])
+  @@index([STATUS])
+  @@map("BEDS")
+}
+
+model Admissions {
+  ADMISSION_ID       Int       @id @default(autoincrement())
+  PERSON_ID          Int
+  WARD_ID            Int?
+  BED_ID             Int?
+  DIAGNOSIS          String?   @db.Text
+  CONSULTANT         String?   @db.VarChar(255)
+  ASSIGNED_NURSE     String?   @db.VarChar(255)
+  /// Psychiatric | ICU | Child | Psychogeriatric | Addiction | General | Rehab
+  ADMISSION_TYPE     String?   @db.VarChar(50)
+  /// General | Close | Constant
+  SUPERVISION_LEVEL  String?   @db.VarChar(50)
+  /// PENDING | BED_ALLOCATED | ADMITTED | ON_LEAVE | DISCHARGE_ORDERED | DISCHARGED | CANCELLED
+  STATUS             String    @default("ADMITTED") @db.VarChar(40)
+  ADMITTED_AT        DateTime  @default(now())
+  DISCHARGE_ORDERED_AT DateTime?
+  DISCHARGE_ORDERED_BY String? @db.VarChar(100)
+  DISCHARGE_REASON   String?   @db.VarChar(500)
+  DISCHARGED_AT      DateTime?
+  DISCHARGED_BY      String?   @db.VarChar(100)
+  CREATED_BY_ID      Int?
+  UPDATED_BY_ID      Int?
+  CREATED_BY         String?   @db.VarChar(100)
+  CREATED_DATE       DateTime?
+  UPDATED_BY         String?   @db.VarChar(100)
+  UPDATED_DATE       DateTime?
+
+  person Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  ward   Wards?  @relation(fields: [WARD_ID], references: [WARD_ID])
+  bed    Beds?   @relation(fields: [BED_ID], references: [BED_ID])
+
+  nursingNotes        NursingNotes[]
+  nursingVitals       NursingVitals[]
+  nursingCarePlans    NursingCarePlans[]
+  nursingObservations NursingObservations[]
+  nursingIncidents    NursingIncidents[]
+  nursingFormInstances NursingFormInstances[]
+  nursingOrders       NursingOrders[]
+  nursingTasks        NursingTasks[]
+  nursingMarEntries   NursingMarEntries[]
+  nursingIcuNotes     NursingIcuNotes[]
+  nursingIcuInfusions NursingIcuInfusions[]
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([WARD_ID])
+  @@index([ADMITTED_AT])
+  @@map("ADMISSIONS")
+}
