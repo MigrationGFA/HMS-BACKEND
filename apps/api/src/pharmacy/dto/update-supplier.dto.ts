@@ -40,10 +40,12 @@ export class UpdateSupplierDto {
   @MaxLength(500)
   address?: string;
 
+  /** DRUG_IDs of catalog drugs this supplier supplies — replaces the whole set. */
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  categories?: string[];
+  @Type(() => Number)
+  @IsInt({ each: true })
+  drugIds?: number[];
 
   @IsOptional()
   @Type(() => Number)
