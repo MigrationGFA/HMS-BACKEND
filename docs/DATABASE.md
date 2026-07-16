@@ -44,6 +44,8 @@ Other legacy domain model files were removed until those modules are implemented
 | `PURCHASE_ORDERS` | `PurchaseOrders` | POs to suppliers (`PO-YYYY-###`) with approval + send workflow |
 | `PURCHASE_ORDER_ITEMS` | `PurchaseOrderItems` | PO line items per drug |
 | `GOODS_RECEIVED_NOTES` | `GoodsReceivedNotes` | GRNs (`GRN-YYYY-###`) linking receipts to PO/drug/batch |
+| `PRESCRIPTIONS` | `Prescriptions` | Doctor prescriptions (`RX-YYYY-####`); status Draft/Sent/Dispensed/…; linked to `PERSON_ID` |
+| `PRESCRIPTION_ITEMS` | `PrescriptionItems` | Line items: `DRUG_ID` + dose/frequency/qty; drug name snapshotted for clinical immutability |
 
 ### Relationships
 
@@ -53,6 +55,7 @@ USERS ── REFRESH_TOKENS
 USERS ── PERSON_ID ── PERSONS (optional link)
 PERSONS ── TRIAGE (1:N)
 PERSONS ── PATIENT_CARDS (1:N; created by / confirmed by USERS)
+PERSONS ── PRESCRIPTIONS ── PRESCRIPTION_ITEMS ── DRUGS
 USERS ── AUDITS
 SUPPLIERS ── SUPPLIER_DRUGS ── DRUGS (drugs supplied, by ID)
 SUPPLIERS ── DRUGS (optional preferred supplier)
@@ -77,6 +80,8 @@ PURCHASE_ORDERS ── GOODS_RECEIVED_NOTES ── DRUG_BATCHES
 | `procurement:request-*` / `procurement:po-*` | PR/PO created, approved, rejected, sent |
 | `stock:receive` | GRN recorded, batch created |
 | `stock:adjust` | Manual stock adjustment (reason required) |
+| `prescription:create` / `prescription:send` | Prescription draft / sent to pharmacy |
+| `prescription:update` | Status / payment / pharmacy notes change |
 | `auth:login` | (planned) successful login |
 
 Filter audits with `GET /api/audit/logs?type=triage:create`.
@@ -95,4 +100,4 @@ npx prisma migrate dev
 
 Migration `20260710140000_triage_and_audit_type` adds `TRIAGE` and `AUDITS.AUDIT_TYPE` / `ENTITY` / `ENTITY_ID`.
 
-Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `SUPPLIER_DRUGS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). It was written manually while the Azure database was unreachable — run `npx prisma migrate deploy` once connectivity is restored.
+Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). Migration `20260716210000_supplier_drugs_join` adds `SUPPLIER_DRUGS` (and drops legacy `SUPPLIERS.CATEGORIES`) for environments where the first pharmacy migration was applied before the join table existed in that SQL file. Migration `20260716220000_prescriptions` adds `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS`. Run `npx prisma migrate deploy` after pull.

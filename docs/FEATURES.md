@@ -77,6 +77,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Sub-feature | Status |
 |-------------|--------|
 | Encounters & clinical notes | 📋 |
+| Prescriptions (`POST/GET/PATCH /prescriptions`) | ✅ |
 | Diagnoses & care plans | 📋 |
 | Ward & bed management | 📋 |
 | Psychiatric OPC workflows | 📋 |
@@ -102,7 +103,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Procurement: PR → PO → approve/send → receive (GRN) (`/pharmacy/procurement/*`) | ✅ |
 | Pharmacy audit logging on all mutations (supplier/drug/PR/PO/receive/adjust) | ✅ |
 | Pharmacist role granted pharmacy permissions (`PHARMACY_PERMISSIONS`) | ✅ |
-| Dispensing | 📋 |
+| Doctor prescriptions create/send + pharmacy inbound list (`POST/GET/PATCH /prescriptions`) | ✅ |
+| Dispensing (stock decrement / FEFO release) | 📋 |
 | Async lab processing (RabbitMQ) | 📋 |
 
 ## Finance & Operations (Scaffolded)
