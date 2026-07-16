@@ -24,7 +24,7 @@ import { parseExpiresInSeconds } from './utils/token.util';
           secret,
           signOptions: {
             expiresIn: parseExpiresInSeconds(
-              configService.get<string>('jwt.accessExpiresIn', '15m'),
+              configService.get<string>('jwt.accessExpiresIn', '1h'),
             ),
           },
         };

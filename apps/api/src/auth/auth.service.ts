@@ -139,14 +139,17 @@ export class AuthService {
 
     const accessExpiresIn = this.configService.get<string>(
       'jwt.accessExpiresIn',
-      '15m',
+      '1h',
     );
     const refreshExpiresIn = this.configService.get<string>(
       'jwt.refreshExpiresIn',
-      '7d',
+      '12h',
     );
 
-    const accessToken = await this.jwtService.signAsync(payload);
+    const accessExpiresInSeconds = parseExpiresInSeconds(accessExpiresIn);
+    const accessToken = await this.jwtService.signAsync(payload, {
+      expiresIn: accessExpiresInSeconds,
+    });
     const refreshToken = generateRefreshToken();
     const refreshExpiresAt = new Date(
       Date.now() + parseExpiresInSeconds(refreshExpiresIn) * 1000,
@@ -163,7 +166,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: parseExpiresInSeconds(accessExpiresIn),
+      expiresIn: accessExpiresInSeconds,
       user: authUser,
     };
   }

@@ -28,7 +28,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 
 | Sub-feature | Status |
 |-------------|--------|
-| JWT login / refresh | ✅ |
+| JWT login / refresh (access 1h, refresh 12h, auto-refresh then logout on hard 401) | ✅ |
 | bcrypt password hashing | ✅ |
 | RBAC guards (`PermissionsGuard` + `@RequirePermissions`, role map in `permissions.constants.ts`) | ✅ |
 | Standard RECORDS front-desk role permission set | ✅ |
@@ -50,6 +50,9 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Patient registration & MRN (`POST /patients` → PERSONS, optional email) | ✅ |
 | Registration card auto-opened (`PATIENT_CARDS`, payment Pending) | ✅ |
 | Patient Entry dashboard stats (`GET /records/dashboard-stats`) | ✅ |
+| Records Officer Overview uses same dashboard-stats endpoint | ✅ |
+| Patient Directory (`GET /records/directory` + `/directory-stats`) | ✅ |
+| Records Audit Trail (`GET /records/audit` + `/audit-stats`) | ✅ |
 | Records registration queue + payment gate (`/api/records/*`) | ✅ |
 | Card payment gate (`GET /cards/person/:id`; triage blocked with 409 while Pending) | ✅ |
 | Cashier confirm card payment (`POST /cashier/payments/cards/:id/confirm`) | ✅ |
@@ -93,7 +96,13 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 |-------------|--------|
 | Lab requests, samples, results | 📋 |
 | Imaging & ECG | 📋 |
-| Dispensing & pharmacy inventory | 📋 |
+| Supplier management (`POST/GET/PATCH /pharmacy/suppliers`) | ✅ |
+| Drug catalog with supplier link (`/pharmacy/drugs`) | ✅ |
+| Batch-tracked inventory: stock, expiry, FEFO adjustments (`/pharmacy/inventory`) | ✅ |
+| Procurement: PR → PO → approve/send → receive (GRN) (`/pharmacy/procurement/*`) | ✅ |
+| Pharmacy audit logging on all mutations (supplier/drug/PR/PO/receive/adjust) | ✅ |
+| Pharmacist role granted pharmacy permissions (`PHARMACY_PERMISSIONS`) | ✅ |
+| Dispensing | 📋 |
 | Async lab processing (RabbitMQ) | 📋 |
 
 ## Finance & Operations (Scaffolded)

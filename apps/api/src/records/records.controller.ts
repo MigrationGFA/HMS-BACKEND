@@ -56,6 +56,106 @@ export class RecordsController {
   }
 
   /**
+   * Method: GET
+   * URL: /api/records/directory-stats?timezoneOffsetMinutes=60
+   * Purpose: Summary cards on Patient Directory (/records/directory)
+   * Required permission: patient:read
+   * Request body: none
+   * Response example: { data: { totalPatients, newThisMonth, active, inpatients, outpatients, hmoNhia, incompleteProfiles, duplicatesFlagged } }
+   * Error cases: 401, 403
+   */
+  @Get('directory-stats')
+  @RequirePermissions(PERMISSIONS.PATIENT_READ)
+  async directoryStats(
+    @Query('timezoneOffsetMinutes') timezoneOffsetMinutes?: string,
+  ) {
+    const result = await this.recordsService.directoryStats({
+      timezoneOffsetMinutes: timezoneOffsetMinutes
+        ? Number(timezoneOffsetMinutes)
+        : undefined,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/records/directory?q=&sex=&insurance=&page=&limit=
+   * Purpose: Patient Directory searchable list
+   * Required permission: patient:read
+   * Request body: none
+   * Response example: { data: { items: [...], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('directory')
+  @RequirePermissions(PERMISSIONS.PATIENT_READ)
+  async directory(
+    @Query('q') q?: string,
+    @Query('sex') sex?: string,
+    @Query('insurance') insurance?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.recordsService.directory({
+      q,
+      sex,
+      insurance,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/records/audit-stats?timezoneOffsetMinutes=60
+   * Purpose: Summary cards on Records Audit Trail (/records/audit)
+   * Required permission: audit:read
+   * Request body: none
+   * Response example: { data: { activitiesToday, created, edited, uploaded, printed, deleted, suspicious } }
+   * Error cases: 401, 403
+   */
+  @Get('audit-stats')
+  @RequirePermissions(PERMISSIONS.AUDIT_READ)
+  async auditStats(
+    @Query('timezoneOffsetMinutes') timezoneOffsetMinutes?: string,
+  ) {
+    const result = await this.recordsService.auditStats({
+      timezoneOffsetMinutes: timezoneOffsetMinutes
+        ? Number(timezoneOffsetMinutes)
+        : undefined,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/records/audit?q=&type=&status=&page=&limit=
+   * Purpose: Records Audit Trail table
+   * Required permission: audit:read
+   * Request body: none
+   * Response example: { data: { items: [{ auditId, time, officer, action, hospitalId, patient, module, status }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('audit')
+  @RequirePermissions(PERMISSIONS.AUDIT_READ)
+  async auditTrail(
+    @Query('q') q?: string,
+    @Query('type') type?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.recordsService.auditTrail({
+      q,
+      type,
+      status,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
    * Method: POST
    * URL: /api/records/registrations
    * Purpose: Create patient (PERSONS) + registration card (PATIENT_CARDS, payment Pending) after Next of Kin

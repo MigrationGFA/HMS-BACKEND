@@ -21,6 +21,17 @@ export const PERMISSIONS = {
   TRIAGE_READ: 'triage:read',
   TRIAGE_UPDATE: 'triage:update',
 
+  // Pharmacy (suppliers, drugs, procurement, inventory)
+  PHARMACY_READ: 'pharmacy:read',
+  SUPPLIER_CREATE: 'supplier:create',
+  SUPPLIER_UPDATE: 'supplier:update',
+  DRUG_CREATE: 'drug:create',
+  DRUG_UPDATE: 'drug:update',
+  PROCUREMENT_CREATE: 'procurement:create',
+  PROCUREMENT_APPROVE: 'procurement:approve',
+  STOCK_RECEIVE: 'stock:receive',
+  STOCK_ADJUST: 'stock:adjust',
+
   // Audit
   AUDIT_READ: 'audit:read',
 
@@ -57,6 +68,25 @@ const CASHIER_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_READ,
   PERMISSIONS.CARD_READ,
   PERMISSIONS.CARD_CONFIRM_PAYMENT,
+  PERMISSIONS.AUDIT_READ,
+];
+
+/**
+ * Pharmacist permission set: full pharmacy operations (suppliers, drugs,
+ * procurement, stock receiving/adjustment) plus patient lookup and the
+ * pharmacy audit trail.
+ */
+const PHARMACY_PERMISSIONS: PermissionName[] = [
+  PERMISSIONS.PATIENT_READ,
+  PERMISSIONS.PHARMACY_READ,
+  PERMISSIONS.SUPPLIER_CREATE,
+  PERMISSIONS.SUPPLIER_UPDATE,
+  PERMISSIONS.DRUG_CREATE,
+  PERMISSIONS.DRUG_UPDATE,
+  PERMISSIONS.PROCUREMENT_CREATE,
+  PERMISSIONS.PROCUREMENT_APPROVE,
+  PERMISSIONS.STOCK_RECEIVE,
+  PERMISSIONS.STOCK_ADJUST,
   PERMISSIONS.AUDIT_READ,
 ];
 
@@ -105,7 +135,7 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
   [ROLES.ICU]: CLINICAL_PERMISSIONS,
   [ROLES.LAB]: [PERMISSIONS.PATIENT_READ],
   [ROLES.RADIOLOGY]: [PERMISSIONS.PATIENT_READ],
-  [ROLES.PHARMACIST]: [PERMISSIONS.PATIENT_READ],
+  [ROLES.PHARMACIST]: PHARMACY_PERMISSIONS,
 };
 
 export function permissionsForRoles(roles: string[]): Set<PermissionName> {

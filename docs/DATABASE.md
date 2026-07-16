@@ -17,6 +17,7 @@ apps/api/prisma/
 │   ├── patients.prisma    # PERSONS
 │   ├── cards.prisma       # PATIENT_CARDS (registration card + payment gate)
 │   ├── triage.prisma      # TRIAGE
+│   ├── pharmacy.prisma    # SUPPLIERS, DRUGS, DRUG_BATCHES, PURCHASE_REQUESTS, PURCHASE_ORDERS, PURCHASE_ORDER_ITEMS, GOODS_RECEIVED_NOTES
 │   └── audit.prisma       # AUDITS (with AUDIT_TYPE)
 ├── migrations/
 └── seed.ts
@@ -35,6 +36,13 @@ Other legacy domain model files were removed until those modules are implemented
 | `TRIAGE` | `Triage` | Queue + vitals; stores `PERSON_ID` only (no duplicated demographics) |
 | `PATIENT_CARDS` | `PatientCards` | Registration card per person; `PAYMENT_STATUS` starts `Pending` and gates the workflow until a cashier confirms |
 | `AUDITS` | `Audits` | Immutable audit trail with filterable `AUDIT_TYPE` |
+| `SUPPLIERS` | `Suppliers` | Pharmacy suppliers (procurement) |
+| `DRUGS` | `Drugs` | Drug catalog; optional preferred `SUPPLIER_ID`; no quantity columns — stock is derived from batches |
+| `DRUG_BATCHES` | `DrugBatches` | Batch-level stock: `BATCH_NO`, `EXPIRY_DATE`, `QTY_RECEIVED`/`QTY_AVAILABLE`, cost & selling price |
+| `PURCHASE_REQUESTS` | `PurchaseRequests` | Internal PRs (`PR-YYYY-###`) awaiting approval |
+| `PURCHASE_ORDERS` | `PurchaseOrders` | POs to suppliers (`PO-YYYY-###`) with approval + send workflow |
+| `PURCHASE_ORDER_ITEMS` | `PurchaseOrderItems` | PO line items per drug |
+| `GOODS_RECEIVED_NOTES` | `GoodsReceivedNotes` | GRNs (`GRN-YYYY-###`) linking receipts to PO/drug/batch |
 
 ### Relationships
 
@@ -45,6 +53,10 @@ USERS ── PERSON_ID ── PERSONS (optional link)
 PERSONS ── TRIAGE (1:N)
 PERSONS ── PATIENT_CARDS (1:N; created by / confirmed by USERS)
 USERS ── AUDITS
+SUPPLIERS ── DRUGS (optional preferred supplier)
+DRUGS ── DRUG_BATCHES (1:N; stock + expiry per batch)
+SUPPLIERS ── PURCHASE_ORDERS ── PURCHASE_ORDER_ITEMS ── DRUGS
+PURCHASE_ORDERS ── GOODS_RECEIVED_NOTES ── DRUG_BATCHES
 ```
 
 ### Triage design rule
@@ -58,6 +70,11 @@ USERS ── AUDITS
 | `person:create` | Patient registration |
 | `triage:create` | New triage queue entry |
 | `triage:update` | Status / priority / vitals change |
+| `supplier:create` / `supplier:update` | Supplier registered / edited |
+| `drug:create` / `drug:update` | Drug added to / edited in catalog |
+| `procurement:request-*` / `procurement:po-*` | PR/PO created, approved, rejected, sent |
+| `stock:receive` | GRN recorded, batch created |
+| `stock:adjust` | Manual stock adjustment (reason required) |
 | `auth:login` | (planned) successful login |
 
 Filter audits with `GET /api/audit/logs?type=triage:create`.
@@ -75,3 +92,5 @@ npx prisma migrate dev
 ```
 
 Migration `20260710140000_triage_and_audit_type` adds `TRIAGE` and `AUDITS.AUDIT_TYPE` / `ENTITY` / `ENTITY_ID`.
+
+Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). It was written manually while the Azure database was unreachable — run `npx prisma migrate deploy` once connectivity is restored.

@@ -8,8 +8,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Pharmacy procurement & inventory backend: `SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES` tables (migration `20260716000000_pharmacy_procurement_inventory`)
+- `POST/GET/PATCH /api/pharmacy/suppliers` — supplier registration + management list (`supplier:create|update`, `pharmacy:read`)
+- `POST/GET/PATCH /api/pharmacy/drugs` — drug catalog with supplier link; stock/expiry computed from batches (`drug:create|update`)
+- `GET /api/pharmacy/inventory` + `/stats`, `POST /api/pharmacy/inventory/adjustments` — batch-aware inventory with FEFO manual adjustments (`stock:adjust`, reason mandatory)
+- `POST/GET /api/pharmacy/procurement/requests` (+ `approve`/`reject`), `POST/GET /api/pharmacy/procurement/orders` (+ `approve`/`reject`/`send`), `POST /api/pharmacy/procurement/receive`, `GET /grns`, `GET /stats` — PR → PO → GRN workflow with auto numbering (`PR-YYYY-###`, `PO-YYYY-###`, `GRN-YYYY-###`)
+- Audit logging on every pharmacy mutation (`supplier:*`, `drug:*`, `procurement:*`, `stock:receive`, `stock:adjust`)
+- Pharmacy permissions in `permissions.constants.ts`; PHARMACIST role granted `PHARMACY_PERMISSIONS`
+- Frontend: `src/lib/api/pharmacy.ts` client; `/pharmacy/procurement` and `/pharmacy/inventory` pages wired to the live API (Add Supplier, Add Drug, PR/PO workflow, Receive Stock, Adjust Stock) with mock-data fallback when the API flag is off
 - `GET /api/records/dashboard-stats` — live summary cards for Patient Entry Engine (Total/New/Returning/Walk-In/Emergency/Pending Reg/Awaiting Triage/Awaiting Consult)
 - Patient Entry Engine frontend wires those cards to `GET /api/records/dashboard-stats`
+- Automatic token refresh on frontend (`POST /api/auth/refresh` on 401 + proactive near-expiry refresh); access token **1h**, refresh token **12h**; hard `Unauthorized` logs the user out
+- Records console APIs: reuse `GET /records/dashboard-stats` on `/dashboard/records`; new `GET /records/directory`, `GET /records/directory-stats`, `GET /records/audit`, `GET /records/audit-stats`
 - `PATCH /api/patients/:id` — update person after payment / finalize status to Active
 - `GET /api/cards/:cardId` — payment cleared check for a specific card
 - Early registration flow: create PERSONS + PATIENT_CARDS after Next of Kin (`STATUS=Pending Payment`); cashier payment sets person to `Incomplete`; Complete sets `Active`
