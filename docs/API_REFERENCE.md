@@ -535,6 +535,8 @@ Triage stores **queue + vitals** and a **`personId`** only. Demographics / NOK a
 
 #### `POST /api/pharmacy/suppliers`
 
+Drugs a supplier supplies are referenced by **drug ID** (from the drug catalog), never by name — stored in the `SUPPLIER_DRUGS` join table. Drug creation (inventory page) and supplier creation are separate flows.
+
 **Request body:**
 
 ```json
@@ -544,13 +546,16 @@ Triage stores **queue + vitals** and a **`personId`** only. Demographics / NOK a
   "phone": "08030000000",
   "email": "sales@emzor.com",
   "address": "Lagos",
-  "category": "Manufacturer"
+  "drugIds": [1, 4, 7],
+  "performance": 90
 }
 ```
 
-**Response 201:** `{ data: { supplierId, name, contactPerson, phone, email, address, category, status: "Active", createdAt } }`
+**Response 201:** `{ data: { supplierId, name, contactPerson, phone, email, address, drugIds: [1, 4, 7], drugs: [{ drugId: 1, name: "Paracetamol 500mg" }], performance, status: "Active", createdAt } }`
 
-**Errors:** `400` validation, `401`, `403` missing `supplier:create`, `409` duplicate supplier name. Writes audit `supplier:create`.
+**Errors:** `400` validation / unknown drug id, `401`, `403` missing `supplier:create`, `409` duplicate supplier name. Writes audit `supplier:create`.
+
+`PATCH /api/pharmacy/suppliers/:id` accepts the same fields; sending `drugIds` **replaces** the supplier's full set of supplied drugs.
 
 ---
 
