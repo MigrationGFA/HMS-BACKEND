@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "start": "nest start api",
+    "start": "node dist/apps/api/main.js",
     "start:dev": "nest start api --watch",
     "start:debug": "nest start api --debug --watch",
     "start:prod": "node dist/apps/api/main.js",

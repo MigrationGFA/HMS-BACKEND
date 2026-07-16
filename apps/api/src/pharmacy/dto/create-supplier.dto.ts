@@ -38,11 +38,12 @@ export class CreateSupplierDto {
   @MaxLength(500)
   address?: string;
 
-  /** Drug categories supplied, e.g. ["Antibiotic", "Analgesic"] */
+  /** DRUG_IDs of catalog drugs this supplier supplies (never names). */
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  categories?: string[];
+  @Type(() => Number)
+  @IsInt({ each: true })
+  drugIds?: number[];
 
   @IsOptional()
   @Type(() => Number)

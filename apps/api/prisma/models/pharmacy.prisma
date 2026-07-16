@@ -11,8 +11,6 @@ model Suppliers {
   PHONE          String?   @db.VarChar(50)
   EMAIL          String?   @db.VarChar(255)
   ADDRESS        String?   @db.VarChar(500)
-  /// Comma-separated drug categories supplied, e.g. "Antibiotic, Analgesic"
-  CATEGORIES     String?   @db.VarChar(500)
   /// Delivery performance percentage 0-100
   PERFORMANCE    Int       @default(0)
   /// Active | Inactive (soft delete)
@@ -26,11 +24,26 @@ model Suppliers {
   UPDATED_DATE   DateTime?
 
   drugs          Drugs[]
+  suppliedDrugs  SupplierDrugs[]
   purchaseOrders PurchaseOrders[]
 
   @@index([NAME])
   @@index([STATUS])
   @@map("SUPPLIERS")
+}
+
+/// Drugs a supplier supplies — stored by DRUG_ID (never duplicated names).
+model SupplierDrugs {
+  SUPPLIER_DRUG_ID Int @id @default(autoincrement())
+  SUPPLIER_ID      Int
+  DRUG_ID          Int
+
+  supplier Suppliers @relation(fields: [SUPPLIER_ID], references: [SUPPLIER_ID])
+  drug     Drugs     @relation(fields: [DRUG_ID], references: [DRUG_ID])
+
+  @@unique([SUPPLIER_ID, DRUG_ID])
+  @@index([DRUG_ID])
+  @@map("SUPPLIER_DRUGS")
 }
 
 model Drugs {
@@ -60,6 +73,7 @@ model Drugs {
   UPDATED_DATE    DateTime?
 
   supplier             Suppliers?           @relation(fields: [SUPPLIER_ID], references: [SUPPLIER_ID])
+  suppliedBy           SupplierDrugs[]
   batches              DrugBatches[]
   purchaseRequests     PurchaseRequests[]
   purchaseOrderItems   PurchaseOrderItems[]

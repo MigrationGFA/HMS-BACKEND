@@ -29,9 +29,9 @@ export class SuppliersController {
    * URL: /api/pharmacy/suppliers
    * Purpose: Add a supplier for pharmacy procurement
    * Required permission: supplier:create
-   * Request body: CreateSupplierDto { name, contactPerson?, phone?, email?, address?, categories?, performance?, notes? }
-   * Response example: { data: { supplierId, name, contactPerson, phone, email, address, categories: [], performance, status: "Active", createdAt } }
-   * Error cases: 400 validation, 401 unauthorized, 403 missing permission, 409 duplicate name
+   * Request body: CreateSupplierDto { name, contactPerson?, phone?, email?, address?, drugIds?: number[], performance?, notes? }
+   * Response example: { data: { supplierId, name, contactPerson, phone, email, address, drugIds: [1, 2], drugs: [{ drugId, name }], performance, status: "Active", createdAt } }
+   * Error cases: 400 validation / unknown drug id, 401 unauthorized, 403 missing permission, 409 duplicate name
    */
   @Post()
   @RequirePermissions(PERMISSIONS.SUPPLIER_CREATE)
