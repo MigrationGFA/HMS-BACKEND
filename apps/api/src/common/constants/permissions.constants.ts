@@ -36,6 +36,7 @@ export const PERMISSIONS = {
   PROCUREMENT_APPROVE: 'procurement:approve',
   STOCK_RECEIVE: 'stock:receive',
   STOCK_ADJUST: 'stock:adjust',
+  PHARMACY_DISPENSE: 'pharmacy:dispense',
 
   // Audit
   AUDIT_READ: 'audit:read',
@@ -94,6 +95,7 @@ const PHARMACY_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PROCUREMENT_APPROVE,
   PERMISSIONS.STOCK_RECEIVE,
   PERMISSIONS.STOCK_ADJUST,
+  PERMISSIONS.PHARMACY_DISPENSE,
   PERMISSIONS.AUDIT_READ,
 ];
 

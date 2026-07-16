@@ -128,3 +128,28 @@ export class UpdatePrescriptionDto {
   @MaxLength(4000)
   notes?: string;
 }
+
+export class DispenseItemDto {
+  @IsInt()
+  @Min(1)
+  itemId!: number;
+
+  /** Quantity to dispense now (defaults to remaining qty when omitted). */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  quantity?: number;
+}
+
+export class DispensePrescriptionDto {
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DispenseItemDto)
+  items?: DispenseItemDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  pharmacyNotes?: string;
+}
