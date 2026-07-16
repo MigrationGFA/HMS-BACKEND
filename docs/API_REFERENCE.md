@@ -567,7 +567,9 @@ Doctor creates/sends prescriptions; pharmacy lists inbound (`status=Sent`). Drug
 |--------|------|---------|------------|
 | POST | `/prescriptions` | Create prescription (`send: true` → pharmacy queue) | `prescription:create` |
 | GET | `/prescriptions` | List (`q`, `status`, `personId`, `page`, `limit`) | `prescription:read` |
-| GET | `/prescriptions/:id` | Detail with items + person summary | `prescription:read` |
+| GET | `/prescriptions/by-rx/:rxNo` | Detail by Rx number (e.g. `RX-2026-0001`) + audit trail | `prescription:read` |
+| GET | `/prescriptions/:id` | Detail by numeric id + audit trail | `prescription:read` |
+| POST | `/prescriptions/:id/dispense` | Dispense (FEFO stock deduct, mark Dispensed, audit) | `pharmacy:dispense` |
 | PATCH | `/prescriptions/:id` | Update status / payment / pharmacy notes | `prescription:update` |
 
 #### `POST /api/prescriptions`
@@ -609,6 +611,33 @@ Doctor creates/sends prescriptions; pharmacy lists inbound (`status=Sent`). Drug
 **Query:** `status=Sent` (pharmacy inbound), `personId`, `q`, `page`, `limit`.
 
 **Response:** `{ data: { items: [...], meta: { page, limit, total } } }`
+
+#### `GET /api/prescriptions/by-rx/:rxNo`
+
+**Example:** `GET /api/prescriptions/by-rx/RX-2026-0001`
+
+**Response:** `{ data: { prescriptionId, rxNo, status, items, person, dispensedBy, auditTrail: [{ at, actor, action, note }] } }`
+
+**Errors:** `401`, `403`, `404`
+
+#### `POST /api/prescriptions/:id/dispense`
+
+**Purpose:** Pharmacist completes dispensing in one step — deducts `DRUG_BATCHES` FEFO, updates line `QTY_DISPENSED`, sets status `Dispensed` / `Partially Dispensed`, writes audit `pharmacy:dispense`.
+
+**Request body:**
+
+```json
+{
+  "pharmacyNotes": "Counselled — take with food",
+  "items": [{ "itemId": 1, "quantity": 28 }]
+}
+```
+
+Omit `items` to dispense full remaining quantity on all internal-pharmacy lines.
+
+**Response:** `{ data: { prescriptionId, rxNo, status: "Dispensed", dispensedBy, items, auditTrail } }`
+
+**Errors:** `400` insufficient stock / already dispensed, `401`, `403` missing `pharmacy:dispense`, `404`
 
 ---
 

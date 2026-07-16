@@ -82,6 +82,7 @@ PURCHASE_ORDERS ── GOODS_RECEIVED_NOTES ── DRUG_BATCHES
 | `stock:adjust` | Manual stock adjustment (reason required) |
 | `prescription:create` / `prescription:send` | Prescription draft / sent to pharmacy |
 | `prescription:update` | Status / payment / pharmacy notes change |
+| `pharmacy:dispense` | Pharmacist dispensed Rx (FEFO stock deducted) |
 | `auth:login` | (planned) successful login |
 
 Filter audits with `GET /api/audit/logs?type=triage:create`.

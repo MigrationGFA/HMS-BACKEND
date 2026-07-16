@@ -104,7 +104,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Pharmacy audit logging on all mutations (supplier/drug/PR/PO/receive/adjust) | ✅ |
 | Pharmacist role granted pharmacy permissions (`PHARMACY_PERMISSIONS`) | ✅ |
 | Doctor prescriptions create/send + pharmacy inbound list (`POST/GET/PATCH /prescriptions`) | ✅ |
-| Dispensing (stock decrement / FEFO release) | 📋 |
+| Pharmacy dispense by Rx (`GET …/by-rx/:rxNo`, `POST …/:id/dispense`, FEFO + audit) | ✅ |
 | Async lab processing (RabbitMQ) | 📋 |
 
 ## Finance & Operations (Scaffolded)

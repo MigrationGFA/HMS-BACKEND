@@ -17,6 +17,7 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../../auth/types/auth-user.type';
 import {
   CreatePrescriptionDto,
+  DispensePrescriptionDto,
   UpdatePrescriptionDto,
 } from './dto/prescription.dto';
 import { PrescriptionsService } from './prescriptions.service';
@@ -75,17 +76,53 @@ export class PrescriptionsController {
 
   /**
    * Method: GET
-   * URL: /api/prescriptions/:id
-   * Purpose: Prescription detail with items and patient summary
+   * URL: /api/prescriptions/by-rx/:rxNo
+   * Purpose: Load prescription by human Rx number (e.g. RX-2026-0001) for pharmacy detail/dispense
    * Required permission: prescription:read
    * Request body: none
-   * Response example: { data: { prescriptionId, rxNo, items: [...], person: {...} } }
+   * Response example: { data: { prescriptionId, rxNo, items, person, auditTrail } }
+   * Error cases: 401, 403, 404
+   */
+  @Get('by-rx/:rxNo')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_READ)
+  async findByRxNo(@Param('rxNo') rxNo: string) {
+    const rx = await this.prescriptionsService.findByRxNo(rxNo);
+    return { data: rx };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/prescriptions/:id
+   * Purpose: Prescription detail with items, person summary, and audit trail
+   * Required permission: prescription:read
+   * Request body: none
+   * Response example: { data: { prescriptionId, rxNo, items: [...], person: {...}, auditTrail: [...] } }
    * Error cases: 401, 403, 404
    */
   @Get(':id')
   @RequirePermissions(PERMISSIONS.PRESCRIPTION_READ)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const rx = await this.prescriptionsService.findById(id);
+    return { data: rx };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/prescriptions/:id/dispense
+   * Purpose: Dispense prescription (FEFO batch stock deduction + mark Dispensed)
+   * Required permission: pharmacy:dispense
+   * Request body: DispensePrescriptionDto { items?: [{ itemId, quantity? }], pharmacyNotes? }
+   * Response example: { data: { prescriptionId, rxNo, status: "Dispensed", dispensedBy, items, auditTrail } }
+   * Error cases: 400 insufficient stock / already dispensed, 401, 403, 404
+   */
+  @Post(':id/dispense')
+  @RequirePermissions(PERMISSIONS.PHARMACY_DISPENSE)
+  async dispense(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: DispensePrescriptionDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rx = await this.prescriptionsService.dispense(id, dto ?? {}, user);
     return { data: rx };
   }
 

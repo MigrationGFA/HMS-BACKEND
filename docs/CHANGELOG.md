@@ -9,7 +9,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Clinical prescriptions API: `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS` (migration `20260716220000_prescriptions`); `POST/GET/PATCH /api/prescriptions` with RBAC (`prescription:create|read|update`), patient-centric `PERSON_ID`, drug catalog FKs, audit on create/send/update; doctors send Rx, pharmacy lists `status=Sent`
+- Pharmacy dispense: `GET /api/prescriptions/by-rx/:rxNo`, `POST /api/prescriptions/:id/dispense` (`pharmacy:dispense`) — FEFO stock deduction from `DRUG_BATCHES`, status Dispensed, audit `pharmacy:dispense` + audit trail on detail
 - Frontend: Doctor Prescription Engine and Pharmacy queue (`/pharmacy/queue`, `/dashboard/pharmacy/queue`) wired to live prescriptions + drug catalog when `VITE_USE_API=true`
+- Frontend: `/pharmacy/rx/:rxNo` loads live Rx, Start Processing/View open dispense page; Confirm Dispense completes the prescription
 - Migration `20260716210000_supplier_drugs_join` — creates missing `SUPPLIER_DRUGS` join table and drops legacy `SUPPLIERS.CATEGORIES` (fixes `GET /api/pharmacy/suppliers` 500 when the earlier pharmacy migration was applied before the join table existed in SQL)
 - Pharmacy procurement & inventory backend: `SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES` tables (migration `20260716000000_pharmacy_procurement_inventory`)
 - `POST/GET/PATCH /api/pharmacy/suppliers` — supplier registration + management list (`supplier:create|update`, `pharmacy:read`); supplied drugs referenced by `drugIds` via the `SUPPLIER_DRUGS` join table (names joined for display, never stored on the supplier)
