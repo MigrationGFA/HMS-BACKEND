@@ -8,6 +8,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+<<<<<<< HEAD
 - **Nursing ops (Phases 10–12):** Prisma `nursing-ops` tables; `/api/nursing` orders, tasks, MAR (administer/refuse/miss/hold/dispense), samples, shifts, handovers, ICU board/notes/infusions, messages, reports, analytics; seed demo orders/MAR/task/message; frontend `nursing-ops.ts` dual-path on Orders/Tasks/MAR/Samples/Shifts/Handover/ICU/Comms/Reports/Analytics
 - **Clinical / pharmacy / lab bridges (ADR-012):** `POST/GET /api/prescriptions`, `/api/laboratory/requests|samples`, `/api/pharmacy/dispensing` delegate to nursing ops until dedicated domains exist; LAB/PHARMACIST role perms extended
 - **Admissions APIs:** `/api/admissions` (list, stats, admit, transfer, order/complete discharge), `/api/admissions/wards`, `/api/admissions/beds`; bed occupy/free (`OCCUPIED` / `CLEANING`); audits `admission:create|transfer|order-discharge|discharge`
@@ -21,8 +22,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added (earlier)
 
+=======
+- Pharmacy procurement & inventory backend: `SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES` tables (migration `20260716000000_pharmacy_procurement_inventory`)
+- `POST/GET/PATCH /api/pharmacy/suppliers` — supplier registration + management list (`supplier:create|update`, `pharmacy:read`); supplied drugs referenced by `drugIds` via the `SUPPLIER_DRUGS` join table (names joined for display, never stored on the supplier)
+- Frontend: supplier modal drug picker is an inline search + checklist (always visible inside the dialog); Create PO modal uses a line-item table (Drug Name searchable dropdown / Packs / Price)
+- Frontend: `/pharmacy/drugs` Drug Catalog page — clickable category cards with drug counts, searchable drug table, Add Drug dialog; added "Drug Catalog" to the pharmacy sidebar
+- `POST/GET/PATCH /api/pharmacy/drugs` — drug catalog with supplier link; stock/expiry computed from batches (`drug:create|update`)
+- `GET /api/pharmacy/inventory` + `/stats`, `POST /api/pharmacy/inventory/adjustments` — batch-aware inventory with FEFO manual adjustments (`stock:adjust`, reason mandatory)
+- `POST/GET /api/pharmacy/procurement/requests` (+ `approve`/`reject`), `POST/GET /api/pharmacy/procurement/orders` (+ `approve`/`reject`/`send`), `POST /api/pharmacy/procurement/receive`, `GET /grns`, `GET /stats` — PR → PO → GRN workflow with auto numbering (`PR-YYYY-###`, `PO-YYYY-###`, `GRN-YYYY-###`)
+- Audit logging on every pharmacy mutation (`supplier:*`, `drug:*`, `procurement:*`, `stock:receive`, `stock:adjust`)
+- Pharmacy permissions in `permissions.constants.ts`; PHARMACIST role granted `PHARMACY_PERMISSIONS`
+- Frontend: `src/lib/api/pharmacy.ts` client; `/pharmacy/procurement` and `/pharmacy/inventory` pages wired to the live API (Add Supplier, Add Drug, PR/PO workflow, Receive Stock, Adjust Stock) with mock-data fallback when the API flag is off
+>>>>>>> 6f243d98c7656163b07dfc15a488a1f9f189119a
 - `GET /api/records/dashboard-stats` — live summary cards for Patient Entry Engine (Total/New/Returning/Walk-In/Emergency/Pending Reg/Awaiting Triage/Awaiting Consult)
 - Patient Entry Engine frontend wires those cards to `GET /api/records/dashboard-stats`
+- Automatic token refresh on frontend (`POST /api/auth/refresh` on 401 + proactive near-expiry refresh); access token **1h**, refresh token **12h**; hard `Unauthorized` logs the user out
+- Records console APIs: reuse `GET /records/dashboard-stats` on `/dashboard/records`; new `GET /records/directory`, `GET /records/directory-stats`, `GET /records/audit`, `GET /records/audit-stats`
 - `PATCH /api/patients/:id` — update person after payment / finalize status to Active
 - `GET /api/cards/:cardId` — payment cleared check for a specific card
 - Early registration flow: create PERSONS + PATIENT_CARDS after Next of Kin (`STATUS=Pending Payment`); cashier payment sets person to `Incomplete`; Complete sets `Active`

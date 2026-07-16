@@ -8,10 +8,11 @@ Core hospital business workflows. Each workflow maps to one or more API modules 
 Receptionist opens app
   → POST /auth/login (email + password)
   → Server validates bcrypt hash
-  → Issues access JWT (15m) + refresh token (7d, stored in DB)
-  → Client stores tokens
+  → Issues access JWT (1h) + refresh token (12h, stored in DB)
+  → Client stores access + refresh tokens
   → Subsequent requests use Authorization: Bearer header
-  → On 401, client calls POST /auth/refresh
+  → Client auto-refreshes before access expiry and on 401 via POST /auth/refresh
+  → If refresh fails / still Unauthorized, client clears session and redirects to /login
   → On logout, POST /auth/logout revokes refresh token
 ```
 

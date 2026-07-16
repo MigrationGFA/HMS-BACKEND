@@ -103,7 +103,7 @@ Returns a hello message from the default scaffold.
 |--------|------|-------------|------|
 | POST | `/auth/login` | Login with email/password | None |
 | POST | `/auth/refresh` | Rotate access token | None (refresh token body) |
-| POST | `/auth/logout` | Revoke refresh token | Bearer |
+| POST | `/auth/logout` | Revoke refresh token (body only; access JWT optional) | None |
 | GET | `/auth/me` | Current user profile + roles | Bearer |
 
 #### `POST /auth/login`
@@ -123,16 +123,32 @@ Returns a hello message from the default scaffold.
 {
   "data": {
     "accessToken": "eyJ...",
-    "refreshToken": "eyJ...",
-    "expiresIn": 900,
+    "refreshToken": "base64url...",
+    "expiresIn": 3600,
     "user": {
-      "id": "uuid",
+      "id": 1,
       "email": "doctor@hospital.com",
-      "roles": ["doctor"]
+      "roles": ["RECORDS"]
     }
   }
 }
 ```
+
+`expiresIn` is access-token lifetime in seconds (default **1 hour** = `3600`). Refresh tokens last **12 hours**.
+
+#### `POST /auth/refresh`
+
+**Purpose:** Rotate access + refresh tokens when the access JWT expires. Called automatically by the frontend API client on `401`.
+
+**Body:**
+
+```json
+{ "refreshToken": "base64url..." }
+```
+
+**Response 200:** same shape as login (`accessToken`, `refreshToken`, `expiresIn`, `user`).
+
+**Error cases:** `401` invalid/expired/revoked refresh token.
 
 ---
 
@@ -299,7 +315,11 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/records/dashboard-stats` | Live summary cards for Patient Entry Engine | `patient:read` |
+| GET | `/records/dashboard-stats` | Live summary cards for Patient Entry Engine **and** Records dashboard (`/dashboard/records`) — same metrics | `patient:read` |
+| GET | `/records/directory-stats` | Patient Directory summary cards | `patient:read` |
+| GET | `/records/directory` | Patient Directory list (`q`, `sex`, `insurance`, `page`, `limit`) | `patient:read` |
+| GET | `/records/audit-stats` | Records Audit Trail summary cards | `audit:read` |
+| GET | `/records/audit` | Records Audit Trail list (`q`, `type`, `status`, `page`, `limit`) | `audit:read` |
 | POST | `/records/registrations` | Create PERSONS + pending PATIENT_CARDS after Next of Kin | `patient:create` |
 | GET | `/records/registrations` | Registration queue (`paymentStatus`, `q`, `page`, `limit`) | `card:read` |
 | GET | `/records/registrations/:personId` | Load person + card to continue registration | `patient:read` |
@@ -309,7 +329,7 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 #### `GET /api/records/dashboard-stats`
 
-**Purpose:** Power the 8 live statistic cards on Patient Entry Engine (`/hms/identity`).
+**Purpose:** Power the 8 live statistic cards on Patient Entry Engine (`/hms/identity`) and Records Officer Overview (`/dashboard/records`). Same endpoint — cards are equivalent.
 
 **Query:**
 
@@ -352,6 +372,67 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 | `awaitingConsultation` | `TRIAGE` status `Triage Completed` or `Sent to Consultation` |
 
 **Error cases:** `401`, `403` missing `patient:read`.
+
+#### `GET /api/records/directory-stats`
+
+**Purpose:** Summary cards on Patient Directory (`/records/directory`).
+
+**Required permission:** `patient:read`
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "totalPatients": 4128,
+    "newThisMonth": 612,
+    "active": 3800,
+    "inpatients": 120,
+    "outpatients": 3600,
+    "hmoNhia": 900,
+    "incompleteProfiles": 45,
+    "duplicatesFlagged": 2
+  }
+}
+```
+
+#### `GET /api/records/directory`
+
+**Purpose:** Searchable Patient Directory list.
+
+**Query:** `q`, `sex` (`Male`|`Female`), `insurance` (`NHIS`|`HMO`|`Private`), `page`, `limit`
+
+**Required permission:** `patient:read`
+
+#### `GET /api/records/audit-stats`
+
+**Purpose:** Summary cards on Records Audit Trail (`/records/audit`).
+
+**Required permission:** `audit:read`
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "activitiesToday": 48,
+    "created": 12,
+    "edited": 9,
+    "uploaded": 3,
+    "printed": 0,
+    "deleted": 1,
+    "suspicious": 2
+  }
+}
+```
+
+#### `GET /api/records/audit`
+
+**Purpose:** Audit trail table for Records console (from `AUDITS`).
+
+**Query:** `q`, `type` (e.g. `person:create`), `status`, `page`, `limit`
+
+**Required permission:** `audit:read`
 
 ---
 
@@ -443,6 +524,7 @@ Triage stores **queue + vitals** and a **`personId`** only. Demographics / NOK a
 
 ---
 
+<<<<<<< HEAD
 ### Nursing (`/nursing`) — Patient Queues
 
 Nurse-facing facade over **Triage** + latest **PATIENT_CARDS** payment status. See [NURSING_MODULE.md](./NURSING_MODULE.md).
@@ -552,6 +634,156 @@ Orders, tasks, MAR, samples, shifts, handover, ICU, messaging, reports, analytic
 | POST | `/laboratory/samples/:id/collect` | Collect via lab facade | `nursing-sample:update` |
 | GET | `/pharmacy/dispensing` | Pending MAR | `nursing-mar:read` |
 | POST | `/pharmacy/dispensing/:marId/dispense` | Mark pharmacy dispensed | `nursing-mar:update` |
+=======
+### Pharmacy Suppliers (`/pharmacy/suppliers`)
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| POST | `/pharmacy/suppliers` | Register a supplier | `supplier:create` |
+| GET | `/pharmacy/suppliers` | Supplier management list (`q`, `status`, `page`, `limit`) | `pharmacy:read` |
+| GET | `/pharmacy/suppliers/:id` | Supplier detail | `pharmacy:read` |
+| PATCH | `/pharmacy/suppliers/:id` | Update supplier / set status | `supplier:update` |
+
+#### `POST /api/pharmacy/suppliers`
+
+Drugs a supplier supplies are referenced by **drug ID** (from the drug catalog), never by name — stored in the `SUPPLIER_DRUGS` join table. Drug creation (inventory page) and supplier creation are separate flows.
+
+**Request body:**
+
+```json
+{
+  "name": "Emzor Pharmaceuticals",
+  "contactPerson": "Ada Obi",
+  "phone": "08030000000",
+  "email": "sales@emzor.com",
+  "address": "Lagos",
+  "drugIds": [1, 4, 7],
+  "performance": 90
+}
+```
+
+**Response 201:** `{ data: { supplierId, name, contactPerson, phone, email, address, drugIds: [1, 4, 7], drugs: [{ drugId: 1, name: "Paracetamol 500mg" }], performance, status: "Active", createdAt } }`
+
+**Errors:** `400` validation / unknown drug id, `401`, `403` missing `supplier:create`, `409` duplicate supplier name. Writes audit `supplier:create`.
+
+`PATCH /api/pharmacy/suppliers/:id` accepts the same fields; sending `drugIds` **replaces** the supplier's full set of supplied drugs.
+
+---
+
+### Pharmacy Drug Catalog (`/pharmacy/drugs`)
+
+Drugs are catalog entries; quantities and expiry live in **batches** created by stock receipts. `stock` is computed as the sum of available batch quantities, and `earliestExpiry` / `stockStatus` (`Active` / `Low` / `Out of Stock` / `Expired`) are derived per drug.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| POST | `/pharmacy/drugs` | Add drug to catalog (name + optional supplier) | `drug:create` |
+| GET | `/pharmacy/drugs` | List catalog (`q`, `category`, `supplierId`, `status`, `page`, `limit`) | `pharmacy:read` |
+| GET | `/pharmacy/drugs/:id` | Drug detail incl. batches | `pharmacy:read` |
+| PATCH | `/pharmacy/drugs/:id` | Update catalog fields (price, reorder level, shelf, …) | `drug:update` |
+
+#### `POST /api/pharmacy/drugs`
+
+**Request body:**
+
+```json
+{
+  "name": "Amoxicillin",
+  "genericName": "Amoxicillin 500mg",
+  "category": "Antibiotic",
+  "form": "Capsule",
+  "strength": "500mg",
+  "unit": "cap",
+  "unitPrice": 50,
+  "reorderLevel": 500,
+  "shelf": "B-1",
+  "controlled": false,
+  "supplierId": 1
+}
+```
+
+**Response 201:** `{ data: { drugId, name, ..., supplierId, supplierName, stock: 0, stockStatus: "Out of Stock", batches: [] } }`
+
+**Errors:** `400` validation, `401`, `403` missing `drug:create`, `404` supplier not found, `409` duplicate drug (same name + strength + form). Writes audit `drug:create`.
+
+---
+
+### Pharmacy Inventory (`/pharmacy/inventory`)
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/inventory` | Inventory list (same shape as drug list, batch-aware) | `pharmacy:read` |
+| GET | `/pharmacy/inventory/stats` | Summary cards: total drugs, low stock, out of stock, expiring soon, expired, stock value, recently received | `pharmacy:read` |
+| POST | `/pharmacy/inventory/adjustments` | Manual stock adjustment on a batch (± qty, reason required) | `stock:adjust` |
+
+#### `POST /api/pharmacy/inventory/adjustments`
+
+**Request body:**
+
+```json
+{
+  "drugId": 3,
+  "qty": -20,
+  "reason": "Damaged stock — water damage in store B"
+}
+```
+
+Positive `qty` adds to the newest batch; negative deducts FEFO (earliest-expiry batches first). `reason` is mandatory.
+
+**Response 201:** updated drug with recomputed `stock` and `stockStatus`.
+
+**Errors:** `400` validation / adjustment below zero, `401`, `403` missing `stock:adjust`, `404` drug or batch not found. Writes audit `stock:adjust`.
+
+---
+
+### Pharmacy Procurement (`/pharmacy/procurement`)
+
+Workflow: **Purchase Request** (`Pending Approval` → `Approved`/`Rejected`) → **Purchase Order** (`Pending Approval` → `Approved` → `Sent` → `Delivered`) → **Receive stock** (creates a **GRN** + drug batches).
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/procurement/stats` | Dashboard cards: open PRs, active POs, monthly spend, pending deliveries | `pharmacy:read` |
+| POST | `/pharmacy/procurement/requests` | Create purchase request (auto `PR-YYYY-###`) | `procurement:create` |
+| GET | `/pharmacy/procurement/requests` | List PRs (`status`, `q`, `page`, `limit`) | `pharmacy:read` |
+| PATCH | `/pharmacy/procurement/requests/:id/approve` | Approve PR | `procurement:approve` |
+| PATCH | `/pharmacy/procurement/requests/:id/reject` | Reject PR (reason required) | `procurement:approve` |
+| POST | `/pharmacy/procurement/orders` | Create purchase order with items (auto `PO-YYYY-###`) | `procurement:create` |
+| GET | `/pharmacy/procurement/orders` | List POs (`status`, `supplierId`, `q`, `page`, `limit`) | `pharmacy:read` |
+| GET | `/pharmacy/procurement/orders/:id` | PO detail incl. items | `pharmacy:read` |
+| PATCH | `/pharmacy/procurement/orders/:id/approve` | Approve PO | `procurement:approve` |
+| PATCH | `/pharmacy/procurement/orders/:id/reject` | Reject PO (reason required) | `procurement:approve` |
+| PATCH | `/pharmacy/procurement/orders/:id/send` | Mark PO sent to supplier | `procurement:create` |
+| POST | `/pharmacy/procurement/receive` | Receive stock → GRN + drug batches (optionally against a PO) | `stock:receive` |
+| GET | `/pharmacy/procurement/grns` | List goods received notes | `pharmacy:read` |
+
+#### `POST /api/pharmacy/procurement/receive`
+
+**Request body (one call per drug batch received):**
+
+```json
+{
+  "poId": 4,
+  "drugId": 3,
+  "batchNo": "AMX-2026-11",
+  "mfgDate": "2026-01-15",
+  "expiryDate": "2027-11-30",
+  "qtyOrdered": 1000,
+  "qtyReceived": 1000,
+  "qtyDamaged": 0,
+  "unitCost": 32,
+  "sellingPrice": 50,
+  "location": "Store B",
+  "receivedBy": "Pharm. Ada Obi"
+}
+```
+
+`poId` is optional (direct receipts from the inventory page are allowed). Each receipt creates a GRN + a `DRUG_BATCHES` row and increases available stock by the accepted quantity (`qtyReceived - qtyDamaged`); receiving against a PO marks it `Delivered`.
+
+**Response 201:** `{ data: { grnId, grnNo: "GRN-YYYY-###", poId, drugId, drugName, batchNo, qtyReceived, qtyAccepted, expiryDate, receivedBy, receivedAt } }`
+
+**Errors:** `400` validation, `401`, `403` missing `stock:receive`, `404` PO or drug not found, `409` PO not in a receivable state. Writes audit `stock:receive`.
+
+**Audit:** every pharmacy mutation writes to `AUDITS` with the acting user — `supplier:create|update`, `drug:create|update`, `procurement:request-create|approved|rejected`, `procurement:po-create|approved|rejected|send`, `stock:receive`, `stock:adjust`.
+>>>>>>> 6f243d98c7656163b07dfc15a488a1f9f189119a
 
 ---
 

@@ -1,0 +1,230 @@
+// Pharmacy procurement + inventory.
+// Drugs are the catalog; stock quantity/expiry live on DRUG_BATCHES so each
+// receipt is tracked per batch (expiry, location, available amount).
+// Suppliers feed purchase orders; goods received notes (GRN) create batches.
+// Soft delete via STATUS flags — never hard-delete business records.
+
+model Suppliers {
+  SUPPLIER_ID    Int       @id @default(autoincrement())
+  NAME           String    @db.VarChar(255)
+  CONTACT_PERSON String?   @db.VarChar(255)
+  PHONE          String?   @db.VarChar(50)
+  EMAIL          String?   @db.VarChar(255)
+  ADDRESS        String?   @db.VarChar(500)
+  /// Delivery performance percentage 0-100
+  PERFORMANCE    Int       @default(0)
+  /// Active | Inactive (soft delete)
+  STATUS         String    @default("Active") @db.VarChar(50)
+  NOTES          String?   @db.Text
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+
+  drugs          Drugs[]
+  suppliedDrugs  SupplierDrugs[]
+  purchaseOrders PurchaseOrders[]
+
+  @@index([NAME])
+  @@index([STATUS])
+  @@map("SUPPLIERS")
+}
+
+/// Drugs a supplier supplies — stored by DRUG_ID (never duplicated names).
+model SupplierDrugs {
+  SUPPLIER_DRUG_ID Int @id @default(autoincrement())
+  SUPPLIER_ID      Int
+  DRUG_ID          Int
+
+  supplier Suppliers @relation(fields: [SUPPLIER_ID], references: [SUPPLIER_ID])
+  drug     Drugs     @relation(fields: [DRUG_ID], references: [DRUG_ID])
+
+  @@unique([SUPPLIER_ID, DRUG_ID])
+  @@index([DRUG_ID])
+  @@map("SUPPLIER_DRUGS")
+}
+
+model Drugs {
+  DRUG_ID         Int       @id @default(autoincrement())
+  NAME            String    @db.VarChar(255)
+  GENERIC_NAME    String?   @db.VarChar(255)
+  CATEGORY        String?   @db.VarChar(100)
+  /// Tablet | Capsule | Syrup | Injection | Bag | Cream | ...
+  FORM            String?   @db.VarChar(50)
+  STRENGTH        String?   @db.VarChar(100)
+  /// Dispensing unit, e.g. tab | cap | amp | bag
+  UNIT            String?   @db.VarChar(50)
+  UNIT_PRICE      Decimal   @default(0) @db.Decimal(14, 2)
+  REORDER_LEVEL   Int       @default(0)
+  SHELF           String?   @db.VarChar(50)
+  /// Y | N — controlled substance flag
+  CONTROLLED_FLAG String    @default("N") @db.VarChar(10)
+  /// Active | Discontinued (soft delete)
+  STATUS          String    @default("Active") @db.VarChar(50)
+  /// Primary/preferred supplier
+  SUPPLIER_ID     Int?
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime?
+  UPDATED_BY_ID   Int?
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+
+  supplier             Suppliers?           @relation(fields: [SUPPLIER_ID], references: [SUPPLIER_ID])
+  suppliedBy           SupplierDrugs[]
+  batches              DrugBatches[]
+  purchaseRequests     PurchaseRequests[]
+  purchaseOrderItems   PurchaseOrderItems[]
+  goodsReceived        GoodsReceivedNotes[]
+
+  @@index([NAME])
+  @@index([CATEGORY])
+  @@index([SUPPLIER_ID])
+  @@index([STATUS])
+  @@map("DRUGS")
+}
+
+/// One row per physical batch received — expiry and available amount per batch.
+model DrugBatches {
+  BATCH_ID      Int       @id @default(autoincrement())
+  DRUG_ID       Int
+  BATCH_NO      String    @db.VarChar(100)
+  MFG_DATE      DateTime?
+  EXPIRY_DATE   DateTime?
+  QTY_RECEIVED  Int       @default(0)
+  QTY_AVAILABLE Int       @default(0)
+  UNIT_COST     Decimal?  @db.Decimal(14, 2)
+  SELLING_PRICE Decimal?  @db.Decimal(14, 2)
+  LOCATION      String?   @db.VarChar(100)
+  GRN_ID        Int?
+  /// Available | Quarantined | Expired | Exhausted
+  STATUS        String    @default("Available") @db.VarChar(50)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime?
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  drug Drugs               @relation(fields: [DRUG_ID], references: [DRUG_ID])
+  grn  GoodsReceivedNotes? @relation(fields: [GRN_ID], references: [GRN_ID])
+
+  @@index([DRUG_ID])
+  @@index([EXPIRY_DATE])
+  @@index([STATUS])
+  @@map("DRUG_BATCHES")
+}
+
+model PurchaseRequests {
+  REQUEST_ID    Int       @id @default(autoincrement())
+  REQUEST_NO    String    @unique @db.VarChar(50)
+  DRUG_ID       Int
+  QTY           Int
+  /// Low | Normal | High | Critical
+  PRIORITY      String    @default("Normal") @db.VarChar(50)
+  /// Draft | Submitted | Pending Approval | Approved | Rejected
+  STATUS        String    @default("Submitted") @db.VarChar(50)
+  REASON        String?   @db.VarChar(500)
+  NOTE          String?   @db.Text
+  REQUESTED_BY  String?   @db.VarChar(100)
+  APPROVED_BY   String?   @db.VarChar(100)
+  APPROVED_DATE DateTime?
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime?
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  drug Drugs @relation(fields: [DRUG_ID], references: [DRUG_ID])
+
+  @@index([DRUG_ID])
+  @@index([STATUS])
+  @@index([PRIORITY])
+  @@index([CREATED_DATE])
+  @@map("PURCHASE_REQUESTS")
+}
+
+model PurchaseOrders {
+  PO_ID           Int       @id @default(autoincrement())
+  PO_NO           String    @unique @db.VarChar(50)
+  SUPPLIER_ID     Int
+  TOTAL           Decimal   @default(0) @db.Decimal(14, 2)
+  /// Pending | Approved | Rejected
+  APPROVAL_STATUS String    @default("Pending") @db.VarChar(50)
+  /// Not Sent | Sent | Partial | Delivered
+  DELIVERY_STATUS String    @default("Not Sent") @db.VarChar(50)
+  /// Draft | Pending Approval | Approved | Sent to Supplier | Partially Delivered | Delivered | Completed | Cancelled
+  STATUS          String    @default("Pending Approval") @db.VarChar(50)
+  EXPECTED_DATE   DateTime?
+  PAYMENT_TERMS   String?   @db.VarChar(100)
+  NOTES           String?   @db.Text
+  APPROVED_BY     String?   @db.VarChar(100)
+  APPROVED_DATE   DateTime?
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime?
+  UPDATED_BY_ID   Int?
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+
+  supplier      Suppliers            @relation(fields: [SUPPLIER_ID], references: [SUPPLIER_ID])
+  items         PurchaseOrderItems[]
+  goodsReceived GoodsReceivedNotes[]
+
+  @@index([SUPPLIER_ID])
+  @@index([STATUS])
+  @@index([APPROVAL_STATUS])
+  @@index([CREATED_DATE])
+  @@map("PURCHASE_ORDERS")
+}
+
+model PurchaseOrderItems {
+  PO_ITEM_ID   Int     @id @default(autoincrement())
+  PO_ID        Int
+  DRUG_ID      Int
+  QTY          Int
+  UNIT_COST    Decimal @default(0) @db.Decimal(14, 2)
+  QTY_RECEIVED Int     @default(0)
+
+  purchaseOrder PurchaseOrders @relation(fields: [PO_ID], references: [PO_ID])
+  drug          Drugs          @relation(fields: [DRUG_ID], references: [DRUG_ID])
+
+  @@index([PO_ID])
+  @@index([DRUG_ID])
+  @@map("PURCHASE_ORDER_ITEMS")
+}
+
+/// Goods Received Note — one row per drug line received (PO optional to
+/// support direct stock receipts from the inventory page).
+model GoodsReceivedNotes {
+  GRN_ID        Int       @id @default(autoincrement())
+  GRN_NO        String    @unique @db.VarChar(50)
+  PO_ID         Int?
+  DRUG_ID       Int
+  BATCH_NO      String    @db.VarChar(100)
+  MFG_DATE      DateTime?
+  EXPIRY_DATE   DateTime?
+  QTY_ORDERED   Int       @default(0)
+  QTY_RECEIVED  Int       @default(0)
+  QTY_DAMAGED   Int       @default(0)
+  QTY_ACCEPTED  Int       @default(0)
+  UNIT_COST     Decimal?  @db.Decimal(14, 2)
+  LOCATION      String?   @db.VarChar(100)
+  RECEIVED_BY   String?   @db.VarChar(100)
+  RECEIVED_DATE DateTime?
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime?
+
+  purchaseOrder PurchaseOrders? @relation(fields: [PO_ID], references: [PO_ID])
+  drug          Drugs           @relation(fields: [DRUG_ID], references: [DRUG_ID])
+  batches       DrugBatches[]
+
+  @@index([PO_ID])
+  @@index([DRUG_ID])
+  @@index([RECEIVED_DATE])
+  @@map("GOODS_RECEIVED_NOTES")
+}

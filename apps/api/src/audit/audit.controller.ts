@@ -1,8 +1,12 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
+import { PERMISSIONS } from '../common/constants';
 import { AuditService } from './audit.service';
 
 @Controller('audit')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
@@ -10,13 +14,13 @@ export class AuditController {
    * Method: GET
    * URL: /api/audit/logs?type=&personId=&userId=&page=&limit=
    * Purpose: Query audit trail filtered by AUDIT_TYPE
-   * Required permission: JWT (audit:read when RBAC wired)
+   * Required permission: audit:read
    * Request body: none
    * Response example: { data: { items: [{ auditId, type, ... }], meta } }
-   * Error cases: 401 unauthorized
+   * Error cases: 401 unauthorized, 403 missing permission
    */
   @Get('logs')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions(PERMISSIONS.AUDIT_READ)
   async list(
     @Query('type') type?: string,
     @Query('personId') personId?: string,

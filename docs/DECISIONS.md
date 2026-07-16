@@ -104,8 +104,9 @@ Record of significant technical decisions. Format inspired by [ADR](https://adr.
 **Context:** API serves multiple clients (web, mobile). Need stateless auth with session revocation capability.
 
 **Decision:**
-- Short-lived JWT access tokens (15m default)
-- Long-lived refresh tokens stored in `refresh_tokens` table (7d default)
+- Short-lived JWT access tokens (**1h** default)
+- Refresh tokens stored in `REFRESH_TOKENS` table (**12h** default) with rotation on each refresh
+- Frontend API client auto-calls `POST /auth/refresh` on `401`; if refresh fails, forces logout to `/login`
 - Passport.js strategies for validation
 - bcrypt for password hashing
 

@@ -12,6 +12,7 @@ Schema files live under `apps/api/prisma/`. Migrations are managed via `prisma m
 apps/api/prisma/
 ├── schema.prisma          # generator + datasource
 ├── models/
+<<<<<<< HEAD
 │   ├── auth.prisma           # ROLES, REFRESH_TOKENS
 │   ├── users.prisma          # USERS
 │   ├── patients.prisma       # PERSONS
@@ -21,6 +22,15 @@ apps/api/prisma/
 │   ├── admissions.prisma     # WARDS, BEDS, ADMISSIONS
 │   ├── nursing-care.prisma   # nursing notes/vitals/care plans/obs/incidents/forms
 │   └── nursing-ops.prisma    # orders, tasks, MAR, shifts, handover, ICU, messages, reports
+=======
+│   ├── auth.prisma        # ROLES, REFRESH_TOKENS
+│   ├── users.prisma       # USERS
+│   ├── patients.prisma    # PERSONS
+│   ├── cards.prisma       # PATIENT_CARDS (registration card + payment gate)
+│   ├── triage.prisma      # TRIAGE
+│   ├── pharmacy.prisma    # SUPPLIERS, SUPPLIER_DRUGS, DRUGS, DRUG_BATCHES, PURCHASE_REQUESTS, PURCHASE_ORDERS, PURCHASE_ORDER_ITEMS, GOODS_RECEIVED_NOTES
+│   └── audit.prisma       # AUDITS (with AUDIT_TYPE)
+>>>>>>> 6f243d98c7656163b07dfc15a488a1f9f189119a
 ├── migrations/
 └── seed.ts
 ```
@@ -38,6 +48,7 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `TRIAGE` | `Triage` | Queue + vitals; stores `PERSON_ID` only (no duplicated demographics). Also backing store for Nursing Patient Queues (`/api/nursing/patient-queues*`) |
 | `PATIENT_CARDS` | `PatientCards` | Registration card per person; `PAYMENT_STATUS` starts `Pending` and gates the workflow until a cashier confirms |
 | `AUDITS` | `Audits` | Immutable audit trail with filterable `AUDIT_TYPE` |
+<<<<<<< HEAD
 | `WARDS` | `Wards` | Inpatient wards |
 | `BEDS` | `Beds` | Beds per ward (`AVAILABLE` / `OCCUPIED` / `CLEANING` / …) |
 | `ADMISSIONS` | `Admissions` | Inpatient stays linked to person + optional ward/bed |
@@ -57,6 +68,16 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `NURSING_ICU_INFUSIONS` | `NursingIcuInfusions` | ICU infusion titrations |
 | `NURSING_MESSAGES` | `NursingMessages` | Nursing channel chat |
 | `NURSING_REPORT_SNAPSHOTS` | `NursingReportSnapshots` | Generated nursing reports |
+=======
+| `SUPPLIERS` | `Suppliers` | Pharmacy suppliers (procurement) |
+| `SUPPLIER_DRUGS` | `SupplierDrugs` | Join table: drugs each supplier supplies, by `DRUG_ID` (never names) |
+| `DRUGS` | `Drugs` | Drug catalog; optional preferred `SUPPLIER_ID`; no quantity columns — stock is derived from batches |
+| `DRUG_BATCHES` | `DrugBatches` | Batch-level stock: `BATCH_NO`, `EXPIRY_DATE`, `QTY_RECEIVED`/`QTY_AVAILABLE`, cost & selling price |
+| `PURCHASE_REQUESTS` | `PurchaseRequests` | Internal PRs (`PR-YYYY-###`) awaiting approval |
+| `PURCHASE_ORDERS` | `PurchaseOrders` | POs to suppliers (`PO-YYYY-###`) with approval + send workflow |
+| `PURCHASE_ORDER_ITEMS` | `PurchaseOrderItems` | PO line items per drug |
+| `GOODS_RECEIVED_NOTES` | `GoodsReceivedNotes` | GRNs (`GRN-YYYY-###`) linking receipts to PO/drug/batch |
+>>>>>>> 6f243d98c7656163b07dfc15a488a1f9f189119a
 
 ### Relationships
 
@@ -73,6 +94,11 @@ ADMISSIONS / PERSONS ── nursing care docs (notes, vitals, care plans, …)
 ADMISSIONS / PERSONS ── nursing ops (orders, tasks, MAR, ICU …)
 WARDS ── nursing shifts / handovers / report snapshots
 USERS ── AUDITS
+SUPPLIERS ── SUPPLIER_DRUGS ── DRUGS (drugs supplied, by ID)
+SUPPLIERS ── DRUGS (optional preferred supplier)
+DRUGS ── DRUG_BATCHES (1:N; stock + expiry per batch)
+SUPPLIERS ── PURCHASE_ORDERS ── PURCHASE_ORDER_ITEMS ── DRUGS
+PURCHASE_ORDERS ── GOODS_RECEIVED_NOTES ── DRUG_BATCHES
 ```
 
 ### Triage design rule
@@ -86,11 +112,20 @@ USERS ── AUDITS
 | `person:create` | Patient registration |
 | `triage:create` | New triage queue entry |
 | `triage:update` | Status / priority / vitals change |
+<<<<<<< HEAD
 | `admission:create` | Patient admitted to bed |
 | `admission:transfer` | Bed transfer |
 | `admission:order-discharge` | Discharge ordered |
 | `admission:discharge` | Discharge completed |
 | `nursing-note:create` / `nursing-vital:create` / … | Nursing care documentation writes |
+=======
+| `supplier:create` / `supplier:update` | Supplier registered / edited |
+| `drug:create` / `drug:update` | Drug added to / edited in catalog |
+| `procurement:request-*` / `procurement:po-*` | PR/PO created, approved, rejected, sent |
+| `stock:receive` | GRN recorded, batch created |
+| `stock:adjust` | Manual stock adjustment (reason required) |
+| `auth:login` | (planned) successful login |
+>>>>>>> 6f243d98c7656163b07dfc15a488a1f9f189119a
 
 Filter audits with `GET /api/audit/logs?type=triage:create`.
 
@@ -107,3 +142,5 @@ npx prisma migrate dev
 ```
 
 Migration `20260710140000_triage_and_audit_type` adds `TRIAGE` and `AUDITS.AUDIT_TYPE` / `ENTITY` / `ENTITY_ID`.
+
+Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `SUPPLIER_DRUGS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). It was written manually while the Azure database was unreachable — run `npx prisma migrate deploy` once connectivity is restored.
