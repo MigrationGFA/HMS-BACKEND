@@ -9,8 +9,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Pharmacy procurement & inventory backend: `SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES` tables (migration `20260716000000_pharmacy_procurement_inventory`)
-- `POST/GET/PATCH /api/pharmacy/suppliers` — supplier registration + management list (`supplier:create|update`, `pharmacy:read`); supplied drugs are referenced by `drugIds` via the `SUPPLIER_DRUGS` join table (names joined for display, never stored on the supplier)
-- Frontend: supplier modal uses a searchable drug multi-select (drug creation stays on the inventory page); Create PO modal uses a line-item table (Drug Name searchable dropdown / Packs / Price)
+- `POST/GET/PATCH /api/pharmacy/suppliers` — supplier registration + management list (`supplier:create|update`, `pharmacy:read`); supplied drugs referenced by `drugIds` via the `SUPPLIER_DRUGS` join table (names joined for display, never stored on the supplier)
+- Frontend: supplier modal drug picker is an inline search + checklist (always visible inside the dialog); Create PO modal uses a line-item table (Drug Name searchable dropdown / Packs / Price)
+- Frontend: `/pharmacy/drugs` Drug Catalog page — clickable category cards with drug counts, searchable drug table, Add Drug dialog; added "Drug Catalog" to the pharmacy sidebar
 - `POST/GET/PATCH /api/pharmacy/drugs` — drug catalog with supplier link; stock/expiry computed from batches (`drug:create|update`)
 - `GET /api/pharmacy/inventory` + `/stats`, `POST /api/pharmacy/inventory/adjustments` — batch-aware inventory with FEFO manual adjustments (`stock:adjust`, reason mandatory)
 - `POST/GET /api/pharmacy/procurement/requests` (+ `approve`/`reject`), `POST/GET /api/pharmacy/procurement/orders` (+ `approve`/`reject`/`send`), `POST /api/pharmacy/procurement/receive`, `GET /grns`, `GET /stats` — PR → PO → GRN workflow with auto numbering (`PR-YYYY-###`, `PO-YYYY-###`, `GRN-YYYY-###`)
