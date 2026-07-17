@@ -46,6 +46,8 @@ export const PERMISSIONS = {
   /** Return of already-dispensed drugs */
   PHARMACY_RETURN_CREATE: 'pharmacy:return-create',
   PHARMACY_RETURN_READ: 'pharmacy:return-read',
+  /** Update hospital-level pharmacy thresholds / alert settings */
+  PHARMACY_SETTINGS_UPDATE: 'pharmacy:settings-update',
 
   // Audit
   AUDIT_READ: 'audit:read',
@@ -113,6 +115,7 @@ const PHARMACY_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PHARMACY_SALE_READ,
   PERMISSIONS.PHARMACY_RETURN_CREATE,
   PERMISSIONS.PHARMACY_RETURN_READ,
+  PERMISSIONS.PHARMACY_SETTINGS_UPDATE,
   PERMISSIONS.AUDIT_READ,
 ];
 

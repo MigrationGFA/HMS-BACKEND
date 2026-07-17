@@ -9,6 +9,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Pharmacy pay-before-dispense (Rx): payment fields + emergency receiver on `PRESCRIPTIONS`; `POST /api/prescriptions/:id/dispense` requires Paid|Waived|Emergency; `POST …/emergency-dispense` records receiver and leaves unpaid/Emergency bill; cashier `GET/POST /api/cashier/payments/prescriptions`; permission `prescription:pay`
+- Pharmacy settings thresholds: `PHARMACY_SETTINGS` (migration `20260717130000_pharmacy_settings`); `GET/PATCH /api/pharmacy/settings` for reorder default, expiry alert windows, inventory/controlled flags; inventory stats use configured days; `/pharmacy/config` UI; `pharmacy:settings-update`
+- Pharmacy billing page is view-only for pharmacy; Collect payment remains cashier-only (`/dashboard/cashier/pharmacy`)
 - Pharmacy billing aggregate: `GET /api/pharmacy/billing/summary`, `GET /api/pharmacy/billing/bills`, `POST /api/pharmacy/billing/bills/:type/:id/confirm` (Rx + walk-in)
 - Pharmacy returns: `PHARMACY_RETURNS` / `PHARMACY_RETURN_ITEMS` + `QTY_RETURNED` on line items (migration `20260717120000_pharmacy_pay_gate_returns`); `GET/POST /api/pharmacy/returns`, lookup + summary; stock restore to batches; RBAC `pharmacy:return-create|read`; audit `pharmacy:return`
 - Frontend: dispense confirmation modals (Rx + walk-in), emergency dispense UI, cashier Rx payments tab, `/pharmacy/billing` and `/pharmacy/returns` wired to APIs

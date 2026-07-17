@@ -50,6 +50,7 @@ Other legacy domain model files were removed until those modules are implemented
 | `PHARMACY_SALE_ITEMS` | `PharmacySaleItems` | Walk-in lines; `QTY_DISPENSED` / `QTY_RETURNED` |
 | `PHARMACY_RETURNS` | `PharmacyReturns` | Drug returns (`RT-YYYY-####`) from dispensed Rx or walk-in |
 | `PHARMACY_RETURN_ITEMS` | `PharmacyReturnItems` | Return line quantities restored to batches |
+| `PHARMACY_SETTINGS` | `PharmacySettings` | Singleton hospital thresholds (reorder default, expiry alert days, flags) |
 
 ### Relationships
 
@@ -115,4 +116,4 @@ npx prisma migrate dev
 
 Migration `20260710140000_triage_and_audit_type` adds `TRIAGE` and `AUDITS.AUDIT_TYPE` / `ENTITY` / `ENTITY_ID`.
 
-Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). Migration `20260716210000_supplier_drugs_join` adds `SUPPLIER_DRUGS` (and drops legacy `SUPPLIERS.CATEGORIES`) for environments where the first pharmacy migration was applied before the join table existed in that SQL file. Migration `20260716220000_prescriptions` adds `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS`. Migration `20260717100000_pharmacy_walk_in_sales` adds walk-in sales. Migration `20260717120000_pharmacy_pay_gate_returns` adds Rx payment/emergency columns, `QTY_RETURNED`, and `PHARMACY_RETURNS` tables. Run `npx prisma migrate deploy` after pull.
+Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). Migration `20260716210000_supplier_drugs_join` adds `SUPPLIER_DRUGS` (and drops legacy `SUPPLIERS.CATEGORIES`) for environments where the first pharmacy migration was applied before the join table existed in that SQL file. Migration `20260716220000_prescriptions` adds `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS`. Migration `20260717100000_pharmacy_walk_in_sales` adds walk-in sales. Migration `20260717120000_pharmacy_pay_gate_returns` adds Rx payment/emergency columns, `QTY_RETURNED`, and `PHARMACY_RETURNS` tables. Migration `20260717130000_pharmacy_settings` adds `PHARMACY_SETTINGS` thresholds. Run `npx prisma migrate deploy` after pull.
