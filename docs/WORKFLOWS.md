@@ -245,6 +245,24 @@ Audit Trail (/pharmacy/audit)
 
 ---
 
+## 7g. Pharmacy Expiry Monitoring & Analytics
+
+```
+Expiry (/dashboard/pharmacy/expiry)
+  → GET /api/pharmacy/expiry?bucket=&q=
+  → Settings thresholds (critical / warning / soon)
+  → POST /api/pharmacy/expiry/batches/:id/quarantine
+  → Audit: stock:quarantine
+
+Analytics (/pharmacy/analytics)
+  → GET /api/pharmacy/analytics?from=&to=
+  → Revenue, dispense volume, inventory health, controlled, returns, procurement
+```
+
+**Permissions:** `pharmacy:read`; quarantine requires `stock:adjust`
+
+---
+
 ## 8. Billing & Payment
 
 ```

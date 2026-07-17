@@ -799,6 +799,9 @@ Or for a new customer: `{ "customerName": "Ada Obi", "phone": "0803…", "items"
 | Method | Path | Purpose | Permission |
 |--------|------|---------|------------|
 | GET | `/pharmacy/dashboard` | KPI cards, charts, live alerts for `/pharmacy` | `pharmacy:read` |
+| GET | `/pharmacy/analytics` | Operational analytics for `/pharmacy/analytics` | `pharmacy:read` |
+| GET | `/pharmacy/expiry` | Expiry monitoring for `/dashboard/pharmacy/expiry` | `pharmacy:read` |
+| POST | `/pharmacy/expiry/batches/:batchId/quarantine` | Quarantine batch | `stock:adjust` |
 | GET | `/pharmacy/inpatient` | Inpatient ward dispensing queue (active admissions + Rx) | `pharmacy:read` |
 | GET | `/pharmacy/reports/catalog` | Available operational report types | `pharmacy:read` |
 | GET | `/pharmacy/reports/:type` | Generate report rows + summary | `pharmacy:read` |
@@ -934,6 +937,103 @@ Or for a new customer: `{ "customerName": "Ada Obi", "phone": "0803…", "items"
 **Required permission:** `audit:read`
 
 **Response example:** `{ "data": { "totalToday": 4, "dispenses": 2, "emergencies": 0, "stockEvents": 1, "returns": 0, "overrides": 0 } }`
+
+**Error cases:** `401`, `403`
+
+---
+
+### Pharmacy Expiry Monitoring (`/pharmacy/expiry`)
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/expiry` | Batch expiry buckets + table for `/dashboard/pharmacy/expiry` | `pharmacy:read` |
+| POST | `/pharmacy/expiry/batches/:batchId/quarantine` | Soft-quarantine a batch | `stock:adjust` |
+
+#### `GET /api/pharmacy/expiry?bucket=&q=&page=&limit=`
+
+**Purpose:** Drug expiry monitoring by batch using pharmacy settings thresholds.
+
+**Required permission:** `pharmacy:read`
+
+**Query:** `bucket` = `all` | `expired` | `critical` | `warning` | `soon`
+
+**Response example:**
+```json
+{
+  "data": {
+    "summary": { "expired": 2, "critical": 3, "warning": 5, "soon": 8, "total": 18, "quarantined": 1, "valueAtRisk": 45000 },
+    "thresholds": { "expiryCriticalDays": 30, "expiryWarningDays": 90, "expiringSoonDays": 180 },
+    "items": [{
+      "batchId": 12,
+      "drugName": "Amoxicillin",
+      "batchNo": "B-100",
+      "qtyAvailable": 40,
+      "daysLeft": 12,
+      "bucket": "critical",
+      "status": "Available",
+      "valueAtRisk": 8000
+    }],
+    "meta": { "page": 1, "limit": 50, "total": 18 }
+  }
+}
+```
+
+**Error cases:** `400` invalid bucket, `401`, `403`
+
+#### `POST /api/pharmacy/expiry/batches/:batchId/quarantine`
+
+**Purpose:** Quarantine an at-risk or expired batch (status → Quarantined). Audits `stock:quarantine`.
+
+**Required permission:** `stock:adjust`
+
+**Request body:** none
+
+**Response example:** `{ "data": { "batchId": 12, "drugName": "Amoxicillin", "batchNo": "B-100", "status": "Quarantined" } }`
+
+**Error cases:** `400` already quarantined / no stock, `401`, `403`, `404`
+
+---
+
+### Pharmacy Analytics (`/pharmacy/analytics`)
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/analytics` | Operational analytics for `/pharmacy/analytics` | `pharmacy:read` |
+
+#### `GET /api/pharmacy/analytics?from=&to=&timezoneOffsetMinutes=`
+
+**Purpose:** Revenue, dispense volume, inventory health, controlled usage, returns, procurement snapshot and charts.
+
+**Required permission:** `pharmacy:read`
+
+**Request body:** none
+
+**Response example:**
+```json
+{
+  "data": {
+    "asOf": "2026-07-17T12:00:00.000Z",
+    "from": "…",
+    "to": "…",
+    "kpis": {
+      "revenue": 1250000,
+      "prescriptionsDispensed": 40,
+      "walkInDispensed": 12,
+      "emergencyDispenses": 1,
+      "lowStock": 4,
+      "expired": 1,
+      "controlledBalance": 22
+    },
+    "charts": {
+      "revenueTrend": [{ "d": "Mon", "v": 12000 }],
+      "topDispensed": [{ "name": "Paracetamol", "qty": 80, "value": 4000 }],
+      "channelMix": [{ "name": "Cash", "value": 50000 }],
+      "inventoryHealth": [{ "name": "Low", "value": 4, "color": "#f59e0b" }],
+      "expiryRisk": [{ "name": "< 30 days", "value": 2, "color": "#ef4444" }]
+    }
+  }
+}
+```
 
 **Error cases:** `401`, `403`
 
