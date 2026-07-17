@@ -18,6 +18,8 @@ import { CardsService } from '../patients/cards.service';
 import { ConfirmCardPaymentDto } from './dto/confirm-card-payment.dto';
 import { ConfirmWalkInPaymentDto } from '../pharmacy/dto/walk-in-sale.dto';
 import { WalkInSalesService } from '../pharmacy/walk-in-sales.service';
+import { ConfirmPrescriptionPaymentDto } from '../clinical/prescriptions/dto/prescription.dto';
+import { PrescriptionsService } from '../clinical/prescriptions/prescriptions.service';
 
 @Controller('cashier/payments')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -25,6 +27,7 @@ export class PaymentsController {
   constructor(
     private readonly cardsService: CardsService,
     private readonly walkInSales: WalkInSalesService,
+    private readonly prescriptionsService: PrescriptionsService,
   ) {}
 
   /**
@@ -117,5 +120,51 @@ export class PaymentsController {
   ) {
     const sale = await this.walkInSales.confirmPayment(saleId, dto, user);
     return { data: sale };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/cashier/payments/prescriptions?paymentStatus=Unpaid,Emergency&q=&page=&limit=
+   * Purpose: Cashier queue — doctor prescriptions awaiting payment (including emergency-dispensed unpaid bills)
+   * Required permission: prescription:read
+   * Request body: none
+   * Response example: { data: { items: [{ prescriptionId, rxNo, total, paymentStatus, person }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('prescriptions')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_READ)
+  async listPrescriptionPayments(
+    @Query('paymentStatus') paymentStatus?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.prescriptionsService.list({
+      paymentStatus: paymentStatus ?? 'Unpaid,Emergency',
+      q,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/cashier/payments/prescriptions/:id/confirm
+   * Purpose: Confirm doctor prescription payment (clears unpaid/emergency bill)
+   * Required permission: prescription:pay
+   * Request body: { paymentChannel, paymentRef? }
+   * Response example: { data: { prescriptionId, paymentStatus: "Paid", paidBy, ... } }
+   * Error cases: 400 already paid, 401, 403, 404
+   */
+  @Post('prescriptions/:id/confirm')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_PAY)
+  async confirmPrescriptionPayment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmPrescriptionPaymentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rx = await this.prescriptionsService.confirmPayment(id, dto, user);
+    return { data: rx };
   }
 }

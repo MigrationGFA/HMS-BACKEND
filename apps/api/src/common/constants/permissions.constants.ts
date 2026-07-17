@@ -25,6 +25,8 @@ export const PERMISSIONS = {
   PRESCRIPTION_CREATE: 'prescription:create',
   PRESCRIPTION_READ: 'prescription:read',
   PRESCRIPTION_UPDATE: 'prescription:update',
+  /** Cashier/billing confirm payment for doctor prescriptions */
+  PRESCRIPTION_PAY: 'prescription:pay',
 
   // Pharmacy (suppliers, drugs, procurement, inventory)
   PHARMACY_READ: 'pharmacy:read',
@@ -41,6 +43,9 @@ export const PERMISSIONS = {
   PHARMACY_SALE_CREATE: 'pharmacy:sale-create',
   PHARMACY_SALE_READ: 'pharmacy:sale-read',
   PHARMACY_SALE_PAY: 'pharmacy:sale-pay',
+  /** Return of already-dispensed drugs */
+  PHARMACY_RETURN_CREATE: 'pharmacy:return-create',
+  PHARMACY_RETURN_READ: 'pharmacy:return-read',
 
   // Audit
   AUDIT_READ: 'audit:read',
@@ -78,6 +83,8 @@ const CASHIER_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_READ,
   PERMISSIONS.CARD_READ,
   PERMISSIONS.CARD_CONFIRM_PAYMENT,
+  PERMISSIONS.PRESCRIPTION_READ,
+  PERMISSIONS.PRESCRIPTION_PAY,
   PERMISSIONS.PHARMACY_SALE_READ,
   PERMISSIONS.PHARMACY_SALE_PAY,
   PERMISSIONS.AUDIT_READ,
@@ -104,6 +111,8 @@ const PHARMACY_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PHARMACY_DISPENSE,
   PERMISSIONS.PHARMACY_SALE_CREATE,
   PERMISSIONS.PHARMACY_SALE_READ,
+  PERMISSIONS.PHARMACY_RETURN_CREATE,
+  PERMISSIONS.PHARMACY_RETURN_READ,
   PERMISSIONS.AUDIT_READ,
 ];
 
@@ -140,6 +149,8 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.PATIENT_READ,
     PERMISSIONS.CARD_READ,
     PERMISSIONS.CARD_CONFIRM_PAYMENT,
+    PERMISSIONS.PRESCRIPTION_READ,
+    PERMISSIONS.PRESCRIPTION_PAY,
     PERMISSIONS.PHARMACY_SALE_READ,
     PERMISSIONS.PHARMACY_SALE_PAY,
     PERMISSIONS.AUDIT_READ,

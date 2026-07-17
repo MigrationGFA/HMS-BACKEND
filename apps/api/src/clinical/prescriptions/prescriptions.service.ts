@@ -9,7 +9,9 @@ import { AuditService } from '../../audit/audit.service';
 import type { AuthUser } from '../../auth/types/auth-user.type';
 import {
   CreatePrescriptionDto,
+  ConfirmPrescriptionPaymentDto,
   DispensePrescriptionDto,
+  EmergencyDispensePrescriptionDto,
   UpdatePrescriptionDto,
 } from './dto/prescription.dto';
 
@@ -25,6 +27,7 @@ export type PrescriptionItemResponse = {
   duration: string | null;
   quantity: number;
   qtyDispensed: number;
+  qtyReturned: number;
   source: string;
   instructions: string | null;
   indication: string | null;
@@ -58,6 +61,13 @@ export type PrescriptionResponse = {
   status: string;
   urgency: string;
   paymentStatus: string;
+  paymentChannel: string | null;
+  paymentRef: string | null;
+  paidAt: string | null;
+  paidBy: string | null;
+  emergencyReceivedBy: string | null;
+  emergencyDispensedAt: string | null;
+  emergencyNote: string | null;
   diagnosis: string | null;
   allergiesNote: string | null;
   clinic: string | null;
@@ -121,6 +131,7 @@ function toResponse(row: RxRow): PrescriptionResponse {
     duration: i.DURATION,
     quantity: i.QUANTITY,
     qtyDispensed: i.QTY_DISPENSED,
+    qtyReturned: i.QTY_RETURNED,
     source: i.SOURCE,
     instructions: i.INSTRUCTIONS,
     indication: i.INDICATION,
@@ -151,6 +162,13 @@ function toResponse(row: RxRow): PrescriptionResponse {
     status: row.STATUS,
     urgency: row.URGENCY,
     paymentStatus: row.PAYMENT_STATUS,
+    paymentChannel: row.PAYMENT_CHANNEL,
+    paymentRef: row.PAYMENT_REF,
+    paidAt: row.PAID_AT?.toISOString() ?? null,
+    paidBy: row.PAID_BY,
+    emergencyReceivedBy: row.EMERGENCY_RECEIVED_BY,
+    emergencyDispensedAt: row.EMERGENCY_DISPENSED_AT?.toISOString() ?? null,
+    emergencyNote: row.EMERGENCY_NOTE,
     diagnosis: row.DIAGNOSIS,
     allergiesNote: row.ALLERGIES_NOTE,
     clinic: row.CLINIC,
@@ -284,6 +302,7 @@ export class PrescriptionsService {
   async list(params?: {
     q?: string;
     status?: string;
+    paymentStatus?: string;
     personId?: number;
     page?: number;
     limit?: number;
@@ -292,9 +311,18 @@ export class PrescriptionsService {
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
     const status =
       params?.status && params.status !== 'all' ? params.status : undefined;
+    const paymentStatus =
+      params?.paymentStatus && params.paymentStatus !== 'all'
+        ? params.paymentStatus
+        : undefined;
 
     const where: Prisma.PrescriptionsWhereInput = {
       ...(status ? { STATUS: status } : {}),
+      ...(paymentStatus
+        ? paymentStatus.includes(',')
+          ? { PAYMENT_STATUS: { in: paymentStatus.split(',').map((s) => s.trim()) } }
+          : { PAYMENT_STATUS: paymentStatus }
+        : {}),
       ...(params?.personId ? { PERSON_ID: params.personId } : {}),
       ...(params?.q
         ? {
@@ -407,7 +435,7 @@ export class PrescriptionsService {
 
   /**
    * Dispense prescription lines with FEFO stock deduction from DRUG_BATCHES.
-   * Same pharmacist can process and complete in one action.
+   * Blocked until PAYMENT_STATUS is Paid, Waived, or Emergency.
    */
   async dispense(
     id: number,
@@ -419,6 +447,139 @@ export class PrescriptionsService {
       include: ITEM_INCLUDE,
     });
     if (!existing) throw new NotFoundException('Prescription not found');
+    this.assertDispenseAllowed(existing.PAYMENT_STATUS);
+    return this.executeDispense(existing, dto, actor, 'pharmacy:dispense');
+  }
+
+  /**
+   * Emergency override: dispense unpaid Rx, record receiver staff, leave unpaid bill
+   * (PAYMENT_STATUS = Emergency) for cashier/billing collection later.
+   */
+  async emergencyDispense(
+    id: number,
+    dto: EmergencyDispensePrescriptionDto,
+    actor?: AuthUser,
+  ): Promise<PrescriptionResponse> {
+    const existing = await this.prisma.prescriptions.findUnique({
+      where: { PRESCRIPTION_ID: id },
+      include: ITEM_INCLUDE,
+    });
+    if (!existing) throw new NotFoundException('Prescription not found');
+    if (existing.PAYMENT_STATUS === 'Paid' || existing.PAYMENT_STATUS === 'Waived') {
+      throw new BadRequestException(
+        'Prescription is already paid/waived — use normal dispense',
+      );
+    }
+    const receivedBy = dto.receivedBy?.trim();
+    if (!receivedBy) {
+      throw new BadRequestException('Receiver staff name is required for emergency dispense');
+    }
+
+    const label = actorLabel(actor);
+    const now = new Date();
+    const prepared = await this.prisma.prescriptions.update({
+      where: { PRESCRIPTION_ID: id },
+      data: {
+        PAYMENT_STATUS: 'Emergency',
+        EMERGENCY_RECEIVED_BY: receivedBy,
+        EMERGENCY_RECEIVED_BY_ID: actor?.id ?? null,
+        EMERGENCY_DISPENSED_AT: now,
+        EMERGENCY_NOTE: dto.note?.trim() || null,
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: label,
+        UPDATED_DATE: now,
+      },
+      include: ITEM_INCLUDE,
+    });
+
+    await this.audit.log({
+      type: 'pharmacy:emergency-dispense',
+      entity: 'prescriptions',
+      entityId: id,
+      personId: existing.PERSON_ID,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Emergency dispense authorized for ${existing.RX_NO}; received by ${receivedBy} — unpaid bill remains`,
+      oldValue: { paymentStatus: existing.PAYMENT_STATUS },
+      newValue: {
+        paymentStatus: 'Emergency',
+        emergencyReceivedBy: receivedBy,
+        note: dto.note ?? null,
+      },
+    });
+
+    return this.executeDispense(prepared, dto, actor, 'pharmacy:emergency-dispense');
+  }
+
+  /** Cashier confirms payment for unpaid or emergency-dispensed prescriptions. */
+  async confirmPayment(
+    id: number,
+    dto: ConfirmPrescriptionPaymentDto,
+    actor?: AuthUser,
+  ): Promise<PrescriptionResponse> {
+    const existing = await this.prisma.prescriptions.findUnique({
+      where: { PRESCRIPTION_ID: id },
+      include: ITEM_INCLUDE,
+    });
+    if (!existing) throw new NotFoundException('Prescription not found');
+    if (existing.STATUS === 'Cancelled' || existing.STATUS === 'Rejected') {
+      throw new BadRequestException('Cannot pay a cancelled/rejected prescription');
+    }
+    if (existing.PAYMENT_STATUS === 'Paid') {
+      throw new BadRequestException('Prescription is already paid');
+    }
+    if (existing.PAYMENT_STATUS === 'Waived') {
+      throw new BadRequestException('Prescription payment was waived');
+    }
+
+    const label = actorLabel(actor);
+    const now = new Date();
+    const updated = await this.prisma.prescriptions.update({
+      where: { PRESCRIPTION_ID: id },
+      data: {
+        PAYMENT_STATUS: 'Paid',
+        PAYMENT_CHANNEL: dto.paymentChannel,
+        PAYMENT_REF: dto.paymentRef?.trim() || null,
+        PAID_AT: now,
+        PAID_BY: label,
+        PAID_BY_ID: actor?.id ?? null,
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: label,
+        UPDATED_DATE: now,
+      },
+      include: ITEM_INCLUDE,
+    });
+
+    const response = toResponse(updated);
+    await this.audit.log({
+      type: 'prescription:pay',
+      entity: 'prescriptions',
+      entityId: id,
+      personId: existing.PERSON_ID,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Prescription ${updated.RX_NO} paid via ${dto.paymentChannel}`,
+      oldValue: { paymentStatus: existing.PAYMENT_STATUS },
+      newValue: response,
+    });
+
+    return response;
+  }
+
+  private assertDispenseAllowed(paymentStatus: string): void {
+    if (['Paid', 'Waived', 'Emergency'].includes(paymentStatus)) return;
+    throw new BadRequestException(
+      'Patient must pay at cashier before dispensing, or use emergency dispense (records receiver and leaves unpaid bill)',
+    );
+  }
+
+  private async executeDispense(
+    existing: RxRow,
+    dto: DispensePrescriptionDto,
+    actor: AuthUser | undefined,
+    auditType: string,
+  ): Promise<PrescriptionResponse> {
+    const id = existing.PRESCRIPTION_ID;
     if (existing.STATUS === 'Cancelled' || existing.STATUS === 'Rejected') {
       throw new BadRequestException(
         `Cannot dispense a ${existing.STATUS.toLowerCase()} prescription`,
@@ -472,7 +633,7 @@ export class PrescriptionsService {
         },
       });
       await this.audit.log({
-        type: 'pharmacy:dispense',
+        type: auditType,
         entity: 'prescriptions',
         entityId: id,
         personId: existing.PERSON_ID,
@@ -572,7 +733,7 @@ export class PrescriptionsService {
     const snapshot = toResponse(after);
 
     await this.audit.log({
-      type: 'pharmacy:dispense',
+      type: auditType,
       entity: 'prescriptions',
       entityId: id,
       personId: existing.PERSON_ID,

@@ -139,6 +139,20 @@ Same pharmacist dispenses immediately (no separate Send step)
 **Modules:** `ClinicalModule` (PrescriptionsService), `AuditModule`  
 **Permission:** `pharmacy:dispense` (pharmacist role)
 
+Pay-before-dispense: normal dispense requires `PAYMENT_STATUS` in `Paid | Waived | Emergency`. Unpaid Rx must use emergency override (records receiver) or cashier/billing payment first.
+
+```
+Doctor sends Rx (Unpaid)
+  → Cashier/Billing: POST /api/cashier/payments/prescriptions/:id/confirm
+     OR pharmacy billing confirm
+  → Pharmacist: review modal → POST /api/prescriptions/:id/dispense
+
+Emergency path (clinical override):
+  → POST /api/prescriptions/:id/emergency-dispense { receivedBy }
+  → Dispensed + PAYMENT_STATUS=Emergency (unpaid bill remains)
+  → Cashier collects later
+```
+
 ---
 
 ## 7b. Walk-In Pharmacy (OTC)
@@ -163,6 +177,32 @@ Pharmacist dispenses (same queue)
 
 **Modules:** `PharmacyModule` (WalkInSalesService), `CashierModule`, `AuditModule`  
 **Permissions:** `pharmacy:sale-create|read|pay`, `pharmacy:dispense`
+
+---
+
+## 7c. Pharmacy Billing (aggregate)
+
+```
+GET /api/pharmacy/billing/summary — paid/pending cards + channel totals
+GET /api/pharmacy/billing/bills — unified Rx + walk-in bills
+POST /api/pharmacy/billing/bills/:type/:id/confirm — collect payment
+```
+
+Frontend: `/pharmacy/billing`. Cashier also uses `/dashboard/cashier/pharmacy` (walk-in + Rx tabs).
+
+---
+
+## 7d. Pharmacy Returns
+
+```
+Lookup dispensed Rx/sale → GET /api/pharmacy/returns/lookup?q=RX-…
+Select lines/qty + returned-by role/name + reason
+  → POST /api/pharmacy/returns
+  → QTY_RETURNED incremented; stock restored to DRUG_BATCHES
+  → Audit: pharmacy:return
+```
+
+Frontend: `/pharmacy/returns` (Returns tab live; cancel/reverse/refund placeholders).
 
 ---
 
