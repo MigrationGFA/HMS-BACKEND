@@ -19,6 +19,9 @@ describe('PharmacyService', () => {
   const settings = {
     getOrCreate: jest.fn(),
   };
+  const audit = {
+    log: jest.fn(),
+  };
   const prisma: Record<string, any> = {
     prescriptions: {
       count: jest.fn(),
@@ -26,6 +29,7 @@ describe('PharmacyService', () => {
     },
     pharmacySales: {
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     pharmacySaleItems: {
       findMany: jest.fn(),
@@ -42,6 +46,8 @@ describe('PharmacyService', () => {
     },
     drugBatches: {
       findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
     },
     audits: {
       count: jest.fn(),
@@ -64,6 +70,7 @@ describe('PharmacyService', () => {
       billing as any,
       returns as any,
       settings as any,
+      audit as any,
     );
   });
 
@@ -203,6 +210,91 @@ describe('PharmacyService', () => {
       expect(result.stats.totalToday).toBe(4);
       const whereArg = prisma.audits.findMany.mock.calls[0][0].where;
       expect(whereArg.AND).toBeDefined();
+    });
+  });
+
+  describe('expiryMonitor', () => {
+    it('classifies batches into settings-based buckets', async () => {
+      const now = Date.now();
+      settings.getOrCreate.mockResolvedValue({
+        expiryCriticalDays: 30,
+        expiryWarningDays: 90,
+        expiringSoonDays: 180,
+      });
+      prisma.drugBatches.findMany.mockResolvedValue([
+        {
+          BATCH_ID: 1,
+          DRUG_ID: 10,
+          BATCH_NO: 'B-EXP',
+          QTY_AVAILABLE: 5,
+          EXPIRY_DATE: new Date(now - 2 * 86400000),
+          STATUS: 'Available',
+          LOCATION: 'Shelf A',
+          SELLING_PRICE: 100,
+          drug: { NAME: 'Paracetamol', UNIT_PRICE: 50 },
+        },
+        {
+          BATCH_ID: 2,
+          DRUG_ID: 11,
+          BATCH_NO: 'B-CRIT',
+          QTY_AVAILABLE: 3,
+          EXPIRY_DATE: new Date(now + 10 * 86400000),
+          STATUS: 'Available',
+          LOCATION: null,
+          SELLING_PRICE: null,
+          drug: { NAME: 'Amoxicillin', UNIT_PRICE: 200 },
+        },
+      ]);
+
+      const result = await service.expiryMonitor({ bucket: 'all' });
+      expect(result.summary.expired).toBe(1);
+      expect(result.summary.critical).toBe(1);
+      expect(result.items[0].bucket).toBe('expired');
+      expect(result.items[1].bucket).toBe('critical');
+      expect(result.items[1].valueAtRisk).toBe(600);
+    });
+
+    it('rejects invalid bucket', async () => {
+      await expect(
+        service.expiryMonitor({ bucket: 'invalid' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('quarantineBatch', () => {
+    it('quarantines a batch and writes stock:quarantine audit', async () => {
+      prisma.drugBatches.findUnique.mockResolvedValue({
+        BATCH_ID: 7,
+        DRUG_ID: 3,
+        BATCH_NO: 'B-7',
+        QTY_AVAILABLE: 12,
+        STATUS: 'Available',
+        EXPIRY_DATE: new Date(),
+        drug: { NAME: 'Morphine' },
+      });
+      prisma.drugBatches.update.mockResolvedValue({
+        BATCH_ID: 7,
+        DRUG_ID: 3,
+        BATCH_NO: 'B-7',
+        QTY_AVAILABLE: 12,
+        STATUS: 'Quarantined',
+        EXPIRY_DATE: new Date(),
+        drug: { NAME: 'Morphine' },
+      });
+      audit.log.mockResolvedValue({});
+
+      const result = await service.quarantineBatch(7, {
+        id: 1,
+        email: 'pharm@test',
+        firstName: 'P',
+        lastName: 'H',
+        roles: [],
+      } as any);
+
+      expect(result.status).toBe('Quarantined');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'stock:quarantine', entityId: 7 }),
+      );
     });
   });
 });

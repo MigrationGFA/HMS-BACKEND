@@ -1,11 +1,33 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import type { AuthUser } from '../auth/types/auth-user.type';
 import { DrugsService } from './drugs.service';
 import { ProcurementService } from './procurement.service';
 import { PharmacyBillingService } from './pharmacy-billing.service';
 import { PharmacyReturnsService } from './pharmacy-returns.service';
 import { PharmacySettingsService } from './pharmacy-settings.service';
+
+const EXPIRY_BUCKETS = [
+  'all',
+  'expired',
+  'critical',
+  'warning',
+  'soon',
+] as const;
+
+export type PharmacyExpiryBucket = (typeof EXPIRY_BUCKETS)[number];
+
+function actorLabel(actor?: AuthUser): string {
+  if (!actor) return 'SYSTEM';
+  const name = [actor.firstName, actor.lastName].filter(Boolean).join(' ');
+  return name || actor.email;
+}
 
 const PHARMACY_AUDIT_PREFIXES = [
   'pharmacy:',
@@ -106,6 +128,21 @@ function pharmacyAuditWhere(): Prisma.AuditsWhereInput {
   };
 }
 
+type ExpiryRow = {
+  batchId: number;
+  drugId: number;
+  drugName: string;
+  batchNo: string;
+  qtyAvailable: number;
+  expiryDate: string;
+  daysLeft: number;
+  bucket: 'expired' | 'critical' | 'warning' | 'soon';
+  status: string;
+  location: string | null;
+  unitPrice: number;
+  valueAtRisk: number;
+};
+
 @Injectable()
 export class PharmacyService {
   constructor(
@@ -115,6 +152,7 @@ export class PharmacyService {
     private readonly billing: PharmacyBillingService,
     private readonly returns: PharmacyReturnsService,
     private readonly settings: PharmacySettingsService,
+    private readonly audit: AuditService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -657,6 +695,369 @@ export class PharmacyService {
   }
 
   // ---------------------------------------------------------------------------
+  // Expiry monitoring
+  // ---------------------------------------------------------------------------
+
+  async expiryMonitor(params?: {
+    bucket?: string;
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const bucket = (params?.bucket ?? 'all') as string;
+    if (!EXPIRY_BUCKETS.includes(bucket as PharmacyExpiryBucket)) {
+      throw new BadRequestException(
+        `bucket must be one of: ${EXPIRY_BUCKETS.join(', ')}`,
+      );
+    }
+    const page = Math.max(params?.page ?? 1, 1);
+    const limit = Math.min(Math.max(params?.limit ?? 50, 1), 200);
+    const q = params?.q?.trim()?.toLowerCase();
+
+    const { rows, thresholds } = await this.loadExpiryRows();
+    const summary = {
+      expired: rows.filter((r) => r.bucket === 'expired').length,
+      critical: rows.filter((r) => r.bucket === 'critical').length,
+      warning: rows.filter((r) => r.bucket === 'warning').length,
+      soon: rows.filter((r) => r.bucket === 'soon').length,
+      total: rows.length,
+      quarantined: rows.filter((r) => r.status === 'Quarantined').length,
+      valueAtRisk: Math.round(
+        rows
+          .filter((r) => r.bucket === 'expired' || r.bucket === 'critical')
+          .reduce((s, r) => s + r.valueAtRisk, 0),
+      ),
+    };
+
+    let filtered =
+      bucket === 'all' ? rows : rows.filter((r) => r.bucket === bucket);
+    if (q) {
+      filtered = filtered.filter(
+        (r) =>
+          r.drugName.toLowerCase().includes(q) ||
+          r.batchNo.toLowerCase().includes(q) ||
+          (r.location?.toLowerCase().includes(q) ?? false),
+      );
+    }
+
+    const total = filtered.length;
+    return {
+      asOf: new Date().toISOString(),
+      thresholds,
+      summary,
+      items: filtered.slice((page - 1) * limit, page * limit),
+      meta: { page, limit, total },
+    };
+  }
+
+  async quarantineBatch(batchId: number, actor?: AuthUser) {
+    const batch = await this.prisma.drugBatches.findUnique({
+      where: { BATCH_ID: batchId },
+      include: { drug: true },
+    });
+    if (!batch) throw new NotFoundException('Batch not found');
+    if (batch.STATUS === 'Quarantined') {
+      throw new BadRequestException('Batch is already quarantined');
+    }
+    if (batch.QTY_AVAILABLE <= 0) {
+      throw new BadRequestException('Batch has no available stock to quarantine');
+    }
+
+    const updated = await this.prisma.drugBatches.update({
+      where: { BATCH_ID: batchId },
+      data: {
+        STATUS: 'Quarantined',
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: actorLabel(actor),
+        UPDATED_DATE: new Date(),
+      },
+      include: { drug: true },
+    });
+
+    await this.audit.log({
+      type: 'stock:quarantine',
+      entity: 'drug_batches',
+      entityId: batchId,
+      userId: actor?.id,
+      createdBy: actorLabel(actor),
+      item: `Quarantined batch ${batch.BATCH_NO} of ${batch.drug.NAME} (qty ${batch.QTY_AVAILABLE})`,
+      oldValue: { status: batch.STATUS, qtyAvailable: batch.QTY_AVAILABLE },
+      newValue: {
+        status: updated.STATUS,
+        qtyAvailable: updated.QTY_AVAILABLE,
+        drugId: batch.DRUG_ID,
+        batchNo: batch.BATCH_NO,
+      },
+    });
+
+    return {
+      batchId: updated.BATCH_ID,
+      drugId: updated.DRUG_ID,
+      drugName: updated.drug.NAME,
+      batchNo: updated.BATCH_NO,
+      status: updated.STATUS,
+      qtyAvailable: updated.QTY_AVAILABLE,
+      expiryDate: updated.EXPIRY_DATE?.toISOString() ?? null,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Analytics
+  // ---------------------------------------------------------------------------
+
+  async analytics(params?: {
+    from?: string;
+    to?: string;
+    timezoneOffsetMinutes?: number;
+  }) {
+    const offsetMin = params?.timezoneOffsetMinutes ?? 60;
+    const from = params?.from
+      ? new Date(params.from)
+      : startOfDay(daysAgo(30));
+    const to = params?.to ? new Date(params.to) : endOfDay(new Date());
+    const weekStart = startOfDay(daysAgo(6));
+    const now = new Date();
+
+    const [
+      inventory,
+      procurementStats,
+      billingSummary,
+      returnsSummary,
+      settingsRow,
+      rxSent,
+      rxDispensed,
+      walkInDispensed,
+      emergencyCount,
+      paidRxRows,
+      paidSaleRows,
+      dispensedItems,
+      saleItems,
+      activeDrugs,
+      controlledDrugs,
+      returnsInRange,
+    ] = await Promise.all([
+      this.drugs.inventoryStats(),
+      this.procurement.stats(),
+      this.billing.summary({
+        from: from.toISOString(),
+        to: to.toISOString(),
+      }),
+      this.returns.summary(),
+      this.settings.getOrCreate(),
+      this.prisma.prescriptions.count({
+        where: {
+          STATUS: { notIn: ['Draft', 'Cancelled'] },
+          OR: [
+            { SENT_AT: { gte: from, lte: to } },
+            { CREATED_DATE: { gte: from, lte: to } },
+          ],
+        },
+      }),
+      this.prisma.prescriptions.count({
+        where: {
+          STATUS: { in: ['Dispensed', 'Partially Dispensed'] },
+          UPDATED_DATE: { gte: from, lte: to },
+        },
+      }),
+      this.prisma.pharmacySales.count({
+        where: {
+          STATUS: { in: ['Dispensed', 'Partially Dispensed'] },
+          DISPENSED_AT: { gte: from, lte: to },
+        },
+      }),
+      this.prisma.prescriptions.count({
+        where: {
+          PAYMENT_STATUS: 'Emergency',
+          EMERGENCY_DISPENSED_AT: { gte: from, lte: to },
+        },
+      }),
+      this.prisma.prescriptions.findMany({
+        where: {
+          PAYMENT_STATUS: 'Paid',
+          PAID_AT: { gte: weekStart, lte: to },
+        },
+        include: { items: true },
+      }),
+      this.prisma.pharmacySales.findMany({
+        where: {
+          PAYMENT_STATUS: 'Paid',
+          PAID_AT: { gte: weekStart, lte: to },
+        },
+      }),
+      this.prisma.prescriptionItems.findMany({
+        where: {
+          QTY_DISPENSED: { gt: 0 },
+          prescription: {
+            STATUS: { in: ['Dispensed', 'Partially Dispensed'] },
+            UPDATED_DATE: { gte: from, lte: to },
+          },
+        },
+        select: {
+          DRUG_ID: true,
+          DRUG_NAME: true,
+          QTY_DISPENSED: true,
+          UNIT_PRICE: true,
+        },
+      }),
+      this.prisma.pharmacySaleItems.findMany({
+        where: {
+          QTY_DISPENSED: { gt: 0 },
+          sale: {
+            STATUS: { not: 'Cancelled' },
+            DISPENSED_AT: { gte: from, lte: to },
+          },
+        },
+        select: {
+          DRUG_ID: true,
+          DRUG_NAME: true,
+          QTY_DISPENSED: true,
+          UNIT_PRICE: true,
+        },
+      }),
+      this.prisma.drugs.findMany({
+        where: { STATUS: 'Active' },
+        include: { batches: true },
+      }),
+      this.prisma.drugs.findMany({
+        where: { STATUS: 'Active', CONTROLLED_FLAG: 'Y' },
+        include: { batches: true },
+      }),
+      this.prisma.pharmacyReturns.findMany({
+        where: { CREATED_DATE: { gte: from, lte: to } },
+        include: { items: true },
+      }),
+    ]);
+
+    const salesByDay = new Map<string, number>();
+    for (const rx of paidRxRows) {
+      if (!rx.PAID_AT) continue;
+      const key = dayKey(rx.PAID_AT, offsetMin);
+      const total = rx.items.reduce(
+        (s, i) => s + i.QUANTITY * Number(i.UNIT_PRICE),
+        0,
+      );
+      salesByDay.set(key, (salesByDay.get(key) ?? 0) + total);
+    }
+    for (const sale of paidSaleRows) {
+      if (!sale.PAID_AT) continue;
+      const key = dayKey(sale.PAID_AT, offsetMin);
+      salesByDay.set(
+        key,
+        (salesByDay.get(key) ?? 0) + Number(sale.TOTAL),
+      );
+    }
+    const revenueTrend = this.buildDaySeries(7, offsetMin, (key) =>
+      Math.round(salesByDay.get(key) ?? 0),
+    ).map(({ d, value }) => ({ d, v: value }));
+
+    const qtyByDrug = new Map<
+      string,
+      { name: string; qty: number; value: number }
+    >();
+    for (const item of [...dispensedItems, ...saleItems]) {
+      const key = String(item.DRUG_ID);
+      const prev = qtyByDrug.get(key) ?? {
+        name: item.DRUG_NAME,
+        qty: 0,
+        value: 0,
+      };
+      prev.qty += item.QTY_DISPENSED;
+      prev.value += item.QTY_DISPENSED * Number(item.UNIT_PRICE);
+      qtyByDrug.set(key, prev);
+    }
+    const ranked = [...qtyByDrug.values()].sort((a, b) => b.qty - a.qty);
+    const topDispensed = ranked.slice(0, 8).map((r) => ({
+      name: r.name,
+      qty: r.qty,
+      value: Math.round(r.value),
+    }));
+    const slowDispensed = [...ranked]
+      .sort((a, b) => a.qty - b.qty)
+      .slice(0, 5)
+      .map((r) => ({ name: r.name, qty: r.qty, value: Math.round(r.value) }));
+
+    const controlledBalance = controlledDrugs.reduce(
+      (sum, d) =>
+        sum +
+        d.batches
+          .filter((b) => b.STATUS === 'Available')
+          .reduce((s, b) => s + b.QTY_AVAILABLE, 0),
+      0,
+    );
+    const controlledDispensed = dispensedItems
+      .filter((i) => controlledDrugs.some((d) => d.DRUG_ID === i.DRUG_ID))
+      .reduce((s, i) => s + i.QTY_DISPENSED, 0);
+
+    const returnsValue = returnsInRange.reduce(
+      (s, r) => s + Number(r.TOTAL_VALUE),
+      0,
+    );
+    const returnsUnits = returnsInRange.reduce(
+      (s, r) => s + r.items.reduce((a, i) => a + i.QUANTITY, 0),
+      0,
+    );
+
+    const channelMix = Object.entries(billingSummary.channelTotals)
+      .filter(([, v]) => v > 0)
+      .map(([name, value]) => ({ name, value: Math.round(value) }));
+
+    return {
+      asOf: now.toISOString(),
+      from: from.toISOString(),
+      to: to.toISOString(),
+      timezoneOffsetMinutes: offsetMin,
+      kpis: {
+        revenue: billingSummary.revenueTotal,
+        paidCount: billingSummary.paidCount,
+        pendingBills: billingSummary.pendingCount,
+        prescriptionsSent: rxSent,
+        prescriptionsDispensed: rxDispensed,
+        walkInDispensed,
+        emergencyDispenses: emergencyCount,
+        returnsCount: returnsInRange.length,
+        returnsValue: Math.round(returnsValue),
+        returnsUnits,
+        lowStock: inventory.lowStock,
+        outOfStock: inventory.outOfStock,
+        expired: inventory.expired,
+        expiringSoon: inventory.expiringSoon,
+        controlledBalance,
+        controlledDispensed,
+        pendingPurchaseOrders: procurementStats.posAwaitingApproval,
+        pendingRequests: procurementStats.pendingRequests,
+      },
+      charts: {
+        revenueTrend,
+        topDispensed,
+        slowDispensed,
+        channelMix,
+        stockValue: this.stockValueByCategory(activeDrugs),
+        expiryRisk: this.expiryRiskDistribution(
+          activeDrugs,
+          settingsRow.expiryCriticalDays,
+          settingsRow.expiryWarningDays,
+          settingsRow.expiringSoonDays,
+        ),
+        inventoryHealth: [
+          { name: 'Available', value: inventory.available, color: '#22c55e' },
+          { name: 'Low', value: inventory.lowStock, color: '#f59e0b' },
+          { name: 'Out of Stock', value: inventory.outOfStock, color: '#ef4444' },
+          { name: 'Expired', value: inventory.expired, color: '#be123c' },
+          {
+            name: 'Expiring Soon',
+            value: inventory.expiringSoon,
+            color: '#facc15',
+          },
+        ],
+      },
+      inventory,
+      procurement: procurementStats,
+      billing: billingSummary,
+      returns: returnsSummary,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
   // Reports
   // ---------------------------------------------------------------------------
 
@@ -1143,6 +1544,72 @@ export class PharmacyService {
     }
   }
 
+  private async loadExpiryRows(): Promise<{
+    rows: ExpiryRow[];
+    thresholds: {
+      expiryCriticalDays: number;
+      expiryWarningDays: number;
+      expiringSoonDays: number;
+    };
+  }> {
+    const settings = await this.settings.getOrCreate();
+    const critical = settings.expiryCriticalDays;
+    const warning = settings.expiryWarningDays;
+    const soon = settings.expiringSoonDays;
+    const now = Date.now();
+    const soonCutoff = now + soon * 86400000;
+
+    const batches = await this.prisma.drugBatches.findMany({
+      where: {
+        STATUS: { in: ['Available', 'Expired', 'Quarantined'] },
+        QTY_AVAILABLE: { gt: 0 },
+        EXPIRY_DATE: { not: null },
+      },
+      include: { drug: true },
+      orderBy: { EXPIRY_DATE: 'asc' },
+    });
+
+    const rows: ExpiryRow[] = [];
+    for (const b of batches) {
+      const t = b.EXPIRY_DATE!.getTime();
+      if (t > soonCutoff && t >= now) continue;
+      const daysLeft = Math.ceil((t - now) / 86400000);
+      let bucket: ExpiryRow['bucket'];
+      if (daysLeft < 0) bucket = 'expired';
+      else if (daysLeft < critical) bucket = 'critical';
+      else if (daysLeft < warning) bucket = 'warning';
+      else bucket = 'soon';
+
+      const unitPrice =
+        b.SELLING_PRICE != null
+          ? Number(b.SELLING_PRICE)
+          : Number(b.drug.UNIT_PRICE);
+      rows.push({
+        batchId: b.BATCH_ID,
+        drugId: b.DRUG_ID,
+        drugName: b.drug.NAME,
+        batchNo: b.BATCH_NO,
+        qtyAvailable: b.QTY_AVAILABLE,
+        expiryDate: b.EXPIRY_DATE!.toISOString(),
+        daysLeft,
+        bucket,
+        status: b.STATUS,
+        location: b.LOCATION,
+        unitPrice,
+        valueAtRisk: Math.round(b.QTY_AVAILABLE * unitPrice),
+      });
+    }
+
+    return {
+      rows,
+      thresholds: {
+        expiryCriticalDays: critical,
+        expiryWarningDays: warning,
+        expiringSoonDays: soon,
+      },
+    };
+  }
+
   private categoryToAuditWhere(
     category?: string,
   ): Prisma.AuditsWhereInput | null {
@@ -1496,45 +1963,17 @@ export class PharmacyService {
   }
 
   private async expiryReport(page: number, limit: number) {
-    const settings = await this.settings.getOrCreate();
-    const soonCutoff = Date.now() + settings.expiringSoonDays * 86400000;
-    const batches = await this.prisma.drugBatches.findMany({
-      where: {
-        STATUS: { in: ['Available', 'Expired', 'Quarantined'] },
-        QTY_AVAILABLE: { gt: 0 },
-        EXPIRY_DATE: { not: null },
-      },
-      include: { drug: true },
-      orderBy: { EXPIRY_DATE: 'asc' },
-    });
-    const now = Date.now();
-    const all = batches
-      .filter((b) => {
-        const t = b.EXPIRY_DATE!.getTime();
-        return t <= soonCutoff || t < now;
-      })
-      .map((b) => {
-        const t = b.EXPIRY_DATE!.getTime();
-        const daysLeft = Math.ceil((t - now) / 86400000);
-        return {
-          drugName: b.drug.NAME,
-          batchNo: b.BATCH_NO,
-          qtyAvailable: b.QTY_AVAILABLE,
-          expiryDate: b.EXPIRY_DATE!.toISOString(),
-          daysLeft,
-          status: daysLeft < 0 ? 'Expired' : 'Expiring Soon',
-        };
-      });
-    const total = all.length;
+    const { rows, thresholds } = await this.loadExpiryRows();
+    const total = rows.length;
     return {
       type: 'expiry',
       from: null,
       to: null,
       summary: {
         total,
-        expired: all.filter((r) => r.status === 'Expired').length,
-        expiringSoon: all.filter((r) => r.status === 'Expiring Soon').length,
-        expiringSoonDays: settings.expiringSoonDays,
+        expired: rows.filter((r) => r.bucket === 'expired').length,
+        expiringSoon: rows.filter((r) => r.bucket !== 'expired').length,
+        expiringSoonDays: thresholds.expiringSoonDays,
       },
       columns: [
         'drugName',
@@ -1544,7 +1983,14 @@ export class PharmacyService {
         'daysLeft',
         'status',
       ],
-      items: all.slice((page - 1) * limit, page * limit),
+      items: rows.slice((page - 1) * limit, page * limit).map((r) => ({
+        drugName: r.drugName,
+        batchNo: r.batchNo,
+        qtyAvailable: r.qtyAvailable,
+        expiryDate: r.expiryDate,
+        daysLeft: r.daysLeft,
+        status: r.bucket === 'expired' ? 'Expired' : 'Expiring Soon',
+      })),
       meta: { page, limit, total },
     };
   }

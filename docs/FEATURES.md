@@ -116,6 +116,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Inpatient pharmacy ward queue (`GET /pharmacy/inpatient`) | ✅ |
 | Pharmacy operational reports (`GET /pharmacy/reports/catalog`, `/reports/:type`) | ✅ |
 | Pharmacy audit trail (`GET /pharmacy/audit`, `/audit/stats`) | ✅ |
+| Pharmacy expiry monitoring (`GET /pharmacy/expiry`, quarantine) | ✅ |
+| Pharmacy analytics (`GET /pharmacy/analytics`) | ✅ |
 | Async lab processing (RabbitMQ) | 📋 |
 
 ## Finance & Operations (Scaffolded)
