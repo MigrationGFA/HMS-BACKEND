@@ -8,6 +8,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Pharmacy operational pages APIs: `GET /api/pharmacy/dashboard`, `GET /api/pharmacy/inpatient`, `GET /api/pharmacy/reports/catalog`, `GET /api/pharmacy/reports/:type`, `GET /api/pharmacy/audit`, `GET /api/pharmacy/audit/stats`; frontend `/pharmacy`, `/pharmacy/inpatient`, `/pharmacy/reports`, `/pharmacy/audit` wired with loading/error/empty states
 - Pharmacy pay-before-dispense (Rx): payment fields + emergency receiver on `PRESCRIPTIONS`; `POST /api/prescriptions/:id/dispense` requires Paid|Waived|Emergency; `POST …/emergency-dispense` records receiver and leaves unpaid/Emergency bill; cashier `GET/POST /api/cashier/payments/prescriptions`; permission `prescription:pay`
 - Pharmacy settings thresholds: `PHARMACY_SETTINGS` (migration `20260717130000_pharmacy_settings`); `GET/PATCH /api/pharmacy/settings` for reorder default, expiry alert windows, inventory/controlled flags; inventory stats use configured days; `/pharmacy/config` UI; `pharmacy:settings-update`
 - Pharmacy billing page is view-only for pharmacy; Collect payment remains cashier-only (`/dashboard/cashier/pharmacy`)

@@ -218,6 +218,33 @@ Frontend: `/pharmacy/config`
 
 ---
 
+## 7f. Pharmacy Operational Pages
+
+```
+Dashboard (/pharmacy)
+  → GET /api/pharmacy/dashboard?timezoneOffsetMinutes=
+  → KPI cards, charts, live inventory/procurement/returns alerts
+
+Inpatient Pharmacy (/pharmacy/inpatient)
+  → GET /api/pharmacy/inpatient?q=&wardId=&status=
+  → Active ADMISSION rows + linked PRESCRIPTIONS
+  → Open Rx → existing /pharmacy/rx/:rxNo dispense flow
+  → MAR administration remains in Nursing
+
+Reports (/pharmacy/reports)
+  → GET /api/pharmacy/reports/catalog
+  → GET /api/pharmacy/reports/:type?from=&to=
+  → CSV/PDF export from returned rows
+
+Audit Trail (/pharmacy/audit)
+  → GET /api/pharmacy/audit?q=&category=
+  → Pharmacy-scoped AUDITS (pharmacy:*, drug:*, stock:*, procurement:*, prescription:pay/dispense)
+```
+
+**Permissions:** `pharmacy:read` (dashboard/inpatient/reports), `audit:read` (audit)
+
+---
+
 ## 8. Billing & Payment
 
 ```

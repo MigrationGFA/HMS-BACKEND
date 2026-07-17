@@ -792,6 +792,153 @@ Or for a new customer: `{ "customerName": "Ada Obi", "phone": "0803…", "items"
 
 ---
 
+---
+
+### Pharmacy Operations Dashboard (`/pharmacy`)
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/dashboard` | KPI cards, charts, live alerts for `/pharmacy` | `pharmacy:read` |
+| GET | `/pharmacy/inpatient` | Inpatient ward dispensing queue (active admissions + Rx) | `pharmacy:read` |
+| GET | `/pharmacy/reports/catalog` | Available operational report types | `pharmacy:read` |
+| GET | `/pharmacy/reports/:type` | Generate report rows + summary | `pharmacy:read` |
+| GET | `/pharmacy/audit` | Pharmacy-scoped audit trail + embedded stats | `audit:read` |
+| GET | `/pharmacy/audit/stats` | Pharmacy audit summary cards | `audit:read` |
+
+#### `GET /api/pharmacy/dashboard?timezoneOffsetMinutes=60`
+
+**Purpose:** Pharmacy operations dashboard KPIs, charts, and live alerts.
+
+**Required permission:** `pharmacy:read`
+
+**Request body:** none
+
+**Response example:**
+```json
+{
+  "data": {
+    "asOf": "2026-07-17T12:00:00.000Z",
+    "kpis": {
+      "prescriptionsToday": 12,
+      "pendingPrescriptions": 4,
+      "dispensedToday": 7,
+      "revenueToday": 125000,
+      "lowStock": 3,
+      "outOfStock": 1,
+      "expiringSoon": 5,
+      "expired": 0,
+      "pendingPurchaseOrders": 2,
+      "inpatientWardRequests": 8,
+      "drugReturns": 1,
+      "emergencyDispenses": 0,
+      "auditAlerts": 0,
+      "controlledDrugBalance": 42
+    },
+    "charts": {
+      "rxTrend": [{ "d": "Mon", "rx": 5 }],
+      "salesTrend": [{ "d": "Mon", "v": 12000 }],
+      "fastMoving": [{ "name": "Paracetamol", "qty": 40 }],
+      "slowMoving": [],
+      "stockValue": [{ "name": "Analgesic", "v": 500000 }],
+      "monthlyRevenue": [{ "m": "Jul", "v": 1.2, "amount": 1200000 }],
+      "expiryRisk": [{ "name": "< 30 days", "value": 2, "color": "#ef4444" }]
+    },
+    "alerts": [{ "tone": "amber", "title": "Low stock", "count": 3, "to": "/pharmacy/inventory?filter=low" }]
+  }
+}
+```
+
+**Error cases:** `401` unauthorized, `403` missing permission
+
+#### `GET /api/pharmacy/inpatient?q=&wardId=&status=&page=&limit=`
+
+**Purpose:** Inpatient pharmacy queue — active admissions joined to pending/dispensed prescriptions. MAR administration stays in Nursing.
+
+**Required permission:** `pharmacy:read`
+
+**Query:** `status` = `all` | `awaiting` | `awaiting-pharmacy` | `awaiting-payment` | `dispensed` | `no-rx`
+
+**Response example:**
+```json
+{
+  "data": {
+    "summary": { "admitted": 10, "awaitingPharmacy": 3, "awaitingPayment": 2, "dispensed": 4, "noPrescription": 1 },
+    "wards": [{ "wardId": 1, "wardName": "Male Med" }],
+    "items": [{
+      "admissionId": 1,
+      "patientName": "Ada Okafor",
+      "wardName": "Male Med",
+      "bedNo": "B12",
+      "rxNo": "RX-2026-001",
+      "queueStatus": "Awaiting Pharmacy",
+      "paymentStatus": "Paid"
+    }],
+    "meta": { "page": 1, "limit": 50, "total": 1 }
+  }
+}
+```
+
+**Error cases:** `401`, `403` (empty queue if ADMISSION table unavailable)
+
+#### `GET /api/pharmacy/reports/catalog`
+
+**Purpose:** List supported pharmacy report types.
+
+**Required permission:** `pharmacy:read`
+
+**Response example:** `{ "data": { "items": [{ "type": "revenue", "label": "Revenue Report", "description": "…" }] } }`
+
+**Error cases:** `401`, `403`
+
+#### `GET /api/pharmacy/reports/:type?from=&to=&page=&limit=`
+
+**Purpose:** Generate operational report (`daily-prescriptions`, `monthly-prescriptions`, `drug-utilization`, `controlled-drugs`, `revenue`, `inventory`, `expiry`, `returns`).
+
+**Required permission:** `pharmacy:read`
+
+**Response example:** `{ "data": { "type": "revenue", "from": "…", "to": "…", "summary": {}, "columns": [], "items": [], "meta": {} } }`
+
+**Error cases:** `400` unknown report type, `401`, `403`
+
+#### `GET /api/pharmacy/audit?q=&category=&status=&from=&to=&page=&limit=&timezoneOffsetMinutes=`
+
+**Purpose:** Pharmacy-scoped audit trail (dispense, stock, procurement, payments, returns, emergency).
+
+**Required permission:** `audit:read`
+
+**Response example:**
+```json
+{
+  "data": {
+    "items": [{
+      "auditId": 1,
+      "time": "2026-07-17T10:00:00.000Z",
+      "officer": "Pharm A",
+      "action": "pharmacy:dispense",
+      "patient": "Ada Okafor",
+      "module": "Dispensing",
+      "status": "Success"
+    }],
+    "meta": { "page": 1, "limit": 50, "total": 1 },
+    "stats": { "totalToday": 4, "dispenses": 2, "emergencies": 0, "stockEvents": 1, "returns": 0, "overrides": 0 }
+  }
+}
+```
+
+**Error cases:** `401`, `403`
+
+#### `GET /api/pharmacy/audit/stats?timezoneOffsetMinutes=60`
+
+**Purpose:** Summary cards for pharmacy audit trail.
+
+**Required permission:** `audit:read`
+
+**Response example:** `{ "data": { "totalToday": 4, "dispenses": 2, "emergencies": 0, "stockEvents": 1, "returns": 0, "overrides": 0 } }`
+
+**Error cases:** `401`, `403`
+
+---
+
 ### Pharmacy Billing (`/pharmacy/billing`)
 
 Aggregates doctor prescriptions and walk-in sales (no separate Invoice tables).

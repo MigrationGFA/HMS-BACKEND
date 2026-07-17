@@ -112,6 +112,10 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Pharmacy billing Collect is cashier-only (pharmacy page is view + link) | ✅ |
 | Pharmacy settings thresholds (`/pharmacy/settings`, `/pharmacy/config`) | ✅ |
 | Pharmacy returns of dispensed drugs (`/pharmacy/returns`, stock restore) | ✅ |
+| Pharmacy operations dashboard (`GET /pharmacy/dashboard`) | ✅ |
+| Inpatient pharmacy ward queue (`GET /pharmacy/inpatient`) | ✅ |
+| Pharmacy operational reports (`GET /pharmacy/reports/catalog`, `/reports/:type`) | ✅ |
+| Pharmacy audit trail (`GET /pharmacy/audit`, `/audit/stats`) | ✅ |
 | Async lab processing (RabbitMQ) | 📋 |
 
 ## Finance & Operations (Scaffolded)
