@@ -101,6 +101,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Drug catalog with supplier link (`/pharmacy/drugs`) | ✅ |
 | Batch-tracked inventory: stock, expiry, FEFO adjustments (`/pharmacy/inventory`) | ✅ |
 | Procurement: PR → PO → approve/send → receive (GRN) (`/pharmacy/procurement/*`) | ✅ |
+| Procurement receivable POs + History cards/table (`orders/receivable`, `history`) | ✅ |
 | Pharmacy audit logging on all mutations (supplier/drug/PR/PO/receive/adjust) | ✅ |
 | Pharmacist role granted pharmacy permissions (`PHARMACY_PERMISSIONS`) | ✅ |
 | Doctor prescriptions create/send + pharmacy inbound list (`POST/GET/PATCH /prescriptions`) | ✅ |

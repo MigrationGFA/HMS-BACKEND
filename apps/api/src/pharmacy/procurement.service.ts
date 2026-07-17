@@ -52,6 +52,40 @@ export type PurchaseOrderResponse = {
   createdBy: string | null;
   approvedBy: string | null;
   createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type ProcurementHistoryItem = {
+  poId: number;
+  poNo: string;
+  supplierName: string;
+  status: string;
+  approvalStatus: string;
+  deliveryStatus: string;
+  total: number;
+  itemCount: number;
+  drugsSummary: string;
+  qtyOrdered: number;
+  qtyReceived: number;
+  qtyAccepted: number;
+  qtyDamaged: number;
+  grnCount: number;
+  createdBy: string | null;
+  approvedBy: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type ProcurementHistoryCards = {
+  asOf: string;
+  completedOrders: number;
+  cancelledOrders: number;
+  partiallyDelivered: number;
+  grnCount: number;
+  completedValue: number;
+  receivedValue: number;
+  totalDamagedQty: number;
+  totalAcceptedQty: number;
 };
 
 export type GrnResponse = {
@@ -141,6 +175,7 @@ function toPoResponse(row: PoRow): PurchaseOrderResponse {
     createdBy: row.CREATED_BY,
     approvedBy: row.APPROVED_BY,
     createdAt: row.CREATED_DATE?.toISOString() ?? null,
+    updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
   };
 }
 
@@ -374,16 +409,26 @@ export class ProcurementService {
     q?: string;
     status?: string;
     approvalStatus?: string;
+    deliveryStatus?: string;
     page?: number;
     limit?: number;
   }) {
     const page = Math.max(params?.page ?? 1, 1);
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
+    const deliveryStatuses =
+      params?.deliveryStatus && params.deliveryStatus !== 'all'
+        ? params.deliveryStatus.split(',').map((s) => s.trim()).filter(Boolean)
+        : [];
     const where: Prisma.PurchaseOrdersWhereInput = {
       ...(params?.status && params.status !== 'all' ? { STATUS: params.status } : {}),
       ...(params?.approvalStatus && params.approvalStatus !== 'all'
         ? { APPROVAL_STATUS: params.approvalStatus }
         : {}),
+      ...(deliveryStatuses.length === 1
+        ? { DELIVERY_STATUS: deliveryStatuses[0] }
+        : deliveryStatuses.length > 1
+          ? { DELIVERY_STATUS: { in: deliveryStatuses } }
+          : {}),
       ...(params?.q
         ? {
             OR: [
@@ -406,6 +451,154 @@ export class ProcurementService {
     ]);
 
     return { items: rows.map(toPoResponse), meta: { page, limit, total } };
+  }
+
+  /**
+   * POs eligible for Receive Stock: approved and not fully delivered/cancelled.
+   * Includes Approved+Not Sent so pharmacists can accept goods without a separate Send step.
+   */
+  async listReceivableOrders(params?: { q?: string; page?: number; limit?: number }) {
+    const page = Math.max(params?.page ?? 1, 1);
+    const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
+    const where: Prisma.PurchaseOrdersWhereInput = {
+      APPROVAL_STATUS: 'Approved',
+      STATUS: { notIn: ['Cancelled', 'Completed'] },
+      DELIVERY_STATUS: { in: ['Not Sent', 'Sent', 'Partial'] },
+      ...(params?.q
+        ? {
+            OR: [
+              { PO_NO: { contains: params.q, mode: 'insensitive' } },
+              { supplier: { NAME: { contains: params.q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.purchaseOrders.findMany({
+        where,
+        include: PO_INCLUDE,
+        orderBy: { CREATED_DATE: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.purchaseOrders.count({ where }),
+    ]);
+
+    return { items: rows.map(toPoResponse), meta: { page, limit, total } };
+  }
+
+  /** Completed / cancelled POs with GRN aggregates for the History tab. */
+  async history(params?: { q?: string; status?: string; page?: number; limit?: number }) {
+    const page = Math.max(params?.page ?? 1, 1);
+    const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
+    const statusFilter =
+      params?.status && params.status !== 'all'
+        ? params.status
+        : undefined;
+
+    const where: Prisma.PurchaseOrdersWhereInput = {
+      STATUS: statusFilter
+        ? statusFilter
+        : { in: ['Completed', 'Cancelled', 'Partially Delivered'] },
+      ...(params?.q
+        ? {
+            OR: [
+              { PO_NO: { contains: params.q, mode: 'insensitive' } },
+              { supplier: { NAME: { contains: params.q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [
+      rows,
+      total,
+      completedOrders,
+      cancelledOrders,
+      partiallyDelivered,
+      grnCount,
+      completedAgg,
+      grnAgg,
+    ] = await Promise.all([
+      this.prisma.purchaseOrders.findMany({
+        where,
+        include: {
+          ...PO_INCLUDE,
+          goodsReceived: true,
+        },
+        orderBy: { UPDATED_DATE: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.purchaseOrders.count({ where }),
+      this.prisma.purchaseOrders.count({ where: { STATUS: 'Completed' } }),
+      this.prisma.purchaseOrders.count({ where: { STATUS: 'Cancelled' } }),
+      this.prisma.purchaseOrders.count({ where: { DELIVERY_STATUS: 'Partial' } }),
+      this.prisma.goodsReceivedNotes.count(),
+      this.prisma.purchaseOrders.aggregate({
+        _sum: { TOTAL: true },
+        where: { STATUS: 'Completed' },
+      }),
+      this.prisma.goodsReceivedNotes.aggregate({
+        _sum: {
+          QTY_ACCEPTED: true,
+          QTY_DAMAGED: true,
+          QTY_RECEIVED: true,
+        },
+      }),
+    ]);
+
+    const receivedValueRows = await this.prisma.goodsReceivedNotes.findMany({
+      select: { QTY_ACCEPTED: true, UNIT_COST: true },
+    });
+    const receivedValue = receivedValueRows.reduce(
+      (s, g) => s + g.QTY_ACCEPTED * Number(g.UNIT_COST ?? 0),
+      0,
+    );
+
+    const cards: ProcurementHistoryCards = {
+      asOf: new Date().toISOString(),
+      completedOrders,
+      cancelledOrders,
+      partiallyDelivered,
+      grnCount,
+      completedValue: Number(completedAgg._sum.TOTAL ?? 0),
+      receivedValue,
+      totalDamagedQty: grnAgg._sum.QTY_DAMAGED ?? 0,
+      totalAcceptedQty: grnAgg._sum.QTY_ACCEPTED ?? 0,
+    };
+
+    const items: ProcurementHistoryItem[] = rows.map((row) => {
+      const qtyOrdered = row.items.reduce((s, i) => s + i.QTY, 0);
+      const qtyReceived = row.items.reduce((s, i) => s + i.QTY_RECEIVED, 0);
+      const qtyAccepted = row.goodsReceived.reduce((s, g) => s + g.QTY_ACCEPTED, 0);
+      const qtyDamaged = row.goodsReceived.reduce((s, g) => s + g.QTY_DAMAGED, 0);
+      return {
+        poId: row.PO_ID,
+        poNo: row.PO_NO,
+        supplierName: row.supplier.NAME,
+        status: row.STATUS,
+        approvalStatus: row.APPROVAL_STATUS,
+        deliveryStatus: row.DELIVERY_STATUS,
+        total: Number(row.TOTAL),
+        itemCount: row.items.length,
+        drugsSummary: row.items
+          .map((i) => [i.drug.NAME, i.drug.STRENGTH].filter(Boolean).join(' '))
+          .join(', '),
+        qtyOrdered,
+        qtyReceived,
+        qtyAccepted,
+        qtyDamaged,
+        grnCount: row.goodsReceived.length,
+        createdBy: row.CREATED_BY,
+        approvedBy: row.APPROVED_BY,
+        createdAt: row.CREATED_DATE?.toISOString() ?? null,
+        updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
+      };
+    });
+
+    return { cards, items, meta: { page, limit, total } };
   }
 
   async findOrderById(id: number): Promise<PurchaseOrderResponse> {
@@ -507,13 +700,24 @@ export class ProcurementService {
     if (!drug) throw new BadRequestException('Drug does not exist');
 
     let po: PoRow | null = null;
+    let poItem: PoRow['items'][number] | null = null;
     if (dto.poId != null) {
       po = await this.prisma.purchaseOrders.findUnique({
         where: { PO_ID: dto.poId },
         include: PO_INCLUDE,
       });
       if (!po) throw new BadRequestException('Purchase order does not exist');
-      if (!po.items.some((i) => i.DRUG_ID === dto.drugId)) {
+      if (po.STATUS === 'Cancelled') {
+        throw new BadRequestException('Cannot receive against a cancelled purchase order');
+      }
+      if (po.APPROVAL_STATUS !== 'Approved') {
+        throw new BadRequestException('Purchase order must be approved before receiving stock');
+      }
+      if (po.DELIVERY_STATUS === 'Delivered' || po.STATUS === 'Completed') {
+        throw new BadRequestException('Purchase order is already fully delivered');
+      }
+      poItem = po.items.find((i) => i.DRUG_ID === dto.drugId) ?? null;
+      if (!poItem) {
         throw new BadRequestException('Drug is not on this purchase order');
       }
     }
@@ -523,10 +727,37 @@ export class ProcurementService {
       throw new BadRequestException('Damaged quantity cannot exceed received quantity');
     }
     const qtyAccepted = dto.qtyReceived - qtyDamaged;
+    if (poItem) {
+      const remaining = poItem.QTY - poItem.QTY_RECEIVED;
+      if (qtyAccepted > remaining) {
+        throw new BadRequestException(
+          `Cannot accept ${qtyAccepted} for ${drug.NAME}: only ${remaining} remaining on this PO`,
+        );
+      }
+    }
+
     const year = new Date().getFullYear();
-    const receivedBy = dto.receivedBy ?? actorLabel(actor);
+    // Receiver is always the authenticated pharmacist (audit integrity).
+    const receivedBy = actorLabel(actor);
+    const qtyOrdered = poItem?.QTY ?? dto.qtyOrdered ?? 0;
+    const unitCost =
+      dto.unitCost ?? (poItem != null ? Number(poItem.UNIT_COST) : null);
 
     const grn = await this.prisma.$transaction(async (tx) => {
+      // First receipt against an approved-but-unsent PO marks it as sent/in transit.
+      if (po && po.DELIVERY_STATUS === 'Not Sent') {
+        await tx.purchaseOrders.update({
+          where: { PO_ID: po.PO_ID },
+          data: {
+            DELIVERY_STATUS: 'Sent',
+            STATUS: 'Sent to Supplier',
+            UPDATED_BY_ID: actor?.id ?? null,
+            UPDATED_BY: actorLabel(actor),
+            UPDATED_DATE: new Date(),
+          },
+        });
+      }
+
       const row = await tx.goodsReceivedNotes.create({
         data: {
           GRN_NO: `GRN-${year}-PENDING`,
@@ -535,11 +766,11 @@ export class ProcurementService {
           BATCH_NO: dto.batchNo.trim(),
           MFG_DATE: dto.mfgDate ? new Date(dto.mfgDate) : null,
           EXPIRY_DATE: dto.expiryDate ? new Date(dto.expiryDate) : null,
-          QTY_ORDERED: dto.qtyOrdered ?? 0,
+          QTY_ORDERED: qtyOrdered,
           QTY_RECEIVED: dto.qtyReceived,
           QTY_DAMAGED: qtyDamaged,
           QTY_ACCEPTED: qtyAccepted,
-          UNIT_COST: dto.unitCost ?? null,
+          UNIT_COST: unitCost,
           LOCATION: dto.location ?? null,
           RECEIVED_BY: receivedBy,
           RECEIVED_DATE: new Date(),
@@ -555,7 +786,7 @@ export class ProcurementService {
         include: GRN_INCLUDE,
       });
 
-      // Each acceptance creates a batch so expiry/amount are tracked per receipt.
+      // Accepted qty creates an available batch — drug catalog stock is sum of batches.
       if (qtyAccepted > 0) {
         await tx.drugBatches.create({
           data: {
@@ -565,7 +796,7 @@ export class ProcurementService {
             EXPIRY_DATE: dto.expiryDate ? new Date(dto.expiryDate) : null,
             QTY_RECEIVED: qtyAccepted,
             QTY_AVAILABLE: qtyAccepted,
-            UNIT_COST: dto.unitCost ?? null,
+            UNIT_COST: unitCost,
             SELLING_PRICE: dto.sellingPrice ?? null,
             LOCATION: dto.location ?? null,
             GRN_ID: withNo.GRN_ID,
@@ -577,10 +808,9 @@ export class ProcurementService {
         });
       }
 
-      if (po) {
-        const item = po.items.find((i) => i.DRUG_ID === dto.drugId)!;
+      if (po && poItem) {
         await tx.purchaseOrderItems.update({
-          where: { PO_ITEM_ID: item.PO_ITEM_ID },
+          where: { PO_ITEM_ID: poItem.PO_ITEM_ID },
           data: { QTY_RECEIVED: { increment: qtyAccepted } },
         });
 

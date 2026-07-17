@@ -149,7 +149,7 @@ export class PharmacyProcurementController {
 
   /**
    * Method: GET
-   * URL: /api/pharmacy/procurement/orders?q=&status=&approvalStatus=&page=&limit=
+   * URL: /api/pharmacy/procurement/orders?q=&status=&approvalStatus=&deliveryStatus=&page=&limit=
    * Purpose: List/search purchase orders
    * Required permission: pharmacy:read
    * Request body: none
@@ -162,6 +162,7 @@ export class PharmacyProcurementController {
     @Query('q') q?: string,
     @Query('status') status?: string,
     @Query('approvalStatus') approvalStatus?: string,
+    @Query('deliveryStatus') deliveryStatus?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -169,6 +170,57 @@ export class PharmacyProcurementController {
       q,
       status,
       approvalStatus,
+      deliveryStatus,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/pharmacy/procurement/orders/receivable
+   * Purpose: List POs eligible for Receive Stock (Approved + Not Sent/Sent/Partial)
+   * Required permission: pharmacy:read
+   * Request body: none
+   * Response example: { data: { items: [...], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('orders/receivable')
+  @RequirePermissions(PERMISSIONS.PHARMACY_READ)
+  async listReceivableOrders(
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.procurementService.listReceivableOrders({
+      q,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 100,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/pharmacy/procurement/history?q=&status=&page=&limit=
+   * Purpose: Procurement History tab — summary cards + completed/cancelled/partial POs
+   * Required permission: pharmacy:read
+   * Request body: none
+   * Response example: { data: { cards: { completedOrders, cancelledOrders, grnCount, ... }, items: [...], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('history')
+  @RequirePermissions(PERMISSIONS.PHARMACY_READ)
+  async history(
+    @Query('q') q?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.procurementService.history({
+      q,
+      status,
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 50,
     });
@@ -255,11 +307,12 @@ export class PharmacyProcurementController {
    * URL: /api/pharmacy/procurement/receive
    * Purpose: Receive stock (GRN). Creates a drug batch with expiry/location and
    *          increases available stock by the accepted quantity. poId optional
-   *          for direct receipts; when present, PO delivery status is updated.
+   *          for direct receipts; when present, PO must be Approved and delivery
+   *          is updated (Not Sent auto-advances). Receiver is the authenticated user.
    * Required permission: stock:receive
-   * Request body: ReceiveStockDto { poId?, drugId, batchNo, mfgDate?, expiryDate?, qtyOrdered?, qtyReceived, qtyDamaged?, unitCost?, sellingPrice?, location?, receivedBy? }
+   * Request body: ReceiveStockDto { poId?, drugId, batchNo, mfgDate?, expiryDate?, qtyOrdered?, qtyReceived, qtyDamaged?, unitCost?, sellingPrice?, location? }
    * Response example: { data: { grnId, grnNo: "GRN-2026-0001", drugName, batchNo, qtyAccepted, ... } }
-   * Error cases: 400 validation / drug not on PO / damaged > received, 401, 403
+   * Error cases: 400 validation / not approved / over-receipt / damaged > received, 401, 403
    */
   @Post('receive')
   @RequirePermissions(PERMISSIONS.STOCK_RECEIVE)
