@@ -848,6 +848,43 @@ Return already-dispensed Rx or walk-in lines; restores stock to `DRUG_BATCHES`; 
 
 ---
 
+### Pharmacy Settings (`/pharmacy/settings`)
+
+Hospital-level alert thresholds (singleton). Inventory “Expiring Soon” / recently received use these values.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/settings` | Load thresholds and alert flags | `pharmacy:read` |
+| PATCH | `/pharmacy/settings` | Update thresholds | `pharmacy:settings-update` |
+
+#### `GET /api/pharmacy/settings`
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "defaultReorderLevel": 50,
+    "expiringSoonDays": 180,
+    "expiryCriticalDays": 30,
+    "expiryWarningDays": 90,
+    "receiveStockWarnDays": 180,
+    "recentlyReceivedDays": 7,
+    "controlledRequiresWitness": true,
+    "lowStockAlertEnabled": true,
+    "expiryAlertEnabled": true
+  }
+}
+```
+
+#### `PATCH /api/pharmacy/settings`
+
+**Request body:** partial of the fields above.
+
+**Audit:** `pharmacy:settings-update`
+
+---
+
 ### Pharmacy Procurement (`/pharmacy/procurement`)
 
 Workflow: **Purchase Request** (`Pending Approval` → `Approved`/`Rejected`) → **Purchase Order** (`Pending Approval` → `Approved` → `Sent` → `Delivered`) → **Receive stock** (creates a **GRN** + drug batches).

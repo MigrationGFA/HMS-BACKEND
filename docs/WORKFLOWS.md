@@ -206,6 +206,18 @@ Frontend: `/pharmacy/returns` (Returns tab live; cancel/reverse/refund placehold
 
 ---
 
+## 7e. Pharmacy Settings (thresholds)
+
+```
+GET /api/pharmacy/settings — reorder default, expiry alert days, flags
+PATCH /api/pharmacy/settings — pharmacist updates thresholds
+Inventory stats / Expiring Soon use configured expiringSoonDays
+```
+
+Frontend: `/pharmacy/config`
+
+---
+
 ## 8. Billing & Payment
 
 ```

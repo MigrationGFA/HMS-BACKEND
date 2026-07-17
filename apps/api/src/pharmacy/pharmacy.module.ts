@@ -10,6 +10,7 @@ import { PharmacyProcurementController } from './procurement.controller';
 import { WalkInSalesController } from './walk-in-sales.controller';
 import { PharmacyBillingController } from './pharmacy-billing.controller';
 import { PharmacyReturnsController } from './pharmacy-returns.controller';
+import { PharmacySettingsController } from './pharmacy-settings.controller';
 import { PharmacyService } from './pharmacy.service';
 import { SuppliersService } from './suppliers.service';
 import { DrugsService } from './drugs.service';
@@ -17,6 +18,7 @@ import { ProcurementService } from './procurement.service';
 import { WalkInSalesService } from './walk-in-sales.service';
 import { PharmacyBillingService } from './pharmacy-billing.service';
 import { PharmacyReturnsService } from './pharmacy-returns.service';
+import { PharmacySettingsService } from './pharmacy-settings.service';
 
 @Module({
   imports: [AuditModule, ClinicalModule],
@@ -30,6 +32,7 @@ import { PharmacyReturnsService } from './pharmacy-returns.service';
     WalkInSalesController,
     PharmacyBillingController,
     PharmacyReturnsController,
+    PharmacySettingsController,
   ],
   providers: [
     PharmacyService,
@@ -39,6 +42,7 @@ import { PharmacyReturnsService } from './pharmacy-returns.service';
     WalkInSalesService,
     PharmacyBillingService,
     PharmacyReturnsService,
+    PharmacySettingsService,
   ],
   exports: [
     PharmacyService,
@@ -48,6 +52,7 @@ import { PharmacyReturnsService } from './pharmacy-returns.service';
     WalkInSalesService,
     PharmacyBillingService,
     PharmacyReturnsService,
+    PharmacySettingsService,
   ],
 })
 export class PharmacyModule {}

@@ -109,6 +109,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Pharmacy dispense by Rx (`GET …/by-rx/:rxNo`, `POST …/:id/dispense`, FEFO + audit) | ✅ |
 | Rx pay-before-dispense + emergency override (`emergency-dispense`, cashier prescription pay) | ✅ |
 | Pharmacy billing aggregate (`/pharmacy/billing` summary + bills + confirm) | ✅ |
+| Pharmacy billing Collect is cashier-only (pharmacy page is view + link) | ✅ |
+| Pharmacy settings thresholds (`/pharmacy/settings`, `/pharmacy/config`) | ✅ |
 | Pharmacy returns of dispensed drugs (`/pharmacy/returns`, stock restore) | ✅ |
 | Async lab processing (RabbitMQ) | 📋 |
 
