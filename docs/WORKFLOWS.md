@@ -141,6 +141,31 @@ Same pharmacist dispenses immediately (no separate Send step)
 
 ---
 
+## 7b. Walk-In Pharmacy (OTC)
+
+```
+Pharmacist creates request (/pharmacy/queue → Walk-In)
+  → POST /api/pharmacy/walk-in { personId|customerName, items }
+  → status Awaiting Payment / Unpaid — NO dispense yet
+  → Audit: pharmacy:sale-create
+
+Cashier collects payment (/dashboard/cashier/pharmacy)
+  → GET /api/cashier/payments/pharmacy-sales?paymentStatus=Unpaid
+  → POST /api/cashier/payments/pharmacy-sales/:id/confirm { paymentChannel }
+  → status Paid — unlocks dispense
+  → Audit: pharmacy:sale-pay
+
+Pharmacist dispenses (same queue)
+  → POST /api/pharmacy/walk-in/:id/dispense
+  → FEFO deduct DRUG_BATCHES (blocked if Unpaid)
+  → Audit: pharmacy:sale-dispense
+```
+
+**Modules:** `PharmacyModule` (WalkInSalesService), `CashierModule`, `AuditModule`  
+**Permissions:** `pharmacy:sale-create|read|pay`, `pharmacy:dispense`
+
+---
+
 ## 8. Billing & Payment
 
 ```

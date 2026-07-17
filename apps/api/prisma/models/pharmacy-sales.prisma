@@ -1,0 +1,62 @@
+// Walk-in / OTC pharmacy sales — commercial, not clinical prescriptions.
+// Flow: request (Awaiting Payment) → cashier confirms pay → pharmacist dispenses.
+// Patient identity always references PERSONS. Stock deducted FEFO on dispense.
+
+model PharmacySales {
+  SALE_ID         Int       @id @default(autoincrement())
+  SALE_NO         String    @unique @db.VarChar(50)
+  PERSON_ID       Int
+  /// Awaiting Payment | Paid | Dispensed | Partially Dispensed | Cancelled
+  STATUS          String    @default("Awaiting Payment") @db.VarChar(50)
+  /// Unpaid | Paid | Waived
+  PAYMENT_STATUS  String    @default("Unpaid") @db.VarChar(50)
+  /// Preferred / confirmed channel: Cash | POS Card | Bank Transfer | Wallet
+  PAYMENT_CHANNEL String?   @db.VarChar(50)
+  PAYMENT_REF     String?   @db.VarChar(100)
+  PAID_AT         DateTime?
+  PAID_BY         String?   @db.VarChar(100)
+  PAID_BY_ID      Int?
+  TOTAL           Decimal   @default(0) @db.Decimal(14, 2)
+  NOTES           String?   @db.Text
+  DISPENSED_AT    DateTime?
+  DISPENSED_BY    String?   @db.VarChar(100)
+  DISPENSED_BY_ID Int?
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime?
+  UPDATED_BY_ID   Int?
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+
+  person Persons             @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  items  PharmacySaleItems[]
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([PAYMENT_STATUS])
+  @@index([CREATED_DATE])
+  @@map("PHARMACY_SALES")
+}
+
+model PharmacySaleItems {
+  ITEM_ID       Int     @id @default(autoincrement())
+  SALE_ID       Int
+  DRUG_ID       Int
+  /// Snapshot at request time
+  DRUG_NAME     String  @db.VarChar(255)
+  STRENGTH      String? @db.VarChar(100)
+  FORM          String? @db.VarChar(50)
+  UNIT          String? @db.VarChar(50)
+  QUANTITY      Int
+  QTY_DISPENSED Int     @default(0)
+  UNIT_PRICE    Decimal @default(0) @db.Decimal(14, 2)
+  /// Active | Dispensed | Cancelled
+  LINE_STATUS   String  @default("Active") @db.VarChar(50)
+
+  sale PharmacySales @relation(fields: [SALE_ID], references: [SALE_ID])
+  drug Drugs         @relation(fields: [DRUG_ID], references: [DRUG_ID])
+
+  @@index([SALE_ID])
+  @@index([DRUG_ID])
+  @@map("PHARMACY_SALE_ITEMS")
+}

@@ -8,6 +8,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Walk-in pharmacy sales: `PHARMACY_SALES` / `PHARMACY_SALE_ITEMS` (migration `20260717100000_pharmacy_walk_in_sales`); flow request → cashier pay → dispense; endpoints `POST/GET /api/pharmacy/walk-in`, `POST …/:id/dispense`, `GET/POST /api/cashier/payments/pharmacy-sales`; RBAC `pharmacy:sale-create|read|pay`; audit `pharmacy:sale-create|pay|dispense|cancel`
 - Procurement receive/history: `GET /api/pharmacy/procurement/orders/receivable`, `GET /api/pharmacy/procurement/history` (cards + table); receive requires Approved PO, auto-advances Not Sent→Sent, creates `DRUG_BATCHES` (stock increases), receiver locked to authenticated user; frontend Accept opens Receive Stock prefilled
 - Clinical prescriptions API: `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS` (migration `20260716220000_prescriptions`); `POST/GET/PATCH /api/prescriptions` with RBAC (`prescription:create|read|update`), patient-centric `PERSON_ID`, drug catalog FKs, audit on create/send/update; doctors send Rx, pharmacy lists `status=Sent`
 - Pharmacy dispense: `GET /api/prescriptions/by-rx/:rxNo`, `POST /api/prescriptions/:id/dispense` (`pharmacy:dispense`) — FEFO stock deduction from `DRUG_BATCHES`, status Dispensed, audit `pharmacy:dispense` + audit trail on detail
