@@ -76,8 +76,9 @@ model Persons {
   users         Users[]
   triage        Triage[]
   cards         PatientCards[]
-  prescriptions Prescriptions[]
-  pharmacySales PharmacySales[]
+  prescriptions   Prescriptions[]
+  pharmacySales   PharmacySales[]
+  pharmacyReturns PharmacyReturns[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])

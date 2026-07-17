@@ -107,6 +107,9 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Pharmacist role granted pharmacy permissions (`PHARMACY_PERMISSIONS`) | ✅ |
 | Doctor prescriptions create/send + pharmacy inbound list (`POST/GET/PATCH /prescriptions`) | ✅ |
 | Pharmacy dispense by Rx (`GET …/by-rx/:rxNo`, `POST …/:id/dispense`, FEFO + audit) | ✅ |
+| Rx pay-before-dispense + emergency override (`emergency-dispense`, cashier prescription pay) | ✅ |
+| Pharmacy billing aggregate (`/pharmacy/billing` summary + bills + confirm) | ✅ |
+| Pharmacy returns of dispensed drugs (`/pharmacy/returns`, stock restore) | ✅ |
 | Async lab processing (RabbitMQ) | 📋 |
 
 ## Finance & Operations (Scaffolded)

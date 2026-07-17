@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { PatientsModule } from '../patients/patients.module';
 import { PharmacyModule } from '../pharmacy/pharmacy.module';
+import { ClinicalModule } from '../clinical/clinical.module';
 import { CashierController } from './cashier.controller';
 import { PaymentsController } from './payments.controller';
 import { CashierService } from './cashier.service';
 
 @Module({
-  imports: [PatientsModule, PharmacyModule],
+  imports: [PatientsModule, PharmacyModule, ClinicalModule],
   controllers: [CashierController, PaymentsController],
   providers: [CashierService],
   exports: [CashierService],

@@ -566,10 +566,11 @@ Doctor creates/sends prescriptions; pharmacy lists inbound (`status=Sent`). Drug
 | Method | Path | Purpose | Permission |
 |--------|------|---------|------------|
 | POST | `/prescriptions` | Create prescription (`send: true` → pharmacy queue) | `prescription:create` |
-| GET | `/prescriptions` | List (`q`, `status`, `personId`, `page`, `limit`) | `prescription:read` |
+| GET | `/prescriptions` | List (`q`, `status`, `paymentStatus`, `personId`, `page`, `limit`) | `prescription:read` |
 | GET | `/prescriptions/by-rx/:rxNo` | Detail by Rx number (e.g. `RX-2026-0001`) + audit trail | `prescription:read` |
 | GET | `/prescriptions/:id` | Detail by numeric id + audit trail | `prescription:read` |
-| POST | `/prescriptions/:id/dispense` | Dispense (FEFO stock deduct, mark Dispensed, audit) | `pharmacy:dispense` |
+| POST | `/prescriptions/:id/dispense` | Dispense after Paid/Waived/Emergency (FEFO + audit) | `pharmacy:dispense` |
+| POST | `/prescriptions/:id/emergency-dispense` | Emergency unpaid dispense; records receiver; leaves Emergency bill | `pharmacy:dispense` |
 | PATCH | `/prescriptions/:id` | Update status / payment / pharmacy notes | `prescription:update` |
 
 #### `POST /api/prescriptions`
@@ -637,7 +638,30 @@ Omit `items` to dispense full remaining quantity on all internal-pharmacy lines.
 
 **Response:** `{ data: { prescriptionId, rxNo, status: "Dispensed", dispensedBy, items, auditTrail } }`
 
-**Errors:** `400` insufficient stock / already dispensed, `401`, `403` missing `pharmacy:dispense`, `404`
+**Errors:** `400` unpaid (must pay or use emergency-dispense) / insufficient stock / already dispensed, `401`, `403` missing `pharmacy:dispense`, `404`
+
+#### `POST /api/prescriptions/:id/emergency-dispense`
+
+**Purpose:** Clinically necessary dispense before payment. Sets `PAYMENT_STATUS=Emergency`, stores `EMERGENCY_RECEIVED_BY` / note / timestamp, then runs FEFO dispense. Bill remains collectible at cashier/billing until paid.
+
+**Permission:** `pharmacy:dispense`
+
+**Request body:**
+
+```json
+{
+  "receivedBy": "Nurse Ama — Ward 3",
+  "note": "Stat antibiotics — patient unstable",
+  "pharmacyNotes": "Counselled",
+  "items": [{ "itemId": 1, "quantity": 10 }]
+}
+```
+
+**Response:** `{ data: { prescriptionId, paymentStatus: "Emergency", emergencyReceivedBy, status: "Dispensed", ... } }`
+
+**Errors:** `400` already paid/waived / missing receivedBy / stock, `401`, `403`, `404`
+
+**Audit:** `pharmacy:emergency-dispense`
 
 ---
 
@@ -720,6 +744,8 @@ OTC / walk-in sales are **not** clinical prescriptions. Flow: pharmacist creates
 | PATCH | `/pharmacy/walk-in/:id/cancel` | Cancel unpaid / not-dispensing sale | `pharmacy:sale-create` |
 | GET | `/cashier/payments/pharmacy-sales` | Cashier unpaid walk-in queue | `pharmacy:sale-read` |
 | POST | `/cashier/payments/pharmacy-sales/:saleId/confirm` | Confirm payment (unlocks dispense) | `pharmacy:sale-pay` |
+| GET | `/cashier/payments/prescriptions` | Cashier unpaid/emergency Rx bills (`paymentStatus` default `Unpaid,Emergency`) | `prescription:read` |
+| POST | `/cashier/payments/prescriptions/:id/confirm` | Confirm Rx payment | `prescription:pay` |
 
 #### `POST /api/pharmacy/walk-in`
 
@@ -763,6 +789,62 @@ Or for a new customer: `{ "customerName": "Ada Obi", "phone": "0803…", "items"
 **Errors:** `400` unpaid / insufficient stock / already dispensed, `401`, `403`, `404`
 
 **Audit:** `pharmacy:sale-dispense`
+
+---
+
+### Pharmacy Billing (`/pharmacy/billing`)
+
+Aggregates doctor prescriptions and walk-in sales (no separate Invoice tables).
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/billing/summary` | Cards: paid/pending counts, channel revenue | `pharmacy:sale-read` |
+| GET | `/pharmacy/billing/bills` | Unified bill list (`q`, `paymentStatus`, `type`, `page`, `limit`) | `pharmacy:sale-read` |
+| POST | `/pharmacy/billing/bills/:type/:id/confirm` | Confirm payment (`type` = `prescription` \| `walk_in`) | `pharmacy:sale-pay` **or** `prescription:pay` |
+
+#### `GET /api/pharmacy/billing/summary`
+
+**Response example:** `{ data: { paidCount, pendingCount, channelTotals: { Cash, "POS Card", … }, revenueTotal } }`
+
+#### `POST /api/pharmacy/billing/bills/:type/:id/confirm`
+
+**Request body:** `{ "paymentChannel": "Cash", "paymentRef": "optional" }`
+
+**Errors:** `400` already paid / unknown type, `401`, `403`, `404`
+
+---
+
+### Pharmacy Returns (`/pharmacy/returns`)
+
+Return already-dispensed Rx or walk-in lines; restores stock to `DRUG_BATCHES`; increments `QTY_RETURNED`.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/returns/summary` | Today/week cards | `pharmacy:return-read` |
+| GET | `/pharmacy/returns` | List returns | `pharmacy:return-read` |
+| GET | `/pharmacy/returns/lookup?q=` | Lookup dispensed Rx/sale + returnable lines | `pharmacy:return-read` |
+| POST | `/pharmacy/returns` | Commit return | `pharmacy:return-create` |
+
+#### `POST /api/pharmacy/returns`
+
+**Request body:**
+
+```json
+{
+  "sourceType": "prescription",
+  "sourceId": 12,
+  "items": [{ "sourceItemId": 34, "quantity": 5 }],
+  "reason": "Patient allergy — unused tablets",
+  "returnedByRole": "Nurse",
+  "returnedByName": "Ama Mensah"
+}
+```
+
+**Response:** `{ data: { returnId, returnNo, totalValue, items } }`
+
+**Errors:** `400` qty exceeds returnable / not dispensed, `401`, `403`, `404`
+
+**Audit:** `pharmacy:return`
 
 ---
 

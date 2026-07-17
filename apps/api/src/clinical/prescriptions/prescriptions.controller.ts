@@ -18,6 +18,7 @@ import type { AuthUser } from '../../auth/types/auth-user.type';
 import {
   CreatePrescriptionDto,
   DispensePrescriptionDto,
+  EmergencyDispensePrescriptionDto,
   UpdatePrescriptionDto,
 } from './dto/prescription.dto';
 import { PrescriptionsService } from './prescriptions.service';
@@ -60,6 +61,7 @@ export class PrescriptionsController {
   async list(
     @Query('q') q?: string,
     @Query('status') status?: string,
+    @Query('paymentStatus') paymentStatus?: string,
     @Query('personId') personId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -67,6 +69,7 @@ export class PrescriptionsController {
     const result = await this.prescriptionsService.list({
       q,
       status,
+      paymentStatus,
       personId: personId ? Number(personId) : undefined,
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 50,
@@ -109,11 +112,11 @@ export class PrescriptionsController {
   /**
    * Method: POST
    * URL: /api/prescriptions/:id/dispense
-   * Purpose: Dispense prescription (FEFO batch stock deduction + mark Dispensed)
+   * Purpose: Dispense prescription (FEFO batch stock deduction + mark Dispensed). Requires Paid, Waived, or Emergency payment status.
    * Required permission: pharmacy:dispense
    * Request body: DispensePrescriptionDto { items?: [{ itemId, quantity? }], pharmacyNotes? }
    * Response example: { data: { prescriptionId, rxNo, status: "Dispensed", dispensedBy, items, auditTrail } }
-   * Error cases: 400 insufficient stock / already dispensed, 401, 403, 404
+   * Error cases: 400 unpaid / insufficient stock / already dispensed, 401, 403, 404
    */
   @Post(':id/dispense')
   @RequirePermissions(PERMISSIONS.PHARMACY_DISPENSE)
@@ -123,6 +126,26 @@ export class PrescriptionsController {
     @CurrentUser() user: AuthUser,
   ) {
     const rx = await this.prescriptionsService.dispense(id, dto ?? {}, user);
+    return { data: rx };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/prescriptions/:id/emergency-dispense
+   * Purpose: Emergency unpaid dispense — records receiver staff name; leaves PAYMENT_STATUS=Emergency for later cashier collection
+   * Required permission: pharmacy:dispense
+   * Request body: { receivedBy, note?, items?, pharmacyNotes? }
+   * Response example: { data: { prescriptionId, paymentStatus: "Emergency", emergencyReceivedBy, status: "Dispensed", ... } }
+   * Error cases: 400 already paid / missing receivedBy / stock, 401, 403, 404
+   */
+  @Post(':id/emergency-dispense')
+  @RequirePermissions(PERMISSIONS.PHARMACY_DISPENSE)
+  async emergencyDispense(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: EmergencyDispensePrescriptionDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rx = await this.prescriptionsService.emergencyDispense(id, dto, user);
     return { data: rx };
   }
 

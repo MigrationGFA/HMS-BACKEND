@@ -8,6 +8,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Pharmacy pay-before-dispense (Rx): payment fields + emergency receiver on `PRESCRIPTIONS`; `POST /api/prescriptions/:id/dispense` requires Paid|Waived|Emergency; `POST …/emergency-dispense` records receiver and leaves unpaid/Emergency bill; cashier `GET/POST /api/cashier/payments/prescriptions`; permission `prescription:pay`
+- Pharmacy billing aggregate: `GET /api/pharmacy/billing/summary`, `GET /api/pharmacy/billing/bills`, `POST /api/pharmacy/billing/bills/:type/:id/confirm` (Rx + walk-in)
+- Pharmacy returns: `PHARMACY_RETURNS` / `PHARMACY_RETURN_ITEMS` + `QTY_RETURNED` on line items (migration `20260717120000_pharmacy_pay_gate_returns`); `GET/POST /api/pharmacy/returns`, lookup + summary; stock restore to batches; RBAC `pharmacy:return-create|read`; audit `pharmacy:return`
+- Frontend: dispense confirmation modals (Rx + walk-in), emergency dispense UI, cashier Rx payments tab, `/pharmacy/billing` and `/pharmacy/returns` wired to APIs
 - Walk-in pharmacy sales: `PHARMACY_SALES` / `PHARMACY_SALE_ITEMS` (migration `20260717100000_pharmacy_walk_in_sales`); flow request → cashier pay → dispense; endpoints `POST/GET /api/pharmacy/walk-in`, `POST …/:id/dispense`, `GET/POST /api/cashier/payments/pharmacy-sales`; RBAC `pharmacy:sale-create|read|pay`; audit `pharmacy:sale-create|pay|dispense|cancel`
 - Procurement receive/history: `GET /api/pharmacy/procurement/orders/receivable`, `GET /api/pharmacy/procurement/history` (cards + table); receive requires Approved PO, auto-advances Not Sent→Sent, creates `DRUG_BATCHES` (stock increases), receiver locked to authenticated user; frontend Accept opens Receive Stock prefilled
 - Clinical prescriptions API: `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS` (migration `20260716220000_prescriptions`); `POST/GET/PATCH /api/prescriptions` with RBAC (`prescription:create|read|update`), patient-centric `PERSON_ID`, drug catalog FKs, audit on create/send/update; doctors send Rx, pharmacy lists `status=Sent`

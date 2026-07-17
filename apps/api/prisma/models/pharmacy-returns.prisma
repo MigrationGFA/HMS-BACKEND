@@ -1,0 +1,52 @@
+// Drug returns for already-dispensed prescription or walk-in sale lines.
+// Restores stock to DrugBatches; never hard-deletes clinical/commercial history.
+
+model PharmacyReturns {
+  RETURN_ID          Int       @id @default(autoincrement())
+  RETURN_NO          String    @unique @db.VarChar(50)
+  /// prescription | walk_in
+  SOURCE_TYPE        String    @db.VarChar(30)
+  SOURCE_ID          Int
+  PERSON_ID          Int
+  /// Completed
+  STATUS             String    @default("Completed") @db.VarChar(50)
+  REASON             String    @db.Text
+  /// Patient | Doctor | Nurse | Pharmacist | Other
+  RETURNED_BY_ROLE   String    @db.VarChar(50)
+  RETURNED_BY_NAME   String    @db.VarChar(150)
+  RECEIVED_BY        String?   @db.VarChar(100)
+  RECEIVED_BY_ID     Int?
+  TOTAL_VALUE        Decimal   @default(0) @db.Decimal(14, 2)
+  CREATED_BY_ID      Int?
+  CREATED_BY         String?   @db.VarChar(100)
+  CREATED_DATE       DateTime?
+  UPDATED_BY_ID      Int?
+  UPDATED_BY         String?   @db.VarChar(100)
+  UPDATED_DATE       DateTime?
+
+  person Persons               @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  items  PharmacyReturnItems[]
+
+  @@index([PERSON_ID])
+  @@index([SOURCE_TYPE, SOURCE_ID])
+  @@index([CREATED_DATE])
+  @@index([STATUS])
+  @@map("PHARMACY_RETURNS")
+}
+
+model PharmacyReturnItems {
+  RETURN_ITEM_ID Int     @id @default(autoincrement())
+  RETURN_ID      Int
+  DRUG_ID        Int
+  DRUG_NAME      String  @db.VarChar(255)
+  QUANTITY       Int
+  SOURCE_ITEM_ID Int
+  UNIT_PRICE     Decimal @default(0) @db.Decimal(14, 2)
+
+  return PharmacyReturns @relation(fields: [RETURN_ID], references: [RETURN_ID])
+  drug   Drugs           @relation(fields: [DRUG_ID], references: [DRUG_ID])
+
+  @@index([RETURN_ID])
+  @@index([DRUG_ID])
+  @@map("PHARMACY_RETURN_ITEMS")
+}

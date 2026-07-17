@@ -49,6 +49,7 @@ model PharmacySaleItems {
   UNIT          String? @db.VarChar(50)
   QUANTITY      Int
   QTY_DISPENSED Int     @default(0)
+  QTY_RETURNED  Int     @default(0)
   UNIT_PRICE    Decimal @default(0) @db.Decimal(14, 2)
   /// Active | Dispensed | Cancelled
   LINE_STATUS   String  @default("Active") @db.VarChar(50)
