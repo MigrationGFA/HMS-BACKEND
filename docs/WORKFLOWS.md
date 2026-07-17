@@ -82,16 +82,22 @@ Visit completes
 ## 5. Doctor Consultation
 
 ```
-Doctor opens patient from queue or appointment list
-  → GET /patients/:id (demographics, allergies, history)
-  → Records consultation notes (POST /encounters)
-  → Records vitals if needed (POST /vitals)
-  → Orders lab tests (POST /lab/orders)
-  → Writes prescription (POST /prescriptions)
-  → Each action → audit log entry
+Records routes paid patient to consult
+  → POST /api/records/arrivals/route { action: "consult" }
+  → TRIAGE.STATUS = Sent to Consultation (blocked if card Pending)
+
+Doctor opens Consultation Workspace (/dashboard/doctor/clinical/workspace)
+  → GET /api/encounters/consultation-queue
+  → Start only when paymentCleared
+  → POST /api/encounters/start { triageId }
+  → ENCOUNTERS created; TRIAGE.STATUS = In Consultation
+  → Draft notes autosave: PATCH /api/encounters/:id (version + idempotency)
+  → POST /api/encounters/:id/complete { outcome }
+  → Optional: POST /api/prescriptions after consult
+  → Each mutation → audit (encounter:start|update|complete)
 ```
 
-**Modules:** `ClinicalModule`, `LabModule`, `PharmacyModule`, `AuditModule`
+**Modules:** `ClinicalModule` (Encounters), `RecordsModule`, `PatientsModule` (Cards), `AuditModule`
 
 ---
 

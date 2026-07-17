@@ -53,6 +53,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Records Officer Overview uses same dashboard-stats endpoint | ✅ |
 | Patient Directory (`GET /records/directory` + `/directory-stats`) | ✅ |
 | Records Audit Trail (`GET /records/audit` + `/audit-stats`) | ✅ |
+| Patient Arrival / Check-In (`GET /records/arrivals`, `POST /records/arrivals/route`) | ✅ |
 | Records registration queue + payment gate (`/api/records/*`) | ✅ |
 | Card payment gate (`GET /cards/person/:id`; triage blocked with 409 while Pending) | ✅ |
 | Cashier confirm card payment (`POST /cashier/payments/cards/:id/confirm`) | ✅ |
@@ -77,7 +78,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 
 | Sub-feature | Status |
 |-------------|--------|
-| Encounters & clinical notes | 📋 |
+| Encounters consultation queue + start/complete (`/api/encounters/*`, payment-gated) | ✅ |
 | Prescriptions (`POST/GET/PATCH /prescriptions`) | ✅ |
 | Diagnoses & care plans | 📋 |
 | Ward & bed management | 📋 |

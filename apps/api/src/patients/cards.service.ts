@@ -180,6 +180,27 @@ export class CardsService {
     return !card || card.PAYMENT_STATUS !== 'Pending';
   }
 
+  /**
+   * Throws 409 when latest registration card is still Pending.
+   * Used by triage create and encounter start / consult routing.
+   */
+  async assertPaymentCleared(personId: number): Promise<void> {
+    const card = await this.prisma.patientCards.findFirst({
+      where: { PERSON_ID: personId },
+      orderBy: { CREATED_DATE: 'desc' },
+      select: { CARD_ID: true, CARD_NO: true, PAYMENT_STATUS: true },
+    });
+    if (card?.PAYMENT_STATUS === 'Pending') {
+      throw new ConflictException({
+        message:
+          'Card payment is pending — the cashier must confirm payment before the patient can proceed',
+        cardId: card.CARD_ID,
+        cardNo: card.CARD_NO,
+        paymentStatus: card.PAYMENT_STATUS,
+      });
+    }
+  }
+
   /** Cashier confirms the card payment; unblocks the registration workflow. */
   async confirmPayment(
     cardId: number,
