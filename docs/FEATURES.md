@@ -59,7 +59,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Person search (`GET /patients?q=`) | ✅ |
 | Medical records management | 📋 |
 | Appointment booking | 📋 |
-| Walk-in queue | 📋 |
+| Walk-in queue | ✅ |
+| Walk-in sales: request → cashier pay → dispense (`/pharmacy/walk-in`, cashier pharmacy-sales) | ✅ |
 | PostgreSQL full-text search | 📋 |
 
 ## Clinical & Care (Scaffolded)

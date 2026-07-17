@@ -706,6 +706,66 @@ Positive `qty` adds to the newest batch; negative deducts FEFO (earliest-expiry 
 
 ---
 
+### Pharmacy Walk-In Sales (`/pharmacy/walk-in`)
+
+OTC / walk-in sales are **not** clinical prescriptions. Flow: pharmacist creates request (Unpaid) → cashier confirms payment → pharmacist dispenses (FEFO stock).
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| POST | `/pharmacy/walk-in` | Create walk-in request (Awaiting Payment) | `pharmacy:sale-create` |
+| GET | `/pharmacy/walk-in` | List sales (`status`, `paymentStatus`, `q`, `page`, `limit`) | `pharmacy:sale-read` |
+| GET | `/pharmacy/walk-in/by-no/:saleNo` | Detail by `WS-YYYY-####` | `pharmacy:sale-read` |
+| GET | `/pharmacy/walk-in/:id` | Detail by id | `pharmacy:sale-read` |
+| POST | `/pharmacy/walk-in/:id/dispense` | Dispense after Paid (FEFO batches) | `pharmacy:dispense` |
+| PATCH | `/pharmacy/walk-in/:id/cancel` | Cancel unpaid / not-dispensing sale | `pharmacy:sale-create` |
+| GET | `/cashier/payments/pharmacy-sales` | Cashier unpaid walk-in queue | `pharmacy:sale-read` |
+| POST | `/cashier/payments/pharmacy-sales/:saleId/confirm` | Confirm payment (unlocks dispense) | `pharmacy:sale-pay` |
+
+#### `POST /api/pharmacy/walk-in`
+
+**Purpose:** Create walk-in request. Does **not** collect money or dispense. Resolves/creates `PERSONS` (patient-centric).
+
+**Request body:**
+
+```json
+{
+  "personId": 12,
+  "items": [{ "drugId": 3, "quantity": 20 }],
+  "preferredPaymentChannel": "Cash",
+  "notes": "OTC analgesics"
+}
+```
+
+Or for a new customer: `{ "customerName": "Ada Obi", "phone": "0803…", "items": [...] }`.
+
+**Response:** `{ data: { saleId, saleNo: "WS-2026-0001", status: "Awaiting Payment", paymentStatus: "Unpaid", total, items, person } }`
+
+**Errors:** `400` validation / insufficient stock, `401`, `403`, `404` person
+
+**Audit:** `pharmacy:sale-create`
+
+#### `POST /api/cashier/payments/pharmacy-sales/:saleId/confirm`
+
+**Purpose:** Cashier marks sale Paid — pharmacist may then dispense.
+
+**Request body:** `{ "paymentChannel": "Cash", "paymentRef": "POS-991" }`
+
+**Response:** `{ data: { saleId, paymentStatus: "Paid", status: "Paid", paidBy, paidAt } }`
+
+**Errors:** `400` already paid / cancelled, `401`, `403`, `404`
+
+**Audit:** `pharmacy:sale-pay`
+
+#### `POST /api/pharmacy/walk-in/:id/dispense`
+
+**Purpose:** Dispense only when `paymentStatus = Paid`. Deducts `DRUG_BATCHES` FEFO.
+
+**Errors:** `400` unpaid / insufficient stock / already dispensed, `401`, `403`, `404`
+
+**Audit:** `pharmacy:sale-dispense`
+
+---
+
 ### Pharmacy Procurement (`/pharmacy/procurement`)
 
 Workflow: **Purchase Request** (`Pending Approval` → `Approved`/`Rejected`) → **Purchase Order** (`Pending Approval` → `Approved` → `Sent` → `Delivered`) → **Receive stock** (creates a **GRN** + drug batches).

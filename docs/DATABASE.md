@@ -83,6 +83,10 @@ PURCHASE_ORDERS ── GOODS_RECEIVED_NOTES ── DRUG_BATCHES
 | `prescription:create` / `prescription:send` | Prescription draft / sent to pharmacy |
 | `prescription:update` | Status / payment / pharmacy notes change |
 | `pharmacy:dispense` | Pharmacist dispensed Rx (FEFO stock deducted) |
+| `pharmacy:sale-create` | Walk-in pharmacy request created (awaiting cashier) |
+| `pharmacy:sale-pay` | Cashier confirmed walk-in sale payment |
+| `pharmacy:sale-dispense` | Pharmacist dispensed paid walk-in sale |
+| `pharmacy:sale-cancel` | Walk-in sale cancelled |
 | `auth:login` | (planned) successful login |
 
 Filter audits with `GET /api/audit/logs?type=triage:create`.
