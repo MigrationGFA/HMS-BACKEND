@@ -8,6 +8,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Doctor consultation queue: `ENCOUNTERS` table (migration `20260717160000_encounters`); `GET /api/encounters/consultation-queue`, `GET /active`, `POST /start` (payment Paid/Waived required), `GET/PATCH /:id`, `POST /:id/complete`; RBAC `encounter:*`; Records consult route re-checks payment; frontend `/dashboard/doctor/clinical/workspace` live with IndexedDB draft autosave
+- Records Patient Arrival: `GET /api/records/arrivals` (today's triage + pending check-in, summary cards) + `POST /api/records/arrivals/route` (triage|consult|emergency|checkout with `arrival:*` audit); RECORDS role gains `triage:update`; frontend `/records/arrivals` wired with loading/refresh/route states
 - Pharmacy expiry monitoring: `GET /api/pharmacy/expiry` (settings-based buckets) + `POST /api/pharmacy/expiry/batches/:batchId/quarantine` (`stock:quarantine` audit); frontend `/dashboard/pharmacy/expiry` live
 - Pharmacy analytics: `GET /api/pharmacy/analytics` (revenue, dispense volume, inventory, controlled, returns, procurement charts); frontend `/pharmacy/analytics` live (no mock NHIA)
 - Pharmacy operational pages APIs: `GET /api/pharmacy/dashboard`, `GET /api/pharmacy/inpatient`, `GET /api/pharmacy/reports/catalog`, `GET /api/pharmacy/reports/:type`, `GET /api/pharmacy/audit`, `GET /api/pharmacy/audit/stats`; frontend `/pharmacy`, `/pharmacy/inpatient`, `/pharmacy/reports`, `/pharmacy/audit` wired with loading/error/empty states

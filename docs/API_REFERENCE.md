@@ -320,6 +320,8 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 | GET | `/records/directory` | Patient Directory list (`q`, `sex`, `insurance`, `page`, `limit`) | `patient:read` |
 | GET | `/records/audit-stats` | Records Audit Trail summary cards | `audit:read` |
 | GET | `/records/audit` | Records Audit Trail list (`q`, `type`, `status`, `page`, `limit`) | `audit:read` |
+| GET | `/records/arrivals` | Patient Arrival / Check-In list | `patient:read` |
+| POST | `/records/arrivals/route` | Route arrival to triage/consult/emergency/checkout | `triage:create` or `triage:update` |
 | POST | `/records/registrations` | Create PERSONS + pending PATIENT_CARDS after Next of Kin | `patient:create` |
 | GET | `/records/registrations` | Registration queue (`paymentStatus`, `q`, `page`, `limit`) | `card:read` |
 | GET | `/records/registrations/:personId` | Load person + card to continue registration | `patient:read` |
@@ -433,6 +435,97 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 **Query:** `q`, `type` (e.g. `person:create`), `status`, `page`, `limit`
 
 **Required permission:** `audit:read`
+
+#### `GET /api/records/arrivals`
+
+**Purpose:** Patient Arrival / Check-In list for `/records/arrivals` — today's triage visits plus paid registrations not yet checked into triage.
+
+**Method:** `GET`
+
+**URL:** `/api/records/arrivals?q=&type=&routing=&page=&limit=&timezoneOffsetMinutes=`
+
+**Required permission:** `patient:read`
+
+**Request body:** none
+
+**Query:**
+- `q` — search arrival no, hospital no, or name
+- `type` — `Walk-In` | `Appointment` | `Referral` | `Emergency`
+- `routing` — e.g. `Awaiting Triage`, `Checked Out` (also accepts `checkedout`)
+- `page`, `limit` — pagination (default limit 50, max 200)
+- `timezoneOffsetMinutes` — local day bounds
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "asOf": "2026-07-17T14:00:00.000Z",
+    "summary": {
+      "total": 12,
+      "walkIn": 5,
+      "appointment": 4,
+      "referral": 1,
+      "emergency": 1,
+      "awaitingTriage": 3,
+      "awaitingConsultation": 2,
+      "checkedOut": 1
+    },
+    "items": [
+      {
+        "triageId": 41,
+        "personId": 132,
+        "arrivalNo": "Q-014",
+        "hospitalId": "FNPH ARO/2026/00132",
+        "name": "Adaeze Nwosu",
+        "type": "Appointment",
+        "clinic": "General OPD",
+        "arrival": "08:32",
+        "arrivalAt": "2026-07-17T07:32:00.000Z",
+        "visit": "Follow-up",
+        "routing": "Awaiting Triage",
+        "payment": "Paid",
+        "lastVisit": null,
+        "status": "Waiting"
+      }
+    ],
+    "meta": { "page": 1, "limit": 50, "total": 12 }
+  }
+}
+```
+
+**Error cases:** `401` unauthenticated, `403` missing `patient:read`
+
+#### `POST /api/records/arrivals/route`
+
+**Purpose:** Route an arrival to triage, consultation, emergency, or check out (creates/updates `TRIAGE`; audit `arrival:*`).
+
+**Method:** `POST`
+
+**URL:** `/api/records/arrivals/route`
+
+**Required permission:** `triage:create` **or** `triage:update`
+
+**Request body:**
+
+```json
+{
+  "personId": 132,
+  "triageId": 41,
+  "action": "triage",
+  "clinic": "General OPD"
+}
+```
+
+`action` ∈ `triage` | `consult` | `emergency` | `checkout`. `triageId` optional when creating a new check-in.
+
+**Response example:** same shape as an arrivals list item (updated routing/status).
+
+**Error cases:**
+- `400` invalid action, or checkout without an active check-in
+- `401` / `403`
+- `404` person or triage not found
+- `409` payment pending (triage create blocked)
 
 ---
 
@@ -556,6 +649,106 @@ Drugs a supplier supplies are referenced by **drug ID** (from the drug catalog),
 **Errors:** `400` validation / unknown drug id, `401`, `403` missing `supplier:create`, `409` duplicate supplier name. Writes audit `supplier:create`.
 
 `PATCH /api/pharmacy/suppliers/:id` accepts the same fields; sending `drugIds` **replaces** the supplier's full set of supplied drugs.
+
+---
+
+### Doctor Encounters (`/encounters`)
+
+Payment-gated consultation queue for `/dashboard/doctor/clinical/workspace`. Queue source is today's `TRIAGE` with status `Triage Completed` or `Sent to Consultation`.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/encounters/consultation-queue` | Waiting queue (`q`, `clinic`, `priority`, `page`, `limit`, `timezoneOffsetMinutes`) | `encounter:read` |
+| GET | `/encounters/active` | Logged-in doctor's in-progress encounters | `encounter:read` |
+| POST | `/encounters/start` | Start consult from triage (`{ triageId, clinic? }`) | `encounter:create` |
+| GET | `/encounters/:id` | Encounter detail + person + triage | `encounter:read` |
+| PATCH | `/encounters/:id` | Draft note autosave (`version`, `idempotencyKey`, note fields) | `encounter:update` |
+| POST | `/encounters/:id/complete` | Complete consultation (`{ outcome? }`) | `encounter:complete` |
+
+#### `GET /api/encounters/consultation-queue`
+
+**Purpose:** Doctor waiting list after Records routes patients to consultation.
+
+**Required permission:** `encounter:read`
+
+**Request body:** none
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "asOf": "2026-07-17T15:00:00.000Z",
+    "summary": { "waiting": 4, "paymentBlocked": 1, "canStart": 3 },
+    "items": [
+      {
+        "triageId": 41,
+        "personId": 132,
+        "queueNo": "Q-014",
+        "name": "Adaeze Nwosu",
+        "mrn": "FNPH ARO/2026/00132",
+        "age": 34,
+        "sex": "F",
+        "clinic": "OPC",
+        "visit": "New",
+        "arrival": "08:32",
+        "waitMinutes": 18,
+        "wait": "18 mins",
+        "priority": "Routine",
+        "paymentStatus": "Paid",
+        "paymentCleared": true,
+        "vitalsStatus": "Captured",
+        "lastVisit": "2026-07-01",
+        "canStart": true,
+        "triageStatus": "Sent to Consultation"
+      }
+    ],
+    "meta": { "page": 1, "limit": 50, "total": 4 }
+  }
+}
+```
+
+**Error cases:** `401`, `403`
+
+#### `POST /api/encounters/start`
+
+**Purpose:** Start consultation; creates `ENCOUNTERS` and sets triage to `In Consultation`.
+
+**Required permission:** `encounter:create`
+
+**Request body:**
+
+```json
+{ "triageId": 41, "clinic": "OPC" }
+```
+
+**Response example:** `{ data: { encounterId, status: "In Consultation", version: 1, patient, note, doctorName } }`
+
+**Error cases:**
+- `400` triage not awaiting consultation
+- `401` / `403`
+- `404` triage not found
+- `409` card payment Pending, or encounter already started for triage
+
+#### `PATCH /api/encounters/:id`
+
+**Purpose:** Autosave draft clinical notes with optimistic locking.
+
+**Required permission:** `encounter:update`
+
+**Request body:** `{ version?, idempotencyKey?, chiefComplaint?, history?, examination?, assessment?, plan? }`
+
+**Error cases:** `400` not in consultation, `409` version conflict
+
+#### `POST /api/encounters/:id/complete`
+
+**Purpose:** Complete an active consultation.
+
+**Required permission:** `encounter:complete`
+
+**Request body:** `{ outcome?: string }`
+
+**Error cases:** `400` not in consultation, `401`, `403`, `404`
 
 ---
 

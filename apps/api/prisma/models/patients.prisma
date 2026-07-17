@@ -79,6 +79,7 @@ model Persons {
   prescriptions   Prescriptions[]
   pharmacySales   PharmacySales[]
   pharmacyReturns PharmacyReturns[]
+  encounters      Encounters[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])

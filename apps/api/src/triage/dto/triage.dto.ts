@@ -23,7 +23,14 @@ export class CreateTriageDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['Waiting', 'In Triage', 'Triage Completed', 'Sent to Consultation', 'Cancelled'])
+  @IsIn([
+    'Waiting',
+    'In Triage',
+    'Triage Completed',
+    'Sent to Consultation',
+    'In Consultation',
+    'Cancelled',
+  ])
   status?: string;
 
   @IsOptional()
@@ -93,7 +100,14 @@ export class UpdateTriageDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['Waiting', 'In Triage', 'Triage Completed', 'Sent to Consultation', 'Cancelled'])
+  @IsIn([
+    'Waiting',
+    'In Triage',
+    'Triage Completed',
+    'Sent to Consultation',
+    'In Consultation',
+    'Cancelled',
+  ])
   status?: string;
 
   @IsOptional()

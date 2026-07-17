@@ -17,6 +17,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { CreatePersonDto } from '../patients/dto/create-person.dto';
 import { UpdatePersonDto } from '../patients/dto/update-person.dto';
+import { RouteArrivalDto } from './dto/route-arrival.dto';
 import { RecordsService } from './records.service';
 
 /**
@@ -152,6 +153,57 @@ export class RecordsController {
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 50,
     });
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/records/arrivals?q=&type=&routing=&page=&limit=&timezoneOffsetMinutes=
+   * Purpose: Patient Arrival / Check-In list for /records/arrivals (today's triage + pending check-in)
+   * Required permission: patient:read
+   * Request body: none
+   * Response example: { data: { summary, items: [{ arrivalNo, hospitalId, name, type, routing, payment, triageId, personId }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('arrivals')
+  @RequirePermissions(PERMISSIONS.PATIENT_READ)
+  async arrivals(
+    @Query('q') q?: string,
+    @Query('type') type?: string,
+    @Query('routing') routing?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('timezoneOffsetMinutes') timezoneOffsetMinutes?: string,
+  ) {
+    const result = await this.recordsService.arrivals({
+      q,
+      type,
+      routing,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+      timezoneOffsetMinutes: timezoneOffsetMinutes
+        ? Number(timezoneOffsetMinutes)
+        : undefined,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/records/arrivals/route
+   * Purpose: Route an arrival to triage, consultation, emergency, or check out
+   * Required permission: triage:create (creates/updates TRIAGE)
+   * Request body: { personId, triageId?, action: triage|consult|emergency|checkout, clinic? }
+   * Response example: { data: { arrivalNo, routing, triageId, personId } }
+   * Error cases: 400 invalid action / checkout without check-in, 401, 403, 404, 409 payment pending
+   */
+  @Post('arrivals/route')
+  @RequirePermissions(PERMISSIONS.TRIAGE_CREATE, PERMISSIONS.TRIAGE_UPDATE)
+  async routeArrival(
+    @Body() dto: RouteArrivalDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const result = await this.recordsService.routeArrival(dto, user);
     return { data: result };
   }
 
