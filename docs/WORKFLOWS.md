@@ -141,17 +141,23 @@ Lab worker picks up job (consumer)
 ## 7. Pharmacy Dispensing
 
 ```
-Pharmacist views pending prescriptions
-  → GET /prescriptions?status=pending
-  → Verifies drug availability in inventory
-  → POST /dispensations (prescriptionId, quantity)
-  → Inventory decremented
-  → Prescription status: dispensed
-  → Audit log: pharmacy:dispense
-  → If low stock → BullMQ job → alert notification
+Doctor sends Rx
+  → POST /api/prescriptions { send: true } → status Sent, audit prescription:send
+
+Pharmacist opens queue (/pharmacy/queue)
+  → GET /api/prescriptions?status=Sent
+  → Start Processing / View → /pharmacy/rx/:rxNo
+  → GET /api/prescriptions/by-rx/:rxNo (+ auditTrail)
+
+Same pharmacist dispenses immediately (no separate Send step)
+  → POST /api/prescriptions/:id/dispense { pharmacyNotes? }
+  → FEFO deduct from DRUG_BATCHES
+  → Line QTY_DISPENSED updated; status Dispensed / Partially Dispensed
+  → Audit log: pharmacy:dispense (entity prescriptions)
 ```
 
-**Modules:** `PharmacyModule`, `AuditModule`
+**Modules:** `ClinicalModule` (PrescriptionsService), `AuditModule`  
+**Permission:** `pharmacy:dispense` (pharmacist role)
 
 ---
 

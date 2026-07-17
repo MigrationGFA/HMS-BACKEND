@@ -78,6 +78,7 @@ model Drugs {
   purchaseRequests     PurchaseRequests[]
   purchaseOrderItems   PurchaseOrderItems[]
   goodsReceived        GoodsReceivedNotes[]
+  prescriptionItems    PrescriptionItems[]
 
   @@index([NAME])
   @@index([CATEGORY])

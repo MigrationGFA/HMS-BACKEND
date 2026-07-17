@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { NursingModule } from '../nursing/nursing.module';
 import { AuditModule } from '../audit/audit.module';
 import { PharmacyController } from './pharmacy.controller';
 import { DispensingController } from './dispensing.controller';
@@ -13,7 +12,7 @@ import { DrugsService } from './drugs.service';
 import { ProcurementService } from './procurement.service';
 
 @Module({
-  imports: [NursingModule, AuditModule],
+  imports: [AuditModule],
   controllers: [
     PharmacyController,
     DispensingController,
@@ -23,6 +22,6 @@ import { ProcurementService } from './procurement.service';
     PharmacyProcurementController,
   ],
   providers: [PharmacyService, SuppliersService, DrugsService, ProcurementService],
-  exports: [PharmacyService, DrugsService],
+  exports: [PharmacyService, SuppliersService, DrugsService, ProcurementService],
 })
 export class PharmacyModule {}
