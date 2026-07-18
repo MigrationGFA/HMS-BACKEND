@@ -660,9 +660,11 @@ Payment-gated consultation queue for `/dashboard/doctor/clinical/workspace`. Que
 |--------|------|---------|------------|
 | GET | `/encounters/consultation-queue` | Waiting queue (`q`, `clinic`, `priority`, `page`, `limit`, `timezoneOffsetMinutes`) | `encounter:read` |
 | GET | `/encounters/active` | Logged-in doctor's in-progress encounters | `encounter:read` |
+| GET | `/encounters/patients/:personId/clinical-summary` | Aggregated demographics, vitals, allergies, meds, past notes (`triageId?`) | `encounter:read` |
+| GET | `/encounters/patients/:personId/notes` | Paginated encounter notes timeline | `encounter:read` |
 | POST | `/encounters/start` | Start consult from triage (`{ triageId, clinic? }`) | `encounter:create` |
-| GET | `/encounters/:id` | Encounter detail + person + triage | `encounter:read` |
-| PATCH | `/encounters/:id` | Draft note autosave (`version`, `idempotencyKey`, note fields) | `encounter:update` |
+| GET | `/encounters/:id` | Encounter detail + person + triage vitals | `encounter:read` |
+| PATCH | `/encounters/:id` | Draft note autosave (`version`, `idempotencyKey`, full note fields) | `encounter:update` |
 | POST | `/encounters/:id/complete` | Complete consultation (`{ outcome? }`) | `encounter:complete` |
 
 #### `GET /api/encounters/consultation-queue`
@@ -698,6 +700,18 @@ Payment-gated consultation queue for `/dashboard/doctor/clinical/workspace`. Que
         "paymentStatus": "Paid",
         "paymentCleared": true,
         "vitalsStatus": "Captured",
+        "vitals": {
+          "status": "Captured",
+          "bloodPressure": "128/82",
+          "temperatureC": 36.8,
+          "pulseBpm": 88,
+          "respiratoryRate": 18,
+          "spo2Pct": 98,
+          "weightKg": 72,
+          "heightCm": 168,
+          "bmi": 25.5,
+          "notes": null
+        },
         "lastVisit": "2026-07-01",
         "canStart": true,
         "triageStatus": "Sent to Consultation"
@@ -709,6 +723,99 @@ Payment-gated consultation queue for `/dashboard/doctor/clinical/workspace`. Que
 ```
 
 **Error cases:** `401`, `403`
+
+#### `GET /api/encounters/patients/:personId/clinical-summary`
+
+**Purpose:** Patient clinical context for queue eye-view and active consultation panels (demographics, payment, current visit vitals, allergies, active meds, previous diagnoses, history snippets, recent doctor notes). Empty sections return empty arrays/nulls — never mock data.
+
+**Required permission:** `encounter:read`
+
+**Query:** `triageId` (optional — scopes current visit/vitals)
+
+**Request body:** none
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "personId": 132,
+    "demographics": {
+      "name": "Adaeze Nwosu",
+      "mrn": "FNPH ARO/2026/00132",
+      "age": 34,
+      "sex": "F",
+      "bloodGroup": "O+",
+      "phone": "0803…",
+      "nextOfKin": { "name": "…", "relationship": "Spouse", "phone": "…" }
+    },
+    "payment": { "status": "Paid", "display": "Paid", "cleared": true, "cardNo": "CARD-…" },
+    "currentVisit": { "triageId": 41, "queueNo": "Q-014", "clinic": "OPC", "priority": "Routine" },
+    "vitals": { "status": "Captured", "bloodPressure": "128/82", "pulseBpm": 88 },
+    "allergies": [],
+    "activeMeds": [],
+    "previousDiagnoses": [],
+    "historySnippets": {
+      "pastMedicalHistory": "",
+      "drugHistory": "",
+      "allergyHistory": "",
+      "familyHistory": "",
+      "socialHistory": ""
+    },
+    "recentNotes": [],
+    "lastVisit": null
+  }
+}
+```
+
+**Error cases:** `401`, `403`, `404` person not found
+
+#### `GET /api/encounters/patients/:personId/notes`
+
+**Purpose:** Paginated doctor encounter notes timeline (workspace View more + Doctor Note Timeline).
+
+**Required permission:** `encounter:read`
+
+**Query:** `page`, `limit`
+
+**Request body:** none
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "encounterId": 9,
+        "status": "Completed",
+        "doctorName": "Dr Ada",
+        "clinic": "OPC",
+        "startedAt": "2026-07-10T09:00:00.000Z",
+        "completedAt": "2026-07-10T09:28:00.000Z",
+        "outcome": "Discharge",
+        "summary": "CC: Headache · Assessment: Tension headache",
+        "note": {
+          "chiefComplaint": "Headache",
+          "history": "…",
+          "pastMedicalHistory": "…",
+          "drugHistory": "…",
+          "allergyHistory": "…",
+          "familyHistory": "…",
+          "socialHistory": "…",
+          "examination": "…",
+          "assessment": "…",
+          "plan": "…",
+          "followUpPlan": "…"
+        }
+      }
+    ],
+    "meta": { "page": 1, "limit": 20, "total": 1 }
+  }
+}
+```
+
+**Error cases:** `401`, `403`, `404` person not found
 
 #### `POST /api/encounters/start`
 
@@ -736,7 +843,7 @@ Payment-gated consultation queue for `/dashboard/doctor/clinical/workspace`. Que
 
 **Required permission:** `encounter:update`
 
-**Request body:** `{ version?, idempotencyKey?, chiefComplaint?, history?, examination?, assessment?, plan? }`
+**Request body:** `{ version?, idempotencyKey?, chiefComplaint?, history?, examination?, assessment?, plan?, pastMedicalHistory?, drugHistory?, allergyHistory?, familyHistory?, socialHistory?, followUpPlan? }`
 
 **Error cases:** `400` not in consultation, `409` version conflict
 

@@ -50,6 +50,30 @@ export class UpdateEncounterDto {
   @IsOptional()
   @IsString()
   plan?: string;
+
+  @IsOptional()
+  @IsString()
+  pastMedicalHistory?: string;
+
+  @IsOptional()
+  @IsString()
+  drugHistory?: string;
+
+  @IsOptional()
+  @IsString()
+  allergyHistory?: string;
+
+  @IsOptional()
+  @IsString()
+  familyHistory?: string;
+
+  @IsOptional()
+  @IsString()
+  socialHistory?: string;
+
+  @IsOptional()
+  @IsString()
+  followUpPlan?: string;
 }
 
 export class CompleteEncounterDto {

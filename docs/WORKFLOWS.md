@@ -87,11 +87,14 @@ Records routes paid patient to consult
   → TRIAGE.STATUS = Sent to Consultation (blocked if card Pending)
 
 Doctor opens Consultation Workspace (/dashboard/doctor/clinical/workspace)
-  → GET /api/encounters/consultation-queue
+  → GET /api/encounters/consultation-queue (includes vitals + lastVisit)
+  → Eye / Return: GET /api/encounters/patients/:personId/clinical-summary
+  → View more notes: GET /api/encounters/patients/:personId/notes
   → Start only when paymentCleared
   → POST /api/encounters/start { triageId }
   → ENCOUNTERS created; TRIAGE.STATUS = In Consultation
-  → Draft notes autosave: PATCH /api/encounters/:id (version + idempotency)
+  → Active panel loads clinical-summary for context (vitals, allergies, meds, history)
+  → Draft notes autosave: PATCH /api/encounters/:id (full note sections + version + idempotency)
   → POST /api/encounters/:id/complete { outcome }
   → Optional: POST /api/prescriptions after consult
   → Each mutation → audit (encounter:start|update|complete)
