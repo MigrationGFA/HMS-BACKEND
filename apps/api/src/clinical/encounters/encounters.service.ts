@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -302,26 +303,39 @@ export class EncountersService {
       DOCTOR_ID: actor.id,
       STATUS: 'In Consultation',
     };
-    const [rows, total] = await Promise.all([
-      this.prisma.encounters.findMany({
-        where,
-        orderBy: { STARTED_AT: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-        include: this.encounterInclude(),
-      }),
-      this.prisma.encounters.count({ where }),
-    ]);
+    try {
+      const [rows, total] = await Promise.all([
+        this.prisma.encounters.findMany({
+          where,
+          orderBy: { STARTED_AT: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+          include: this.encounterInclude(),
+        }),
+        this.prisma.encounters.count({ where }),
+      ]);
 
-    const personIds = [...new Set(rows.map((r) => r.PERSON_ID))];
-    const lastVisitMap = await this.lastCompletedVisitByPerson(personIds);
+      const personIds = [...new Set(rows.map((r) => r.PERSON_ID))];
+      const lastVisitMap = await this.lastCompletedVisitByPerson(personIds);
 
-    return {
-      items: rows.map((e) =>
-        this.toEncounterResponse(e, lastVisitMap.get(e.PERSON_ID) ?? null),
-      ),
-      meta: { page, limit, total },
-    };
+      return {
+        items: rows.map((e) =>
+          this.toEncounterResponse(e, lastVisitMap.get(e.PERSON_ID) ?? null),
+        ),
+        meta: { page, limit, total },
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        /ENCOUNTERS/i.test(message) &&
+        /(does not exist|Unknown column|column .* does not exist)/i.test(message)
+      ) {
+        throw new ServiceUnavailableException(
+          'Encounters schema is not applied on this database. Run: npx prisma migrate deploy',
+        );
+      }
+      throw err;
+    }
   }
 
   async start(dto: StartEncounterDto, actor: AuthUser) {

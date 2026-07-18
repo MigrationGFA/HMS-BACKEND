@@ -5,7 +5,9 @@ services:
     plan: starter
     # Install devDependencies too — NODE_ENV=production would otherwise skip Nest CLI / TypeScript
     buildCommand: NPM_CONFIG_PRODUCTION=false npm install && npm run build
-    startCommand: npm run start:prod
+    # Apply pending Prisma migrations before serving traffic (e.g. ENCOUNTERS).
+    # Without this, new tables/columns ship in code but the DB lags → 500s.
+    startCommand: npx prisma migrate deploy && npm run start:prod
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
