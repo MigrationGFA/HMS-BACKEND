@@ -10,6 +10,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Render start command now runs `prisma migrate deploy` before `start:prod` so tables like `ENCOUNTERS` exist in production (fixes `GET /api/encounters/active` 500 when migrations were not applied)
 
 ### Added
+- Follow-up scheduling: `FOLLOW_UPS` table (migration `20260718160000_follow_ups`); `GET/POST /api/encounters/follow-ups`, `PATCH /api/encounters/follow-ups/:id`; complete consultation accepts `followUpDate` (+ clinic/time/priority/reason) and creates a follow-up; clinical workspace Follow-Up tab + complete/schedule dialogs wired to live API
 
 - Doctor clinical summary: `GET /api/encounters/patients/:personId/clinical-summary` (demographics, triage vitals, allergies, meds, past diagnoses/notes) and `GET …/notes` timeline; expanded `ENCOUNTERS` note columns (migration `20260717180000_encounter_note_fields`); queue/encounter responses include real `vitals` + last completed visit; workspace eye-view + active consult panels + Doctor Note Timeline wired to live APIs
 - Doctor consultation queue: `ENCOUNTERS` table (migration `20260717160000_encounters`); `GET /api/encounters/consultation-queue`, `GET /active`, `POST /start` (payment Paid/Waived required), `GET/PATCH /:id`, `POST /:id/complete`; RBAC `encounter:*`; Records consult route re-checks payment; frontend `/dashboard/doctor/clinical/workspace` live with IndexedDB draft autosave
