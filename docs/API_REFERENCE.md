@@ -660,12 +660,15 @@ Payment-gated consultation queue for `/dashboard/doctor/clinical/workspace`. Que
 |--------|------|---------|------------|
 | GET | `/encounters/consultation-queue` | Waiting queue (`q`, `clinic`, `priority`, `page`, `limit`, `timezoneOffsetMinutes`) | `encounter:read` |
 | GET | `/encounters/active` | Logged-in doctor's in-progress encounters | `encounter:read` |
+| GET | `/encounters/follow-ups` | Follow-up list for workspace (`q`, `clinic`, `status`, `from`, `to`, `mine`) | `encounter:read` |
+| POST | `/encounters/follow-ups` | Schedule a follow-up appointment | `encounter:complete` |
+| PATCH | `/encounters/follow-ups/:id` | Update follow-up (status Attended/Cancelled, reschedule) | `encounter:update` |
 | GET | `/encounters/patients/:personId/clinical-summary` | Aggregated demographics, vitals, allergies, meds, past notes (`triageId?`) | `encounter:read` |
 | GET | `/encounters/patients/:personId/notes` | Paginated encounter notes timeline | `encounter:read` |
 | POST | `/encounters/start` | Start consult from triage (`{ triageId, clinic? }`) | `encounter:create` |
 | GET | `/encounters/:id` | Encounter detail + person + triage vitals | `encounter:read` |
 | PATCH | `/encounters/:id` | Draft note autosave (`version`, `idempotencyKey`, full note fields) | `encounter:update` |
-| POST | `/encounters/:id/complete` | Complete consultation (`{ outcome? }`) | `encounter:complete` |
+| POST | `/encounters/:id/complete` | Complete consultation (`{ outcome?, followUpDate?, … }`) | `encounter:complete` |
 
 #### `GET /api/encounters/consultation-queue`
 
@@ -849,13 +852,81 @@ Payment-gated consultation queue for `/dashboard/doctor/clinical/workspace`. Que
 
 #### `POST /api/encounters/:id/complete`
 
-**Purpose:** Complete an active consultation.
+**Purpose:** Complete an active consultation. When `outcome` is Follow-up (or `followUpDate` is sent), creates a `FOLLOW_UPS` row.
 
 **Required permission:** `encounter:complete`
 
-**Request body:** `{ outcome?: string }`
+**Request body:**
 
-**Error cases:** `400` not in consultation, `401`, `403`, `404`
+```json
+{
+  "outcome": "Follow-up",
+  "followUpDate": "2026-07-25",
+  "followUpClinic": "OPC",
+  "followUpTime": "09:30",
+  "followUpPriority": "Routine",
+  "followUpReason": "Review after sertraline titration"
+}
+```
+
+**Response example:** `{ data: { encounterId, status: "Completed", outcome, completedAt, … } }`
+
+**Error cases:** `400` not in consultation / missing follow-up date, `401`, `403`, `404`
+
+#### `GET /api/encounters/follow-ups`
+
+**Purpose:** List follow-ups for the clinical workspace Follow-Up tab (default: this week → +14 days). Display status is derived: `Scheduled` | `Due Today` | `Missed` | `Attended` | `Cancelled`.
+
+**Required permission:** `encounter:read`
+
+**Query:** `q`, `clinic`, `status`, `from`, `to`, `page`, `limit`, `timezoneOffsetMinutes`, `mine=1` (only the logged-in doctor)
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "summary": { "thisWeek": 3, "dueToday": 1, "missed": 0, "scheduled": 2, "attended": 0 },
+    "items": [
+      {
+        "id": 12,
+        "personId": 132,
+        "name": "Ada Nwosu",
+        "mrn": "FNPH/132",
+        "clinic": "OPC",
+        "prevDx": "MDD",
+        "date": "2026-07-25",
+        "status": "Scheduled"
+      }
+    ],
+    "meta": { "page": 1, "limit": 50, "total": 3, "from": "2026-07-13", "to": "2026-07-27" }
+  }
+}
+```
+
+**Error cases:** `401`, `403`
+
+#### `POST /api/encounters/follow-ups`
+
+**Purpose:** Schedule a follow-up from the workspace dialog (linked to a patient / optional encounter).
+
+**Required permission:** `encounter:complete`
+
+**Request body:** `{ personId, scheduledDate, clinic?, scheduledTime?, priority?, prevDx?, reason?, reminder?, encounterId? }`
+
+**Response example:** `{ data: { id, name, mrn, date, status: "Scheduled" } }`
+
+**Error cases:** `400` invalid date / encounter mismatch, `401`, `403`, `404`
+
+#### `PATCH /api/encounters/follow-ups/:id`
+
+**Purpose:** Mark attended/cancelled or reschedule.
+
+**Required permission:** `encounter:update`
+
+**Request body:** `{ status?: "Scheduled"|"Attended"|"Cancelled", scheduledDate?, scheduledTime?, clinic?, priority?, reason? }`
+
+**Error cases:** `400`, `401`, `403`, `404`
 
 ---
 

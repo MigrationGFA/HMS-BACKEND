@@ -14,8 +14,10 @@ import { PrescriptionsService } from '../prescriptions/prescriptions.service';
 import type { AuthUser } from '../../auth/types/auth-user.type';
 import {
   CompleteEncounterDto,
+  CreateFollowUpDto,
   StartEncounterDto,
   UpdateEncounterDto,
+  UpdateFollowUpDto,
 } from './dto/encounter.dto';
 
 const QUEUE_STATUSES = ['Triage Completed', 'Sent to Consultation'] as const;
@@ -182,6 +184,45 @@ function dayBounds(offsetMin: number) {
   const startOfDay = new Date(startLocal.getTime() - offsetMin * 60_000);
   const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
   return { startOfDay, endOfDay };
+}
+
+/** Parse YYYY-MM-DD as a Date suitable for Prisma @db.Date. */
+function parseDateOnly(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
+  if (!m) {
+    throw new BadRequestException('Invalid follow-up date (use YYYY-MM-DD)');
+  }
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  return new Date(Date.UTC(y, mo - 1, d));
+}
+
+function dateOnlyIso(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function todayDateOnlyUtc(offsetMin: number): string {
+  const { startOfDay } = dayBounds(offsetMin);
+  const localMs = startOfDay.getTime() + offsetMin * 60_000;
+  return new Date(localMs).toISOString().slice(0, 10);
+}
+
+function isFollowUpOutcome(outcome: string): boolean {
+  return /follow.?up/i.test(outcome);
+}
+
+function displayFollowUpStatus(
+  stored: string,
+  scheduledDate: Date,
+  todayIso: string,
+): 'Scheduled' | 'Due Today' | 'Missed' | 'Attended' | 'Cancelled' {
+  if (stored === 'Attended') return 'Attended';
+  if (stored === 'Cancelled') return 'Cancelled';
+  const dateIso = dateOnlyIso(scheduledDate);
+  if (dateIso === todayIso) return 'Due Today';
+  if (dateIso < todayIso) return 'Missed';
+  return 'Scheduled';
 }
 
 type TriageVitalsFields = {
@@ -540,6 +581,18 @@ export class EncountersService {
     const actorLabel = actorLabelOf(actor);
     const now = new Date();
     const outcome = dto.outcome?.trim() || 'Completed';
+    const wantsFollowUp = isFollowUpOutcome(outcome) || Boolean(dto.followUpDate);
+
+    if (wantsFollowUp && !dto.followUpDate) {
+      throw new BadRequestException(
+        'Follow-up date is required when outcome is Follow-up',
+      );
+    }
+
+    let followUpDate: Date | null = null;
+    if (dto.followUpDate) {
+      followUpDate = parseDateOnly(dto.followUpDate);
+    }
 
     const encounter = await this.prisma.$transaction(async (tx) => {
       await tx.triage.update({
@@ -551,18 +604,54 @@ export class EncountersService {
         },
       });
 
-      return tx.encounters.update({
+      const updated = await tx.encounters.update({
         where: { ENCOUNTER_ID: id },
         data: {
           STATUS: 'Completed',
           OUTCOME: outcome,
           COMPLETED_AT: now,
+          ...(dto.followUpDate
+            ? {
+                FOLLOW_UP_PLAN:
+                  existing.FOLLOW_UP_PLAN?.trim() ||
+                  dto.followUpReason?.trim() ||
+                  `Follow-up on ${dto.followUpDate}`,
+              }
+            : {}),
           UPDATED_BY_ID: actor.id,
           UPDATED_BY: actorLabel,
           UPDATED_DATE: now,
         },
         include: this.encounterInclude(),
       });
+
+      if (followUpDate) {
+        await tx.followUps.create({
+          data: {
+            PERSON_ID: existing.PERSON_ID,
+            ENCOUNTER_ID: id,
+            DOCTOR_ID: actor.id,
+            CLINIC:
+              dto.followUpClinic?.trim() ||
+              existing.triage.CLINIC ||
+              'General OPD',
+            SCHEDULED_DATE: followUpDate,
+            SCHEDULED_TIME: dto.followUpTime?.trim() || null,
+            PRIORITY: dto.followUpPriority?.trim() || 'Routine',
+            STATUS: 'Scheduled',
+            PREV_DX:
+              existing.ASSESSMENT?.trim()?.slice(0, 500) ||
+              existing.OUTCOME?.trim()?.slice(0, 500) ||
+              null,
+            REASON: dto.followUpReason?.trim() || null,
+            CREATED_BY_ID: actor.id,
+            CREATED_BY: actorLabel,
+            CREATED_DATE: now,
+          },
+        });
+      }
+
+      return updated;
     });
 
     await this.audit.log({
@@ -572,9 +661,32 @@ export class EncountersService {
       personId: existing.PERSON_ID,
       userId: actor.id,
       createdBy: actorLabel,
-      item: `Consultation completed — ${outcome}`,
-      newValue: { outcome, completedAt: now.toISOString() },
+      item: followUpDate
+        ? `Consultation completed — ${outcome}; follow-up ${dto.followUpDate}`
+        : `Consultation completed — ${outcome}`,
+      newValue: {
+        outcome,
+        completedAt: now.toISOString(),
+        followUpDate: dto.followUpDate ?? null,
+      },
     });
+
+    if (followUpDate) {
+      await this.audit.log({
+        type: 'followup:create',
+        entity: 'follow_up',
+        entityId: id,
+        personId: existing.PERSON_ID,
+        userId: actor.id,
+        createdBy: actorLabel,
+        item: `Follow-up scheduled for ${dto.followUpDate}`,
+        newValue: {
+          encounterId: id,
+          scheduledDate: dto.followUpDate,
+          clinic: dto.followUpClinic ?? existing.triage.CLINIC,
+        },
+      });
+    }
 
     const lastVisit = await this.lastCompletedVisitByPerson([
       existing.PERSON_ID,
@@ -583,6 +695,334 @@ export class EncountersService {
       encounter,
       lastVisit.get(existing.PERSON_ID) ?? null,
     );
+  }
+
+  async listFollowUps(params?: {
+    q?: string;
+    clinic?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+    timezoneOffsetMinutes?: number;
+    doctorId?: number;
+  }) {
+    const offsetMin = params?.timezoneOffsetMinutes ?? 60;
+    const page = Math.max(params?.page ?? 1, 1);
+    const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
+    const todayIso = todayDateOnlyUtc(offsetMin);
+
+    // Default window: start of this week (Mon) through +14 days when no range given
+    let fromDate: Date;
+    let toDate: Date;
+    if (params?.from || params?.to) {
+      fromDate = params.from
+        ? parseDateOnly(params.from)
+        : parseDateOnly(todayIso);
+      toDate = params.to
+        ? parseDateOnly(params.to)
+        : new Date(fromDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+    } else {
+      const today = parseDateOnly(todayIso);
+      const dow = today.getUTCDay(); // 0=Sun
+      const mondayOffset = dow === 0 ? -6 : 1 - dow;
+      fromDate = new Date(today.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
+      toDate = new Date(fromDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+    }
+
+    const term = params?.q?.trim();
+    const where: Prisma.FollowUpsWhereInput = {
+      SCHEDULED_DATE: { gte: fromDate, lte: toDate },
+      ...(params?.doctorId ? { DOCTOR_ID: params.doctorId } : {}),
+      ...(params?.clinic && params.clinic !== 'all'
+        ? { CLINIC: params.clinic }
+        : {}),
+      ...(term
+        ? {
+            OR: [
+              {
+                person: {
+                  HOSPITAL_NO: { contains: term, mode: 'insensitive' },
+                },
+              },
+              {
+                person: {
+                  FIRST_NAME: { contains: term, mode: 'insensitive' },
+                },
+              },
+              {
+                person: {
+                  LAST_NAME: { contains: term, mode: 'insensitive' },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.followUps.findMany({
+        where,
+        orderBy: [{ SCHEDULED_DATE: 'asc' }, { FOLLOW_UP_ID: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          person: {
+            select: {
+              PERSON_ID: true,
+              HOSPITAL_NO: true,
+              FIRST_NAME: true,
+              MIDDLE_NAME: true,
+              LAST_NAME: true,
+            },
+          },
+          doctor: {
+            select: {
+              USER_ID: true,
+              FIRST_NAME: true,
+              LAST_NAME: true,
+              EMAIL_ADDRESS: true,
+            },
+          },
+        },
+      }),
+      this.prisma.followUps.count({ where }),
+    ]);
+
+    const items = rows.map((row) => {
+      const displayStatus = displayFollowUpStatus(
+        row.STATUS,
+        row.SCHEDULED_DATE,
+        todayIso,
+      );
+      return {
+        id: row.FOLLOW_UP_ID,
+        personId: row.PERSON_ID,
+        encounterId: row.ENCOUNTER_ID,
+        name: personName(row.person),
+        mrn: row.person.HOSPITAL_NO || `PERSON_${row.PERSON_ID}`,
+        clinic: row.CLINIC || 'General OPD',
+        prevDx: row.PREV_DX || '—',
+        lastVisit: null as string | null,
+        date: dateOnlyIso(row.SCHEDULED_DATE),
+        time: row.SCHEDULED_TIME,
+        priority: row.PRIORITY,
+        status: displayStatus,
+        storedStatus: row.STATUS,
+        reason: row.REASON,
+        reminder: row.REMINDER,
+        doctorId: row.DOCTOR_ID,
+        doctorName: row.doctor
+          ? [row.doctor.FIRST_NAME, row.doctor.LAST_NAME]
+              .filter(Boolean)
+              .join(' ') ||
+            row.doctor.EMAIL_ADDRESS ||
+            `User ${row.DOCTOR_ID}`
+          : `User ${row.DOCTOR_ID}`,
+      };
+    });
+
+    const filtered =
+      params?.status && params.status !== 'all'
+        ? items.filter((i) => i.status === params.status)
+        : items;
+
+    // Enrich lastVisit for displayed rows
+    const personIds = [...new Set(filtered.map((i) => i.personId))];
+    const lastVisitMap = await this.lastCompletedVisitByPerson(personIds);
+    for (const item of filtered) {
+      item.lastVisit = lastVisitMap.get(item.personId) ?? null;
+    }
+
+    const summary = {
+      thisWeek: items.length,
+      dueToday: items.filter((i) => i.status === 'Due Today').length,
+      missed: items.filter((i) => i.status === 'Missed').length,
+      scheduled: items.filter((i) => i.status === 'Scheduled').length,
+      attended: items.filter((i) => i.status === 'Attended').length,
+    };
+
+    return {
+      asOf: new Date().toISOString(),
+      summary,
+      items: filtered,
+      meta: {
+        page,
+        limit,
+        total: params?.status && params.status !== 'all' ? filtered.length : total,
+        from: dateOnlyIso(fromDate),
+        to: dateOnlyIso(toDate),
+      },
+    };
+  }
+
+  async createFollowUp(dto: CreateFollowUpDto, actor: AuthUser) {
+    await this.patients.findById(dto.personId);
+    if (dto.encounterId != null) {
+      const enc = await this.prisma.encounters.findUnique({
+        where: { ENCOUNTER_ID: dto.encounterId },
+      });
+      if (!enc || enc.PERSON_ID !== dto.personId) {
+        throw new BadRequestException('Encounter does not belong to this patient');
+      }
+    }
+
+    const scheduledDate = parseDateOnly(dto.scheduledDate);
+    const actorLabel = actorLabelOf(actor);
+    const now = new Date();
+
+    const row = await this.prisma.followUps.create({
+      data: {
+        PERSON_ID: dto.personId,
+        ENCOUNTER_ID: dto.encounterId ?? null,
+        DOCTOR_ID: actor.id,
+        CLINIC: dto.clinic?.trim() || 'General OPD',
+        SCHEDULED_DATE: scheduledDate,
+        SCHEDULED_TIME: dto.scheduledTime?.trim() || null,
+        PRIORITY: dto.priority?.trim() || 'Routine',
+        STATUS: 'Scheduled',
+        PREV_DX: dto.prevDx?.trim()?.slice(0, 500) || null,
+        REASON: dto.reason?.trim() || null,
+        REMINDER: dto.reminder?.trim() || null,
+        CREATED_BY_ID: actor.id,
+        CREATED_BY: actorLabel,
+        CREATED_DATE: now,
+      },
+      include: {
+        person: {
+          select: {
+            PERSON_ID: true,
+            HOSPITAL_NO: true,
+            FIRST_NAME: true,
+            MIDDLE_NAME: true,
+            LAST_NAME: true,
+          },
+        },
+      },
+    });
+
+    await this.audit.log({
+      type: 'followup:create',
+      entity: 'follow_up',
+      entityId: row.FOLLOW_UP_ID,
+      personId: dto.personId,
+      userId: actor.id,
+      createdBy: actorLabel,
+      item: `Follow-up scheduled for ${dto.scheduledDate}`,
+      newValue: {
+        followUpId: row.FOLLOW_UP_ID,
+        scheduledDate: dto.scheduledDate,
+        clinic: row.CLINIC,
+      },
+    });
+
+    const todayIso = todayDateOnlyUtc(60);
+    return {
+      id: row.FOLLOW_UP_ID,
+      personId: row.PERSON_ID,
+      encounterId: row.ENCOUNTER_ID,
+      name: personName(row.person),
+      mrn: row.person.HOSPITAL_NO || `PERSON_${row.PERSON_ID}`,
+      clinic: row.CLINIC || 'General OPD',
+      prevDx: row.PREV_DX || '—',
+      lastVisit: null,
+      date: dateOnlyIso(row.SCHEDULED_DATE),
+      time: row.SCHEDULED_TIME,
+      priority: row.PRIORITY,
+      status: displayFollowUpStatus(row.STATUS, row.SCHEDULED_DATE, todayIso),
+      storedStatus: row.STATUS,
+      reason: row.REASON,
+      reminder: row.REMINDER,
+      doctorId: row.DOCTOR_ID,
+    };
+  }
+
+  async updateFollowUp(
+    id: number,
+    dto: UpdateFollowUpDto,
+    actor: AuthUser,
+  ) {
+    const existing = await this.prisma.followUps.findUnique({
+      where: { FOLLOW_UP_ID: id },
+    });
+    if (!existing) throw new NotFoundException('Follow-up not found');
+
+    const allowed = new Set(['Scheduled', 'Attended', 'Cancelled']);
+    if (dto.status && !allowed.has(dto.status)) {
+      throw new BadRequestException(
+        'Status must be Scheduled, Attended, or Cancelled',
+      );
+    }
+
+    const actorLabel = actorLabelOf(actor);
+    const updated = await this.prisma.followUps.update({
+      where: { FOLLOW_UP_ID: id },
+      data: {
+        ...(dto.status ? { STATUS: dto.status } : {}),
+        ...(dto.scheduledDate
+          ? { SCHEDULED_DATE: parseDateOnly(dto.scheduledDate) }
+          : {}),
+        ...(dto.scheduledTime !== undefined
+          ? { SCHEDULED_TIME: dto.scheduledTime?.trim() || null }
+          : {}),
+        ...(dto.clinic !== undefined
+          ? { CLINIC: dto.clinic?.trim() || null }
+          : {}),
+        ...(dto.priority ? { PRIORITY: dto.priority.trim() } : {}),
+        ...(dto.reason !== undefined
+          ? { REASON: dto.reason?.trim() || null }
+          : {}),
+        UPDATED_BY_ID: actor.id,
+        UPDATED_BY: actorLabel,
+        UPDATED_DATE: new Date(),
+      },
+      include: {
+        person: {
+          select: {
+            PERSON_ID: true,
+            HOSPITAL_NO: true,
+            FIRST_NAME: true,
+            MIDDLE_NAME: true,
+            LAST_NAME: true,
+          },
+        },
+      },
+    });
+
+    await this.audit.log({
+      type: 'followup:update',
+      entity: 'follow_up',
+      entityId: id,
+      personId: existing.PERSON_ID,
+      userId: actor.id,
+      createdBy: actorLabel,
+      item: `Follow-up updated${dto.status ? ` → ${dto.status}` : ''}`,
+      newValue: { status: updated.STATUS, scheduledDate: dateOnlyIso(updated.SCHEDULED_DATE) },
+    });
+
+    const todayIso = todayDateOnlyUtc(60);
+    return {
+      id: updated.FOLLOW_UP_ID,
+      personId: updated.PERSON_ID,
+      encounterId: updated.ENCOUNTER_ID,
+      name: personName(updated.person),
+      mrn: updated.person.HOSPITAL_NO || `PERSON_${updated.PERSON_ID}`,
+      clinic: updated.CLINIC || 'General OPD',
+      prevDx: updated.PREV_DX || '—',
+      date: dateOnlyIso(updated.SCHEDULED_DATE),
+      time: updated.SCHEDULED_TIME,
+      priority: updated.PRIORITY,
+      status: displayFollowUpStatus(
+        updated.STATUS,
+        updated.SCHEDULED_DATE,
+        todayIso,
+      ),
+      storedStatus: updated.STATUS,
+      reason: updated.REASON,
+      reminder: updated.REMINDER,
+      doctorId: updated.DOCTOR_ID,
+    };
   }
 
   /**

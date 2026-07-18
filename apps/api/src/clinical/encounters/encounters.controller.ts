@@ -17,8 +17,10 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../../auth/types/auth-user.type';
 import {
   CompleteEncounterDto,
+  CreateFollowUpDto,
   StartEncounterDto,
   UpdateEncounterDto,
+  UpdateFollowUpDto,
 } from './dto/encounter.dto';
 import { EncountersService } from './encounters.service';
 
@@ -79,6 +81,84 @@ export class EncountersController {
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 50,
     });
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/encounters/follow-ups?q=&clinic=&status=&from=&to=&page=&limit=&timezoneOffsetMinutes=&mine=1
+   * Purpose: List scheduled follow-ups for the clinical workspace Follow-Up tab
+   * Required permission: encounter:read
+   * Request body: none
+   * Response example: { data: { summary: { thisWeek, dueToday, missed, scheduled }, items: [{ id, name, mrn, clinic, prevDx, date, status }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('follow-ups')
+  @RequirePermissions(PERMISSIONS.ENCOUNTER_READ)
+  async listFollowUps(
+    @CurrentUser() user: AuthUser,
+    @Query('q') q?: string,
+    @Query('clinic') clinic?: string,
+    @Query('status') status?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('timezoneOffsetMinutes') timezoneOffsetMinutes?: string,
+    @Query('mine') mine?: string,
+  ) {
+    const result = await this.encountersService.listFollowUps({
+      q,
+      clinic,
+      status,
+      from,
+      to,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+      timezoneOffsetMinutes: timezoneOffsetMinutes
+        ? Number(timezoneOffsetMinutes)
+        : undefined,
+      doctorId: mine === '1' || mine === 'true' ? user.id : undefined,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/encounters/follow-ups
+   * Purpose: Schedule a follow-up appointment (workspace dialog or after complete)
+   * Required permission: encounter:complete
+   * Request body: { personId, scheduledDate, clinic?, scheduledTime?, priority?, prevDx?, reason?, reminder?, encounterId? }
+   * Response example: { data: { id, name, mrn, date, status: "Scheduled" } }
+   * Error cases: 400 invalid date / person, 401, 403, 404
+   */
+  @Post('follow-ups')
+  @RequirePermissions(PERMISSIONS.ENCOUNTER_COMPLETE)
+  async createFollowUp(
+    @Body() dto: CreateFollowUpDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const result = await this.encountersService.createFollowUp(dto, user);
+    return { data: result };
+  }
+
+  /**
+   * Method: PATCH
+   * URL: /api/encounters/follow-ups/:id
+   * Purpose: Update follow-up status/date (Attended / Cancelled / reschedule)
+   * Required permission: encounter:update
+   * Request body: { status?, scheduledDate?, scheduledTime?, clinic?, priority?, reason? }
+   * Response example: { data: { id, status: "Attended", date } }
+   * Error cases: 400, 401, 403, 404
+   */
+  @Patch('follow-ups/:id')
+  @RequirePermissions(PERMISSIONS.ENCOUNTER_UPDATE)
+  async updateFollowUp(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateFollowUpDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const result = await this.encountersService.updateFollowUp(id, dto, user);
     return { data: result };
   }
 
@@ -185,11 +265,11 @@ export class EncountersController {
   /**
    * Method: POST
    * URL: /api/encounters/:id/complete
-   * Purpose: Complete an active consultation
+   * Purpose: Complete an active consultation; optionally schedule a follow-up
    * Required permission: encounter:complete
-   * Request body: { outcome? }
+   * Request body: { outcome?, followUpDate?, followUpClinic?, followUpTime?, followUpPriority?, followUpReason? }
    * Response example: { data: { encounterId, status: "Completed", outcome, completedAt } }
-   * Error cases: 400 not in consultation, 401, 403, 404
+   * Error cases: 400 not in consultation / missing follow-up date, 401, 403, 404
    */
   @Post(':id/complete')
   @RequirePermissions(PERMISSIONS.ENCOUNTER_COMPLETE)

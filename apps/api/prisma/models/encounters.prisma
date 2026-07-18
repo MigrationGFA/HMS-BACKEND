@@ -34,6 +34,7 @@ model Encounters {
   person Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
   triage Triage  @relation(fields: [TRIAGE_ID], references: [TRIAGE_ID])
   doctor Users   @relation("EncounterDoctor", fields: [DOCTOR_ID], references: [USER_ID])
+  followUps FollowUps[]
 
   @@index([PERSON_ID])
   @@index([DOCTOR_ID])
