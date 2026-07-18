@@ -79,6 +79,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Sub-feature | Status |
 |-------------|--------|
 | Encounters consultation queue + start/complete (`/api/encounters/*`, payment-gated) | ✅ |
+| Patient clinical summary + encounter notes timeline (`GET …/clinical-summary`, `GET …/notes`) | ✅ |
+| Full clinical note sections on encounters (PMH, drug/allergy/family/social Hx, follow-up) | ✅ |
 | Prescriptions (`POST/GET/PATCH /prescriptions`) | ✅ |
 | Diagnoses & care plans | 📋 |
 | Ward & bed management | 📋 |

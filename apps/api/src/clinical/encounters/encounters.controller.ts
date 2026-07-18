@@ -33,7 +33,7 @@ export class EncountersController {
    * Purpose: Doctor waiting queue for /dashboard/doctor/clinical/workspace (today's Triage Completed / Sent to Consultation)
    * Required permission: encounter:read
    * Request body: none
-   * Response example: { data: { summary, items: [{ triageId, personId, name, mrn, paymentCleared, canStart, ... }], meta } }
+   * Response example: { data: { summary, items: [{ triageId, personId, name, mrn, paymentCleared, canStart, vitals, ... }], meta } }
    * Error cases: 401, 403
    */
   @Get('consultation-queue')
@@ -83,6 +83,51 @@ export class EncountersController {
   }
 
   /**
+   * Method: GET
+   * URL: /api/encounters/patients/:personId/clinical-summary?triageId=
+   * Purpose: Aggregated patient clinical context (demographics, vitals, allergies, meds, past notes)
+   * Required permission: encounter:read
+   * Request body: none
+   * Response example: { data: { demographics, vitals, allergies, activeMeds, previousDiagnoses, recentNotes, ... } }
+   * Error cases: 401, 403, 404 person not found
+   */
+  @Get('patients/:personId/clinical-summary')
+  @RequirePermissions(PERMISSIONS.ENCOUNTER_READ)
+  async clinicalSummary(
+    @Param('personId', ParseIntPipe) personId: number,
+    @Query('triageId') triageId?: string,
+  ) {
+    const result = await this.encountersService.clinicalSummary(
+      personId,
+      triageId ? Number(triageId) : undefined,
+    );
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/encounters/patients/:personId/notes?page=&limit=
+   * Purpose: Paginated doctor encounter notes timeline for a patient
+   * Required permission: encounter:read
+   * Request body: none
+   * Response example: { data: { items: [{ encounterId, doctorName, summary, note, startedAt, ... }], meta } }
+   * Error cases: 401, 403, 404 person not found
+   */
+  @Get('patients/:personId/notes')
+  @RequirePermissions(PERMISSIONS.ENCOUNTER_READ)
+  async listPatientNotes(
+    @Param('personId', ParseIntPipe) personId: number,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.encountersService.listPatientNotes(personId, {
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
+    });
+    return { data: result };
+  }
+
+  /**
    * Method: POST
    * URL: /api/encounters/start
    * Purpose: Start consultation from triage queue; payment must be Paid/Waived
@@ -107,7 +152,7 @@ export class EncountersController {
    * Purpose: Encounter detail with person + triage vitals
    * Required permission: encounter:read
    * Request body: none
-   * Response example: { data: { encounterId, patient, note, version, status } }
+   * Response example: { data: { encounterId, patient, note, version, status, vitals } }
    * Error cases: 401, 403, 404
    */
   @Get(':id')
@@ -122,7 +167,7 @@ export class EncountersController {
    * URL: /api/encounters/:id
    * Purpose: Autosave draft clinical notes (optimistic VERSION + optional idempotencyKey)
    * Required permission: encounter:update
-   * Request body: { version?, idempotencyKey?, chiefComplaint?, history?, examination?, assessment?, plan? }
+   * Request body: { version?, idempotencyKey?, chiefComplaint?, history?, examination?, assessment?, plan?, pastMedicalHistory?, drugHistory?, allergyHistory?, familyHistory?, socialHistory?, followUpPlan? }
    * Response example: { data: { encounterId, version: 2, note: {...} } }
    * Error cases: 400 not in consultation, 401, 403, 404, 409 version conflict
    */
