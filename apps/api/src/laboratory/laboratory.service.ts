@@ -1,5 +1,6 @@
 ﻿import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NursingOpsService } from '../nursing/nursing-ops.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
+import { ROLES } from '../common/constants/roles.constants';
 import {
   ConfirmLabRequestPaymentDto,
   CreateLabRequestDto,
@@ -23,6 +25,29 @@ function actorLabel(actor?: AuthUser): string {
 
 function pad(id: number): string {
   return String(id).padStart(4, '0');
+}
+
+/** Roles that may list unpaid lab requests (billing / clinical / admin). */
+const UNRESTRICTED_LAB_LIST_ROLES = new Set<string>([
+  ROLES.SUPER_ADMIN,
+  ROLES.ADMIN,
+  ROLES.CMD,
+  ROLES.IT,
+  ROLES.CASHIER,
+  ROLES.FINANCE,
+  ROLES.DOCTOR,
+  ROLES.NURSE,
+  ROLES.PSYCHIATRIC_OPC,
+  ROLES.ICU,
+]);
+
+function isLabWorkQueueOnly(actor?: AuthUser): boolean {
+  if (!actor?.roles?.length) return false;
+  const hasUnrestricted = actor.roles.some((r) =>
+    UNRESTRICTED_LAB_LIST_ROLES.has(r),
+  );
+  if (hasUnrestricted) return false;
+  return actor.roles.includes(ROLES.LAB);
 }
 
 const REQUEST_INCLUDE = {
@@ -85,6 +110,7 @@ export type LabRequestResponse = {
   personId: number;
   encounterId: number | null;
   doctorId: number;
+  source: string;
   priority: string;
   clinicalIndication: string | null;
   clinicalNotes: string | null;
@@ -140,6 +166,7 @@ function toRequestResponse(row: RequestRow): LabRequestResponse {
     personId: row.PERSON_ID,
     encounterId: row.ENCOUNTER_ID,
     doctorId: row.DOCTOR_ID,
+    source: row.SOURCE,
     priority: row.PRIORITY,
     clinicalIndication: row.CLINICAL_INDICATION,
     clinicalNotes: row.CLINICAL_NOTES,
@@ -328,8 +355,9 @@ export class LaboratoryService {
     actor?: AuthUser,
   ): Promise<LabRequestResponse> {
     if (!actor?.id) {
-      throw new BadRequestException('Authenticated doctor required');
+      throw new BadRequestException('Authenticated user required');
     }
+    const source = dto.source === 'WalkIn' ? 'WalkIn' : 'Doctor';
     const person = await this.prisma.persons.findUnique({
       where: { PERSON_ID: dto.personId },
       select: { PERSON_ID: true },
@@ -387,6 +415,7 @@ export class LaboratoryService {
           PERSON_ID: dto.personId,
           ENCOUNTER_ID: dto.encounterId ?? null,
           DOCTOR_ID: actor.id,
+          SOURCE: source,
           PRIORITY: dto.priority ?? 'Routine',
           CLINICAL_INDICATION: dto.clinicalIndication?.trim() ?? null,
           CLINICAL_NOTES: dto.clinicalNotes?.trim() ?? null,
@@ -416,35 +445,49 @@ export class LaboratoryService {
       personId: dto.personId,
       userId: actor.id,
       createdBy: label,
-      item: `Lab request sent: ${response.requestNo}`,
+      item: `Lab request sent (${source}): ${response.requestNo}`,
       newValue: response,
     });
     return response;
   }
 
-  async listRequests(params: {
-    personId?: number;
-    encounterId?: number;
-    status?: string;
-    paymentStatus?: string;
-    q?: string;
-    page?: number;
-    limit?: number;
-  }) {
+  async listRequests(
+    params: {
+      personId?: number;
+      encounterId?: number;
+      status?: string;
+      paymentStatus?: string;
+      source?: string;
+      workQueue?: boolean;
+      q?: string;
+      page?: number;
+      limit?: number;
+    },
+    actor?: AuthUser,
+  ) {
     const page = Math.max(1, params.page ?? 1);
     const limit = Math.min(100, Math.max(1, params.limit ?? 50));
     const where: Prisma.LabRequestsWhereInput = {};
     if (params.personId) where.PERSON_ID = params.personId;
     if (params.encounterId) where.ENCOUNTER_ID = params.encounterId;
-    if (params.status) where.STATUS = params.status;
-    if (params.paymentStatus) {
-      const parts = params.paymentStatus
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      where.PAYMENT_STATUS =
-        parts.length > 1 ? { in: parts } : parts[0];
+    if (params.source) where.SOURCE = params.source;
+
+    const workQueueOnly = isLabWorkQueueOnly(actor) || params.workQueue === true;
+    if (workQueueOnly) {
+      where.PAYMENT_STATUS = { in: ['Paid', 'Waived'] };
+      where.STATUS = params.status ?? 'Sent';
+    } else {
+      if (params.status) where.STATUS = params.status;
+      if (params.paymentStatus) {
+        const parts = params.paymentStatus
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        where.PAYMENT_STATUS =
+          parts.length > 1 ? { in: parts } : parts[0];
+      }
     }
+
     if (params.q?.trim()) {
       const q = params.q.trim();
       where.OR = [
@@ -477,12 +520,24 @@ export class LaboratoryService {
     };
   }
 
-  async findRequestById(id: number): Promise<LabRequestResponse> {
+  async findRequestById(
+    id: number,
+    actor?: AuthUser,
+  ): Promise<LabRequestResponse> {
     const row = await this.prisma.labRequests.findUnique({
       where: { LAB_REQUEST_ID: id },
       include: REQUEST_INCLUDE,
     });
     if (!row) throw new NotFoundException('Lab request not found');
+    if (
+      isLabWorkQueueOnly(actor) &&
+      row.PAYMENT_STATUS !== 'Paid' &&
+      row.PAYMENT_STATUS !== 'Waived'
+    ) {
+      throw new ForbiddenException(
+        'Lab request is not paid yet — cashier must confirm payment first',
+      );
+    }
     return toRequestResponse(row);
   }
 

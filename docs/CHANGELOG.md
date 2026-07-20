@@ -10,6 +10,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Render start command now runs `prisma migrate deploy` before `start:prod` so tables like `ENCOUNTERS` exist in production (fixes `GET /api/encounters/active` 500 when migrations were not applied)
 
 ### Added
+- Lab dashboard Paid-only work queue + walk-in API: `LAB_REQUESTS.SOURCE` (`Doctor`|`WalkIn`, migration `20260720140000_lab_request_source`); create accepts optional `source` (audit `lab:request-create` includes source); LAB role forced to `PAYMENT_STATUS in (Paid,Waived)` on list/detail (+ `workQueue=true`); LAB granted `lab:create` for walk-in. Frontend `/dashboard/laboratory/requests` loads Paid/Waived without patient-first gate; `/dashboard/laboratory/walk-in` creates Unpaid WalkIn (payment stays cashier).
+
 - Laboratory catalog + doctor requests (pay-before-process): `LAB_TESTS` / `LAB_REQUESTS` / `LAB_REQUEST_ITEMS` (migration `20260720120000_laboratory`, seeded from doctor TEST_CATALOG); `GET/POST/PATCH /api/laboratory/tests`, `POST/GET /api/laboratory/requests`, `POST …/:id/cancel`; cashier `GET/POST /api/cashier/payments/lab-requests`; RBAC `lab:read|create|update|pay`; audit `lab:test-create|request-create|request-cancel|pay`. Doctor create always sets `PAYMENT_STATUS=Unpaid` (no Cash/NHIA/HMO on doctor DTO). Active Consultation previous-history panel + Lab Request dialog; DocLab + Cashier Lab Requests tab wired when API enabled.
 
 - Consultation workspace Completed tab: `GET /api/encounters/completed` (today's completed consultations for logged-in doctor); frontend `/dashboard/doctor/clinical/workspace` uses live queue/active/completed/follow-ups only (mock seed data removed)

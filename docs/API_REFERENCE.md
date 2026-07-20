@@ -1826,7 +1826,7 @@ Realtime queue state is also pushed via Socket.IO (see [WORKFLOWS.md](./WORKFLOW
 
 ### Laboratory (`/laboratory`)
 
-Catalog + doctor lab requests. Payment is cashier-owned (`PAYMENT_STATUS` defaults to **Unpaid**). Sample collection / results are out of scope for this pass.
+Catalog + doctor/walk-in lab requests. Payment is cashier-owned (`PAYMENT_STATUS` defaults to **Unpaid**). Lab staff work queue sees **Paid/Waived only** until cashier confirms. Sample collection / results LIS remain out of scope for this pass.
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
@@ -1834,18 +1834,22 @@ Catalog + doctor lab requests. Payment is cashier-owned (`PAYMENT_STATUS` defaul
 | GET | `/laboratory/tests/:id` | Test detail | `lab:read` |
 | POST | `/laboratory/tests` | Create catalog entry | `lab:update` |
 | PATCH | `/laboratory/tests/:id` | Update price/status | `lab:update` |
-| POST | `/laboratory/requests` | Create+send request (always Unpaid) | `lab:create` |
-| GET | `/laboratory/requests?personId=&encounterId=&status=&paymentStatus=` | List requests | `lab:read` |
+| POST | `/laboratory/requests` | Create+send request (always Unpaid; `source` Doctor\|WalkIn) | `lab:create` |
+| GET | `/laboratory/requests?personId=&encounterId=&status=&paymentStatus=&source=&workQueue=` | List requests | `lab:read` |
 | GET | `/laboratory/requests/:id` | Detail + items + person | `lab:read` |
 | POST | `/laboratory/requests/:id/cancel` | Cancel if unpaid | `lab:update` |
 | GET | `/cashier/payments/lab-requests?paymentStatus=Unpaid` | Cashier unpaid queue | `lab:pay` |
 | POST | `/cashier/payments/lab-requests/:id/confirm` | Confirm payment `{ paymentChannel, paymentRef? }` | `lab:pay` |
 
-**POST `/laboratory/requests` body:** `{ personId, encounterId?, priority?: "Routine"|"Urgent"|"Stat", clinicalIndication?, clinicalNotes?, items: [{ testId, lineNotes? }] }`
+**POST `/laboratory/requests` body:** `{ personId, encounterId?, priority?: "Routine"|"Urgent"|"Stat", clinicalIndication?, clinicalNotes?, source?: "Doctor"|"WalkIn", items: [{ testId, lineNotes? }] }`
 
-**Response example:** `{ data: { labRequestId, requestNo: "LR-2026-0001", paymentStatus: "Unpaid", status: "Sent", totalAmount, items, person } }`
+**List rules:** `workQueue=true` forces `paymentStatus in (Paid,Waived)` and default `status=Sent`. Callers with **only** the LAB role (no admin/doctor/cashier) are always forced to Paid/Waived on list and blocked (403) on unpaid detail — unpaid never leaks via `lab:read`.
 
-**Errors:** 400 invalid/inactive tests or encounter mismatch / already paid cancel; 401; 403; 404 patient/request.
+**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay` (`request-create` newValue includes `source`).
+
+**Response example:** `{ data: { labRequestId, requestNo: "LR-2026-0001", source: "WalkIn", paymentStatus: "Unpaid", status: "Sent", totalAmount, items, person } }`
+
+**Errors:** 400 invalid/inactive tests or encounter mismatch / already paid cancel; 401; 403 (including unpaid detail for LAB); 404 patient/request.
 
 ---
 
