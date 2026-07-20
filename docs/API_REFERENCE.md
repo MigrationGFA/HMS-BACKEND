@@ -719,13 +719,7 @@ Orders, tasks, MAR, samples, shifts, handover, ICU, messaging, reports, analytic
 
 ### Bridge routes (interim — ADR-012)
 
-Lab still bridges to nursing-ops until a dedicated laboratory domain lands. Prescriptions and pharmacy dispense are real modules (see below).
-
-| Method | Path | Description | Permission |
-|--------|------|-------------|------------|
-| GET/POST | `/laboratory/requests` | Lab orders → nursing orders | `nursing-order:read\|create` |
-| GET | `/laboratory/samples` | Same as nursing samples | `nursing-sample:read` |
-| POST | `/laboratory/samples/:id/collect` | Collect via lab facade | `nursing-sample:update` |
+The former lab→nursing bridge is retired: `/laboratory/*` is now a dedicated laboratory domain (see [Laboratory](#laboratory-laboratory)). Nursing keeps its own `/nursing/samples` flow. Prescriptions and pharmacy dispense are real modules (see below).
 
 
 ### Pharmacy Suppliers (`/pharmacy/suppliers`)
@@ -1826,7 +1820,9 @@ Realtime queue state is also pushed via Socket.IO (see [WORKFLOWS.md](./WORKFLOW
 
 ### Laboratory (`/laboratory`)
 
-Catalog + doctor/walk-in lab requests. Payment is cashier-owned (`PAYMENT_STATUS` defaults to **Unpaid**). Lab staff **see unpaid requests** with limited detail (`processingLocked`); sample/result processing unlocks after **Paid/Waived**. Sample collection / results LIS remain out of scope for this pass.
+Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample collection → result entry → validation → amendment). Payment is cashier-owned (`PAYMENT_STATUS` defaults to **Unpaid**). Lab staff **see unpaid requests** with limited detail (`processingLocked`); sample/result processing unlocks after **Paid/Waived**.
+
+`LAB_REQUESTS.LAB_STATUS` drives the LIS work queues: `AwaitingCollection → Collected → ResultDraft → AwaitingValidation → Validated → PendingRevalidation` (amend) `→ Validated` (revalidate).
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
@@ -1835,21 +1831,39 @@ Catalog + doctor/walk-in lab requests. Payment is cashier-owned (`PAYMENT_STATUS
 | POST | `/laboratory/tests` | Create catalog entry | `lab:update` |
 | PATCH | `/laboratory/tests/:id` | Update price/status | `lab:update` |
 | POST | `/laboratory/requests` | Create+send request (always Unpaid; `source` Doctor\|WalkIn) | `lab:create` |
-| GET | `/laboratory/requests?personId=&encounterId=&status=&paymentStatus=&source=&workQueue=` | List requests | `lab:read` |
+| GET | `/laboratory/requests?personId=&encounterId=&status=&paymentStatus=&source=&labStatus=&workQueue=` | List requests | `lab:read` |
 | GET | `/laboratory/requests/:id` | Detail + items + person | `lab:read` |
 | POST | `/laboratory/requests/:id/cancel` | Cancel if unpaid | `lab:update` |
+| POST | `/laboratory/requests/:id/collect` | Collect specimens (creates `LAB_SAMPLES`, `LAB_STATUS=Collected`) | `lab:collect` |
+| POST | `/laboratory/requests/:id/results` | Save/submit results `{ action: draft\|submit, items }` | `lab:result` |
+| GET | `/laboratory/samples?status=&q=&page=&limit=` | LIS sample worklist | `lab:read` |
+| POST | `/laboratory/samples/:id/reject` | Reject sample `{ reason }` (request back to AwaitingCollection) | `lab:collect` |
+| GET | `/laboratory/results?status=&requestId=&q=&page=&limit=` | Result worklist | `lab:read` |
+| GET | `/laboratory/results/:id` | Result detail (values, template, request, person) | `lab:read` |
+| GET | `/laboratory/results/:id/versions` | Immutable version history | `lab:read` |
+| POST | `/laboratory/results/:id/validate` | Validate result (all validated → request Validated) | `lab:validate` |
+| POST | `/laboratory/results/:id/return` | Return to bench `{ reason }` (back to Draft) | `lab:validate` |
+| POST | `/laboratory/results/:id/amend` | Amend validated result `{ values, comment?, reason }` → PendingRevalidation | `lab:validate` |
+| GET | `/laboratory/templates?q=&category=&status=` | Result templates | `lab:read` |
+| GET | `/laboratory/templates/:id` | Template detail | `lab:read` |
+| POST | `/laboratory/templates` | Create template `{ name, category, description?, fields[] }` | `lab:template-manage` |
+| PATCH | `/laboratory/templates/:id` | Update template (fields/name/status; deactivate = `status: Inactive`) | `lab:template-manage` |
 | GET | `/cashier/payments/lab-requests?paymentStatus=Unpaid` | Cashier unpaid queue | `lab:pay` |
 | POST | `/cashier/payments/lab-requests/:id/confirm` | Confirm payment `{ paymentChannel, paymentRef? }` | `lab:pay` |
 
 **POST `/laboratory/requests` body:** `{ personId, encounterId?, priority?: "Routine"|"Urgent"|"Stat", clinicalIndication?, clinicalNotes?, source?: "Doctor"|"WalkIn", items: [{ testId, lineNotes? }] }`
 
-**List rules:** `workQueue=true` forces `paymentStatus in (Paid,Waived)` and default `status=Sent` (ready-to-process subset). LAB role otherwise lists unpaid too. Responses include `paymentCleared` and `processingLocked`. For LAB + unpaid, clinical indication/notes, prices, phone, and DOB are redacted.
+**POST `/laboratory/requests/:id/results` body:** `{ action: "draft"|"submit", items: [{ requestItemId, templateId?, values: { fieldKey: value }, comment? }] }` — upserts one `LAB_RESULTS` row per request item and writes a `LAB_RESULT_VERSIONS` snapshot; sets `LAB_STATUS` to `ResultDraft`/`AwaitingValidation`. 400 if not Collected or unpaid.
 
-**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay` (`request-create` newValue includes `source`).
+**Template `fields[]` items:** `{ key, label, type: "number"|"text"|"select"|"multiselect", unit?, ref?, options?, critical?, required? }` — keys must be unique per template.
 
-**Response example:** `{ data: { labRequestId, requestNo: "LR-2026-0001", source: "WalkIn", paymentStatus: "Unpaid", paymentCleared: false, processingLocked: true, status: "Sent", totalAmount, items, person } }`
+**List rules:** `workQueue=true` forces `paymentStatus in (Paid,Waived)` and default `status=Sent` (ready-to-process subset). LAB role otherwise lists unpaid too. Responses include `paymentCleared`, `processingLocked` and `labStatus`. For LAB + unpaid, clinical indication/notes, prices, phone, and DOB are redacted.
 
-**Errors:** 400 invalid/inactive tests or encounter mismatch / already paid cancel; 401; 403; 404 patient/request.
+**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay|template-create|template-update|sample-collect|sample-reject|result-save|result-submit|result-validate|result-return|result-amend`.
+
+**Response example:** `{ data: { labRequestId, requestNo: "LR-2026-0001", source: "WalkIn", paymentStatus: "Unpaid", paymentCleared: false, processingLocked: true, status: "Sent", labStatus: "AwaitingCollection", totalAmount, items, person } }`
+
+**Errors:** 400 invalid/inactive tests, encounter mismatch, already-paid cancel, unpaid collect/results, wrong LIS state (e.g. validate a Draft, amend a non-Validated result), duplicate field keys; 401; 403; 404 patient/request/sample/result/template.
 
 ---
 

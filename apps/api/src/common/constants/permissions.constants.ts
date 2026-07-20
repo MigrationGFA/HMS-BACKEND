@@ -117,6 +117,14 @@ export const PERMISSIONS = {
   LAB_UPDATE: 'lab:update',
   /** Cashier/billing confirm payment for lab requests */
   LAB_PAY: 'lab:pay',
+  /** Manage lab result templates (create/edit/deactivate) */
+  LAB_TEMPLATE_MANAGE: 'lab:template-manage',
+  /** Collect / reject specimens for paid lab requests */
+  LAB_COLLECT: 'lab:collect',
+  /** Enter / submit lab results */
+  LAB_RESULT: 'lab:result',
+  /** Validate, return or amend lab results */
+  LAB_VALIDATE: 'lab:validate',
 
   // Audit
   AUDIT_READ: 'audit:read',
@@ -269,6 +277,8 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PRESCRIPTION_UPDATE,
   PERMISSIONS.LAB_CREATE,
   PERMISSIONS.LAB_UPDATE,
+  /** Ward/clinic staff may collect specimens for paid lab requests. */
+  PERMISSIONS.LAB_COLLECT,
 ];
 
 /**
@@ -313,6 +323,10 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.LAB_READ,
     PERMISSIONS.LAB_CREATE,
     PERMISSIONS.LAB_UPDATE,
+    PERMISSIONS.LAB_TEMPLATE_MANAGE,
+    PERMISSIONS.LAB_COLLECT,
+    PERMISSIONS.LAB_RESULT,
+    PERMISSIONS.LAB_VALIDATE,
     PERMISSIONS.NURSING_ORDER_CREATE,
     PERMISSIONS.NURSING_ORDER_READ,
     PERMISSIONS.NURSING_SAMPLE_READ,

@@ -28,7 +28,7 @@ apps/api/prisma/
 │   ├── pharmacy-returns.prisma
 │   ├── pharmacy-settings.prisma
 │   ├── prescriptions.prisma  # PRESCRIPTIONS, PRESCRIPTION_ITEMS
-│   ├── laboratory.prisma     # LAB_TESTS, LAB_REQUESTS, LAB_REQUEST_ITEMS
+│   ├── laboratory.prisma     # LAB_TESTS, LAB_REQUESTS(+LAB_STATUS), LAB_REQUEST_ITEMS, LAB_RESULT_TEMPLATES, LAB_SAMPLES, LAB_RESULTS, LAB_RESULT_VERSIONS
 │   └── audit.prisma          # AUDITS (with AUDIT_TYPE)
 ├── migrations/
 └── seed.ts
@@ -86,8 +86,12 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `CLINICAL_NOTES` | `ClinicalNotes` | Structured clinical documentation (SOAP, psych assessment, etc.); soft-void only |
 | `CLINICAL_NOTE_VERSIONS` | `ClinicalNoteVersions` | Immutable version snapshots for clinical notes |
 | `LAB_TESTS` | `LabTests` | Orderable lab catalog (`TEST_CODE`, category, specimen, TAT, `UNIT_PRICE`, Active/Inactive) |
-| `LAB_REQUESTS` | `LabRequests` | Lab requests (`LR-YYYY-####`); `SOURCE` Doctor\|WalkIn; `PAYMENT_STATUS` Unpaid/Paid/Waived; status Draft/Sent/Cancelled |
+| `LAB_REQUESTS` | `LabRequests` | Lab requests (`LR-YYYY-####`); `SOURCE` Doctor\|WalkIn; `PAYMENT_STATUS` Unpaid/Paid/Waived; status Draft/Sent/Cancelled; `LAB_STATUS` LIS pipeline (AwaitingCollection → … → Validated) |
 | `LAB_REQUEST_ITEMS` | `LabRequestItems` | Line items with snapshotted test code/name/price |
+| `LAB_RESULT_TEMPLATES` | `LabResultTemplates` | Result entry templates (`CODE` unique, e.g. `tpl-fbc`); `FIELDS` JSONB array of field defs; Active/Inactive; 12 seeded |
+| `LAB_SAMPLES` | `LabSamples` | Collected specimens (`SMP-YYYY-####`) per request per specimen type; Collected/Rejected + reject reason |
+| `LAB_RESULTS` | `LabResults` | One row per request item; `VALUES` JSONB keyed by template field key; status Draft/Submitted/Validated/PendingRevalidation; `VERSION` counter |
+| `LAB_RESULT_VERSIONS` | `LabResultVersions` | Immutable snapshot per result change (draft/submit/validate/return/amend + reason) |
 
 ### Relationships
 
@@ -109,6 +113,9 @@ PERSONS ── PHARMACY_RETURNS ── PHARMACY_RETURN_ITEMS ── DRUGS
 PERSONS ── LAB_REQUESTS ── LAB_REQUEST_ITEMS ── LAB_TESTS
 ENCOUNTERS ── LAB_REQUESTS (optional)
 USERS ── LAB_REQUESTS (doctor)
+LAB_REQUESTS ── LAB_SAMPLES (1:N specimens)
+LAB_REQUEST_ITEMS ── LAB_RESULTS (1:1) ── LAB_RESULT_VERSIONS (1:N)
+LAB_RESULT_TEMPLATES ── LAB_RESULTS (optional template)
 USERS ── AUDITS
 SUPPLIERS ── SUPPLIER_DRUGS ── DRUGS (drugs supplied, by ID)
 SUPPLIERS ── DRUGS (optional preferred supplier)
@@ -167,7 +174,7 @@ npx prisma migrate dev
 
 Migration `20260710140000_triage_and_audit_type` adds `TRIAGE` and `AUDITS.AUDIT_TYPE` / `ENTITY` / `ENTITY_ID`.
 
-Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). Migration `20260716210000_supplier_drugs_join` adds `SUPPLIER_DRUGS` (and drops legacy `SUPPLIERS.CATEGORIES`) for environments where the first pharmacy migration was applied before the join table existed in that SQL file. Migration `20260716220000_prescriptions` adds `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS`. Migration `20260717100000_pharmacy_walk_in_sales` adds walk-in sales. Migration `20260717120000_pharmacy_pay_gate_returns` adds Rx payment/emergency columns, `QTY_RETURNED`, and `PHARMACY_RETURNS` tables. Migration `20260717130000_pharmacy_settings` adds `PHARMACY_SETTINGS` thresholds. Migration `20260717160000_encounters` creates `ENCOUNTERS`. Migration `20260717180000_encounter_note_fields` adds expanded note columns. Migration `20260718160000_follow_ups` creates `FOLLOW_UPS`. Migration `20260718170000_clinical_notes` creates `CLINICAL_NOTES` + versions. Migration `20260720120000_laboratory` creates `LAB_TESTS` / `LAB_REQUESTS` / `LAB_REQUEST_ITEMS` and seeds the initial catalog. Migration `20260720140000_lab_request_source` adds `LAB_REQUESTS.SOURCE` (`Doctor`\|`WalkIn`, indexed). Run `npx prisma migrate deploy` after pull.
+Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). Migration `20260716210000_supplier_drugs_join` adds `SUPPLIER_DRUGS` (and drops legacy `SUPPLIERS.CATEGORIES`) for environments where the first pharmacy migration was applied before the join table existed in that SQL file. Migration `20260716220000_prescriptions` adds `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS`. Migration `20260717100000_pharmacy_walk_in_sales` adds walk-in sales. Migration `20260717120000_pharmacy_pay_gate_returns` adds Rx payment/emergency columns, `QTY_RETURNED`, and `PHARMACY_RETURNS` tables. Migration `20260717130000_pharmacy_settings` adds `PHARMACY_SETTINGS` thresholds. Migration `20260717160000_encounters` creates `ENCOUNTERS`. Migration `20260717180000_encounter_note_fields` adds expanded note columns. Migration `20260718160000_follow_ups` creates `FOLLOW_UPS`. Migration `20260718170000_clinical_notes` creates `CLINICAL_NOTES` + versions. Migration `20260720120000_laboratory` creates `LAB_TESTS` / `LAB_REQUESTS` / `LAB_REQUEST_ITEMS` and seeds the initial catalog. Migration `20260720140000_lab_request_source` adds `LAB_REQUESTS.SOURCE` (`Doctor`\|`WalkIn`, indexed). Migration `20260720160000_lab_result_templates` creates `LAB_RESULT_TEMPLATES` and seeds 12 result templates. Migration `20260720170000_lab_lis` adds `LAB_REQUESTS.LAB_STATUS` (indexed) and creates `LAB_SAMPLES`, `LAB_RESULTS`, `LAB_RESULT_VERSIONS`. Run `npx prisma migrate deploy` after pull.
 
 ### Production (Render)
 

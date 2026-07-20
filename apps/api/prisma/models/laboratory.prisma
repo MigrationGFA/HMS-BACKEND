@@ -43,6 +43,8 @@ model LabRequests {
   CLINICAL_NOTES      String?   @db.Text
   /// Draft | Sent | Cancelled
   STATUS              String    @default("Sent") @db.VarChar(50)
+  /// LIS pipeline: AwaitingCollection | Collected | ResultDraft | AwaitingValidation | Validated | PendingRevalidation
+  LAB_STATUS          String    @default("AwaitingCollection") @db.VarChar(50)
   /// Unpaid | Paid | Waived — cashier owns billing; doctor never sets this
   PAYMENT_STATUS      String    @default("Unpaid") @db.VarChar(50)
   PAYMENT_CHANNEL     String?   @db.VarChar(50)
@@ -61,11 +63,14 @@ model LabRequests {
   encounter Encounters?       @relation(fields: [ENCOUNTER_ID], references: [ENCOUNTER_ID])
   doctor    Users             @relation("LabRequestDoctor", fields: [DOCTOR_ID], references: [USER_ID])
   items     LabRequestItems[]
+  samples   LabSamples[]
+  results   LabResults[]
 
   @@index([PERSON_ID])
   @@index([ENCOUNTER_ID])
   @@index([DOCTOR_ID])
   @@index([STATUS])
+  @@index([LAB_STATUS])
   @@index([PAYMENT_STATUS])
   @@index([SOURCE])
   @@index([CREATED_DATE])
@@ -85,8 +90,118 @@ model LabRequestItems {
 
   request LabRequests @relation(fields: [LAB_REQUEST_ID], references: [LAB_REQUEST_ID])
   test    LabTests    @relation(fields: [LAB_TEST_ID], references: [LAB_TEST_ID])
+  result  LabResults?
 
   @@index([LAB_REQUEST_ID])
   @@index([LAB_TEST_ID])
   @@map("LAB_REQUEST_ITEMS")
+}
+
+// Reusable result-entry templates (field schema stored as JSONB).
+// Soft delete via STATUS = Inactive — never hard-delete (results may reference them).
+model LabResultTemplates {
+  TEMPLATE_ID   Int       @id @default(autoincrement())
+  /// Stable code, e.g. tpl-fbc
+  CODE          String    @unique @db.VarChar(50)
+  NAME          String    @db.VarChar(255)
+  CATEGORY      String    @db.VarChar(100)
+  DESCRIPTION   String?   @db.Text
+  /// Array of TemplateField: { key, label, type, options?, unit?, ref?, critical?, required? }
+  FIELDS        Json      @default("[]")
+  /// Active | Inactive
+  STATUS        String    @default("Active") @db.VarChar(50)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime?
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  results LabResults[]
+
+  @@index([CATEGORY])
+  @@index([STATUS])
+  @@map("LAB_RESULT_TEMPLATES")
+}
+
+// One sample row per lab request per distinct specimen type.
+model LabSamples {
+  SAMPLE_ID      Int       @id @default(autoincrement())
+  /// SMP-YYYY-####
+  SAMPLE_NO      String    @unique @db.VarChar(50)
+  LAB_REQUEST_ID Int
+  SPECIMEN_TYPE  String    @db.VarChar(100)
+  CONTAINER      String?   @db.VarChar(100)
+  /// Pending | Collected | Rejected
+  STATUS         String    @default("Collected") @db.VarChar(50)
+  COLLECTED_BY   String?   @db.VarChar(100)
+  COLLECTED_AT   DateTime?
+  REJECT_REASON  String?   @db.Text
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+
+  request LabRequests @relation(fields: [LAB_REQUEST_ID], references: [LAB_REQUEST_ID])
+
+  @@index([LAB_REQUEST_ID, STATUS])
+  @@index([STATUS])
+  @@index([CREATED_DATE])
+  @@map("LAB_SAMPLES")
+}
+
+// One result row per lab request item. Values keyed by template field key (JSONB).
+model LabResults {
+  LAB_RESULT_ID       Int       @id @default(autoincrement())
+  LAB_REQUEST_ID      Int
+  LAB_REQUEST_ITEM_ID Int       @unique
+  TEMPLATE_ID         Int?
+  /// JSONB keyed by template field key
+  VALUES              Json      @default("{}")
+  COMMENT             String?   @db.Text
+  /// Draft | Submitted | Validated | Rejected | PendingRevalidation
+  STATUS              String    @default("Draft") @db.VarChar(50)
+  ENTERED_BY          String?   @db.VarChar(100)
+  ENTERED_AT          DateTime?
+  VALIDATED_BY        String?   @db.VarChar(100)
+  VALIDATED_AT        DateTime?
+  RETURN_REASON       String?   @db.Text
+  VERSION             Int       @default(1)
+  CREATED_BY_ID       Int?
+  CREATED_BY          String?   @db.VarChar(100)
+  CREATED_DATE        DateTime?
+  UPDATED_BY_ID       Int?
+  UPDATED_BY          String?   @db.VarChar(100)
+  UPDATED_DATE        DateTime?
+
+  request  LabRequests         @relation(fields: [LAB_REQUEST_ID], references: [LAB_REQUEST_ID])
+  item     LabRequestItems     @relation(fields: [LAB_REQUEST_ITEM_ID], references: [ITEM_ID])
+  template LabResultTemplates? @relation(fields: [TEMPLATE_ID], references: [TEMPLATE_ID])
+  versions LabResultVersions[]
+
+  @@index([LAB_REQUEST_ID])
+  @@index([STATUS])
+  @@index([TEMPLATE_ID])
+  @@map("LAB_RESULTS")
+}
+
+// Immutable snapshot per result change — clinical records are never overwritten silently.
+model LabResultVersions {
+  VERSION_ID    Int      @id @default(autoincrement())
+  LAB_RESULT_ID Int
+  VERSION       Int
+  VALUES        Json     @default("{}")
+  COMMENT       String?  @db.Text
+  /// draft | submit | validate | return | amend | revalidate
+  ACTION        String   @db.VarChar(50)
+  REASON        String?  @db.Text
+  ACTED_BY      String?  @db.VarChar(100)
+  ACTED_AT      DateTime @default(now())
+
+  result LabResults @relation(fields: [LAB_RESULT_ID], references: [LAB_RESULT_ID])
+
+  @@index([LAB_RESULT_ID, VERSION])
+  @@map("LAB_RESULT_VERSIONS")
 }
