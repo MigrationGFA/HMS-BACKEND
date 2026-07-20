@@ -1,0 +1,65 @@
+// Clinical documentation notes (SOAP, psychiatric assessment, etc.)
+// Soft-void only — never hard-delete clinical rows.
+// Optimistic VERSION for draft autosave / conflict detection.
+// Version snapshots preserve history on every save.
+
+model ClinicalNotes {
+  CLINICAL_NOTE_ID Int       @id @default(autoincrement())
+  NOTE_NO          String    @unique @db.VarChar(50)
+  PERSON_ID        Int
+  ENCOUNTER_ID     Int?
+  AUTHOR_ID        Int
+  /// SOAP Note | Psychiatric Assessment | Follow-Up Note | …
+  NOTE_TYPE        String    @db.VarChar(100)
+  CLINIC           String?   @db.VarChar(100)
+  /// Draft | In Progress | Awaiting Review | Under Review | Returned for Correction | Signed | Voided
+  STATUS           String    @default("Draft") @db.VarChar(50)
+  /// Routine | Urgent | Stat
+  PRIORITY         String    @default("Routine") @db.VarChar(50)
+  /// Structured template field values { "Subjective": "...", ... }
+  FIELDS           Json      @default("{}")
+  VERSION          Int       @default(1)
+  RETURN_REASON    String?   @db.Text
+  SIGNED_AT        DateTime?
+  SIGNED_BY_ID     Int?
+  SIGNED_BY        String?   @db.VarChar(100)
+  SUBMITTED_AT     DateTime?
+  VOIDED_AT        DateTime?
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+
+  person    Persons                 @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  encounter Encounters?             @relation(fields: [ENCOUNTER_ID], references: [ENCOUNTER_ID])
+  author    Users                   @relation("ClinicalNoteAuthor", fields: [AUTHOR_ID], references: [USER_ID])
+  versions  ClinicalNoteVersions[]
+
+  @@index([PERSON_ID])
+  @@index([AUTHOR_ID])
+  @@index([STATUS])
+  @@index([NOTE_TYPE])
+  @@index([CREATED_DATE])
+  @@index([ENCOUNTER_ID])
+  @@map("CLINICAL_NOTES")
+}
+
+model ClinicalNoteVersions {
+  VERSION_ID       Int      @id @default(autoincrement())
+  CLINICAL_NOTE_ID Int
+  VERSION          Int
+  FIELDS           Json
+  STATUS           String   @db.VarChar(50)
+  CHANGE_SUMMARY   String?  @db.VarChar(500)
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?  @db.VarChar(100)
+  CREATED_DATE     DateTime @default(now())
+
+  note ClinicalNotes @relation(fields: [CLINICAL_NOTE_ID], references: [CLINICAL_NOTE_ID])
+
+  @@unique([CLINICAL_NOTE_ID, VERSION])
+  @@index([CLINICAL_NOTE_ID])
+  @@map("CLINICAL_NOTE_VERSIONS")
+}

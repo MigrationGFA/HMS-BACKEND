@@ -763,6 +763,74 @@ Drugs a supplier supplies are referenced by **drug ID** (from the drug catalog),
 
 ---
 
+### Clinical Documentation (`/clinical-notes`)
+
+Structured doctor clinical notes for `/dashboard/doctor/clinical/documentation`. Patient search uses existing `GET /api/patients?q=`. Soft-void only — signed notes are immutable (use addendum later).
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/clinical-notes/templates` | Note templates + required fields | `clinical-note:read` |
+| GET | `/clinical-notes/summary` | KPI counts (drafts, reviews, signed this month) | `clinical-note:read` |
+| GET | `/clinical-notes` | List notes (`q`, `status`, `noteType`, `personId`, `mine`, `page`, `limit`) | `clinical-note:read` |
+| POST | `/clinical-notes` | Create draft note | `clinical-note:create` |
+| GET | `/clinical-notes/:id` | Note detail + fields + patient | `clinical-note:read` |
+| GET | `/clinical-notes/:id/versions` | Immutable version history | `clinical-note:read` |
+| PATCH | `/clinical-notes/:id` | Autosave draft (`version`, `idempotencyKey`, `fields`) | `clinical-note:update` |
+| POST | `/clinical-notes/:id/submit` | Submit for consultant review | `clinical-note:update` |
+| POST | `/clinical-notes/:id/sign` | Review and Sign (locks note) | `clinical-note:sign` |
+| POST | `/clinical-notes/:id/approve` | Consultant approve (+ sign) | `clinical-note:review` |
+| POST | `/clinical-notes/:id/return` | Return for correction (`{ reason }`) | `clinical-note:review` |
+| POST | `/clinical-notes/:id/void` | Soft-void draft | `clinical-note:update` |
+
+#### `POST /api/clinical-notes`
+
+**Purpose:** Create a draft clinical documentation note for a registered patient.
+
+**Required permission:** `clinical-note:create`
+
+**Request body:**
+```json
+{
+  "personId": 42,
+  "noteType": "SOAP Note",
+  "clinic": "OPC",
+  "priority": "Routine",
+  "fields": { "Subjective": "", "Objective": "", "Assessment": "", "Plan": "" }
+}
+```
+
+**Response example:** `{ data: { clinicalNoteId, noteNo: "CN-2026-0001", status: "Draft", version: 1, fields, patient } }`
+
+**Errors:** `400` validation, `401`, `403`, `404` person not found.
+
+#### `PATCH /api/clinical-notes/:id`
+
+**Purpose:** Autosave draft fields with optimistic locking.
+
+**Required permission:** `clinical-note:update`
+
+**Request body:** `{ version?, idempotencyKey?, fields?, noteType?, clinic?, priority?, changeSummary? }`
+
+**Response example:** `{ data: { clinicalNoteId, version: 2, status: "In Progress", fields } }`
+
+**Errors:** `400` not editable / signed, `401`, `403`, `404`, `409` version conflict.
+
+#### `POST /api/clinical-notes/:id/sign`
+
+**Purpose:** Explicit Review and Sign — locks the note (does not auto-sign on save).
+
+**Required permission:** `clinical-note:sign`
+
+**Request body:** `{ attestation? }`
+
+**Response example:** `{ data: { status: "Signed", signedBy, signedAt } }`
+
+**Errors:** `400` already signed/voided, `401`, `403`, `404`.
+
+Patient search for this page: `GET /api/patients?q=&page=&limit=` (`patient:read`) — search by name, hospital no, phone, NHIA, NIN.
+
+---
+
 ### Doctor Encounters (`/encounters`)
 
 Payment-gated consultation queue for `/dashboard/doctor/clinical/workspace`. Queue source is today's `TRIAGE` with status `Triage Completed` or `Sent to Consultation`.
@@ -771,6 +839,7 @@ Payment-gated consultation queue for `/dashboard/doctor/clinical/workspace`. Que
 |--------|------|---------|------------|
 | GET | `/encounters/consultation-queue` | Waiting queue (`q`, `clinic`, `priority`, `page`, `limit`, `timezoneOffsetMinutes`) | `encounter:read` |
 | GET | `/encounters/active` | Logged-in doctor's in-progress encounters | `encounter:read` |
+| GET | `/encounters/completed` | Logged-in doctor's consultations completed today | `encounter:read` |
 | GET | `/encounters/follow-ups` | Follow-up list for workspace (`q`, `clinic`, `status`, `from`, `to`, `mine`) | `encounter:read` |
 | POST | `/encounters/follow-ups` | Schedule a follow-up appointment | `encounter:complete` |
 | PATCH | `/encounters/follow-ups/:id` | Update follow-up (status Attended/Cancelled, reschedule) | `encounter:update` |
@@ -1755,14 +1824,28 @@ Realtime queue state is also pushed via Socket.IO (see [WORKFLOWS.md](./WORKFLOW
 
 ---
 
-### Lab (`/lab`)
+### Laboratory (`/laboratory`)
+
+Catalog + doctor lab requests. Payment is cashier-owned (`PAYMENT_STATUS` defaults to **Unpaid**). Sample collection / results are out of scope for this pass.
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/lab/orders` | List lab orders | `lab:read` |
-| POST | `/lab/orders` | Create lab order | `lab:create` |
-| GET | `/lab/orders/:id` | Get order detail | `lab:read` |
-| PATCH | `/lab/orders/:id/results` | Submit results | `lab:update` |
+| GET | `/laboratory/tests?q=&category=&status=` | Lab test catalog | `lab:read` |
+| GET | `/laboratory/tests/:id` | Test detail | `lab:read` |
+| POST | `/laboratory/tests` | Create catalog entry | `lab:update` |
+| PATCH | `/laboratory/tests/:id` | Update price/status | `lab:update` |
+| POST | `/laboratory/requests` | Create+send request (always Unpaid) | `lab:create` |
+| GET | `/laboratory/requests?personId=&encounterId=&status=&paymentStatus=` | List requests | `lab:read` |
+| GET | `/laboratory/requests/:id` | Detail + items + person | `lab:read` |
+| POST | `/laboratory/requests/:id/cancel` | Cancel if unpaid | `lab:update` |
+| GET | `/cashier/payments/lab-requests?paymentStatus=Unpaid` | Cashier unpaid queue | `lab:pay` |
+| POST | `/cashier/payments/lab-requests/:id/confirm` | Confirm payment `{ paymentChannel, paymentRef? }` | `lab:pay` |
+
+**POST `/laboratory/requests` body:** `{ personId, encounterId?, priority?: "Routine"|"Urgent"|"Stat", clinicalIndication?, clinicalNotes?, items: [{ testId, lineNotes? }] }`
+
+**Response example:** `{ data: { labRequestId, requestNo: "LR-2026-0001", paymentStatus: "Unpaid", status: "Sent", totalAmount, items, person } }`
+
+**Errors:** 400 invalid/inactive tests or encounter mismatch / already paid cancel; 401; 403; 404 patient/request.
 
 ---
 

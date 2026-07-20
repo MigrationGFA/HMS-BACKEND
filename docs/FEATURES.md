@@ -87,6 +87,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Encounters consultation queue + start/complete (`/api/encounters/*`, payment-gated) | ✅ |
 | Patient clinical summary + encounter notes timeline (`GET …/clinical-summary`, `GET …/notes`) | ✅ |
 | Full clinical note sections on encounters (PMH, drug/allergy/family/social Hx, follow-up) | ✅ |
+| Clinical Documentation notes (`/api/clinical-notes/*` — drafts, review, sign, versions; patient search via `/api/patients`) | ✅ |
 | Prescriptions (`POST/GET/PATCH /prescriptions`) | ✅ |
 | Diagnoses & care plans | 📋 |
 | Ward & bed management | ✅ (API) |
@@ -105,7 +106,10 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 
 | Sub-feature | Status |
 |-------------|--------|
-| Lab requests, samples, results | 📋 |
+| Lab test catalog (`GET/POST/PATCH /laboratory/tests`) | ✅ |
+| Doctor lab requests Unpaid → cashier pay (`/laboratory/requests`, `/cashier/payments/lab-requests`) | ✅ |
+| Active Consultation previous history + lab request dialog | ✅ |
+| Lab sample collection / result entry | 📋 |
 | Imaging & ECG | 📋 |
 | Supplier management (`POST/GET/PATCH /pharmacy/suppliers`) | ✅ |
 | Drug catalog with supplier link (`/pharmacy/drugs`) | ✅ |

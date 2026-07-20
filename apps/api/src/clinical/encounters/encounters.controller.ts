@@ -86,6 +86,33 @@ export class EncountersController {
 
   /**
    * Method: GET
+   * URL: /api/encounters/completed?page=&limit=&timezoneOffsetMinutes=
+   * Purpose: Logged-in doctor's consultations completed today (workspace Completed tab)
+   * Required permission: encounter:read
+   * Request body: none
+   * Response example: { data: { items: [{ encounterId, patient, outcome, startedAt, completedAt }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('completed')
+  @RequirePermissions(PERMISSIONS.ENCOUNTER_READ)
+  async listCompleted(
+    @CurrentUser() user: AuthUser,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('timezoneOffsetMinutes') timezoneOffsetMinutes?: string,
+  ) {
+    const result = await this.encountersService.listCompleted(user, {
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+      timezoneOffsetMinutes: timezoneOffsetMinutes
+        ? Number(timezoneOffsetMinutes)
+        : undefined,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
    * URL: /api/encounters/follow-ups?q=&clinic=&status=&from=&to=&page=&limit=&timezoneOffsetMinutes=&mine=1
    * Purpose: List scheduled follow-ups for the clinical workspace Follow-Up tab
    * Required permission: encounter:read

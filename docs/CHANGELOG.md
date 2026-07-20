@@ -10,6 +10,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Render start command now runs `prisma migrate deploy` before `start:prod` so tables like `ENCOUNTERS` exist in production (fixes `GET /api/encounters/active` 500 when migrations were not applied)
 
 ### Added
+- Laboratory catalog + doctor requests (pay-before-process): `LAB_TESTS` / `LAB_REQUESTS` / `LAB_REQUEST_ITEMS` (migration `20260720120000_laboratory`, seeded from doctor TEST_CATALOG); `GET/POST/PATCH /api/laboratory/tests`, `POST/GET /api/laboratory/requests`, `POST …/:id/cancel`; cashier `GET/POST /api/cashier/payments/lab-requests`; RBAC `lab:read|create|update|pay`; audit `lab:test-create|request-create|request-cancel|pay`. Doctor create always sets `PAYMENT_STATUS=Unpaid` (no Cash/NHIA/HMO on doctor DTO). Active Consultation previous-history panel + Lab Request dialog; DocLab + Cashier Lab Requests tab wired when API enabled.
+
+- Consultation workspace Completed tab: `GET /api/encounters/completed` (today's completed consultations for logged-in doctor); frontend `/dashboard/doctor/clinical/workspace` uses live queue/active/completed/follow-ups only (mock seed data removed)
+
+- Clinical Documentation: `CLINICAL_NOTES` + `CLINICAL_NOTE_VERSIONS` (migration `20260718170000_clinical_notes`); `GET/POST/PATCH /api/clinical-notes` with submit/sign/approve/return/void + templates/summary/versions; RBAC `clinical-note:*`; doctor page `/dashboard/doctor/clinical/documentation` wired with live patient search (`GET /api/patients`) and IndexedDB draft autosave
+
 - Follow-up scheduling: `FOLLOW_UPS` table (migration `20260718160000_follow_ups`); `GET/POST /api/encounters/follow-ups`, `PATCH /api/encounters/follow-ups/:id`; complete consultation accepts `followUpDate` (+ clinic/time/priority/reason) and creates a follow-up; clinical workspace Follow-Up tab + complete/schedule dialogs wired to live API
 
 - **Nursing ops (Phases 10–12):** Prisma nursing-ops tables; `/api/nursing` orders, tasks, MAR, samples, shifts, handovers, ICU, messages, reports, analytics

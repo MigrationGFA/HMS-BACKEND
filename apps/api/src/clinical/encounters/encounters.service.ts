@@ -379,6 +379,69 @@ export class EncountersService {
     }
   }
 
+  async listCompleted(
+    actor: AuthUser,
+    params?: {
+      page?: number;
+      limit?: number;
+      timezoneOffsetMinutes?: number;
+    },
+  ) {
+    const page = Math.max(params?.page ?? 1, 1);
+    const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
+    const offsetMinutes = Number.isFinite(params?.timezoneOffsetMinutes)
+      ? Number(params!.timezoneOffsetMinutes)
+      : 0;
+    const nowUtc = Date.now();
+    const localNow = new Date(nowUtc + offsetMinutes * 60_000);
+    const y = localNow.getUTCFullYear();
+    const m = localNow.getUTCMonth();
+    const d = localNow.getUTCDate();
+    const dayStartUtc = new Date(Date.UTC(y, m, d, 0, 0, 0) - offsetMinutes * 60_000);
+    const dayEndUtc = new Date(Date.UTC(y, m, d + 1, 0, 0, 0) - offsetMinutes * 60_000);
+
+    const where: Prisma.EncountersWhereInput = {
+      DOCTOR_ID: actor.id,
+      STATUS: 'Completed',
+      COMPLETED_AT: { gte: dayStartUtc, lt: dayEndUtc },
+    };
+
+    try {
+      const [rows, total] = await Promise.all([
+        this.prisma.encounters.findMany({
+          where,
+          orderBy: { COMPLETED_AT: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+          include: this.encounterInclude(),
+        }),
+        this.prisma.encounters.count({ where }),
+      ]);
+
+      const personIds = [...new Set(rows.map((r) => r.PERSON_ID))];
+      const lastVisitMap = await this.lastCompletedVisitByPerson(personIds);
+
+      return {
+        asOf: new Date().toISOString(),
+        items: rows.map((e) =>
+          this.toEncounterResponse(e, lastVisitMap.get(e.PERSON_ID) ?? null),
+        ),
+        meta: { page, limit, total },
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        /ENCOUNTERS/i.test(message) &&
+        /(does not exist|Unknown column|column .* does not exist)/i.test(message)
+      ) {
+        throw new ServiceUnavailableException(
+          'Encounters schema is not applied on this database. Run: npx prisma migrate deploy',
+        );
+      }
+      throw err;
+    }
+  }
+
   async start(dto: StartEncounterDto, actor: AuthUser) {
     const triage = await this.prisma.triage.findUnique({
       where: { TRIAGE_ID: dto.triageId },
