@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Injectable,
   NotFoundException,
@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { NursingOpsService } from '../nursing/nursing-ops.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import {
   ConfirmLabRequestPaymentDto,
@@ -182,6 +183,7 @@ export class LaboratoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly nursingOps: NursingOpsService,
   ) {}
 
   async createTest(
@@ -574,5 +576,17 @@ export class LaboratoryService {
       newValue: response,
     });
     return response;
+  }
+
+  /**
+   * Nursing sample bridge — ward sample collection still lives on nursing orders
+   * until dedicated lab sample tables exist.
+   */
+  listSamples(params?: { personId?: number; admissionId?: number }) {
+    return this.nursingOps.listSamples(params);
+  }
+
+  collectSample(orderId: number, actor?: AuthUser) {
+    return this.nursingOps.collectSample(orderId, actor);
   }
 }

@@ -14,7 +14,7 @@ function write(path, content) {
   ensureDir(dirname(path));
   writeFileSync(path, content, 'utf8');
 }
-
+ 
 function pascalCase(str) {
   return str
     .split(/[-_]/)
