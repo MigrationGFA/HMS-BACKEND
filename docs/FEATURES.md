@@ -110,6 +110,9 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Doctor lab requests Unpaid → cashier pay (`/laboratory/requests`, `/cashier/payments/lab-requests`) | ✅ |
 | Lab walk-in create (`source=WalkIn`, Unpaid) + LAB `lab:create` | ✅ |
 | Lab Request Center Paid/Waived-only work queue (unpaid hidden from LAB) | ✅ |
+| Cashier Pending/Paid bills = live aggregate (cards + pharmacy + Rx + lab) | ✅ |
+| Cashier Part Payments empty (no partial for domain bills) | ✅ |
+| Cashier pharmacy `?tab=walkin|rx|lab` deep-link | ✅ |
 | Active Consultation previous history + lab request dialog | ✅ |
 | Lab sample collection / result entry | 📋 |
 | Imaging & ECG | 📋 |
