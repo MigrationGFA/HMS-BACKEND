@@ -80,7 +80,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 |-------------|--------|
 | Patient Queues (daily OPD triage + payment + vitals + send to doctor) | ✅ |
 | Nursing notes / vitals / care plans / observations / incidents / forms | ✅ (API) |
-| Orders / tasks / MAR / samples | ✅ (API; clinical/pharmacy/lab bridges → nursing-ops) |
+| Orders / tasks / MAR / samples | ✅ (API; clinical/pharmacy bridges → nursing-ops; lab bridge retired — lab has its own LIS) |
 | Shifts / handover / ICU board | ✅ (API) |
 | Nursing comms / reports / analytics | ✅ (API) |
 | Encounters & clinical notes | 📋 |
@@ -115,7 +115,12 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Cashier Part Payments empty (no partial for domain bills) | ✅ |
 | Cashier pharmacy `?tab=walkin|rx|lab` deep-link | ✅ |
 | Active Consultation previous history + lab request dialog | ✅ |
-| Lab sample collection / result entry | 📋 |
+| Lab result templates in DB (12 seeded; create/edit/duplicate/deactivate, `/laboratory/templates`) | ✅ |
+| Lab sample collection + reject (`/laboratory/requests/:id/collect`, `/laboratory/samples`) | ✅ |
+| Lab result entry draft/submit (template-driven, `/laboratory/requests/:id/results`) | ✅ |
+| Lab result validation / return-to-bench (`/laboratory/results/:id/validate\|return`) | ✅ |
+| Lab result amendment + immutable version history (`/laboratory/results/:id/amend`, `/versions`) | ✅ |
+| Lab dashboard pages live (requests/samples/results/validation/amendment/templates) | ✅ |
 | Imaging & ECG | 📋 |
 | Supplier management (`POST/GET/PATCH /pharmacy/suppliers`) | ✅ |
 | Drug catalog with supplier link (`/pharmacy/drugs`) | ✅ |

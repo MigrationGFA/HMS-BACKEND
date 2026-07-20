@@ -14,7 +14,7 @@ import { RequirePermissions } from '../common/decorators/require-permissions.dec
 import { PERMISSIONS } from '../common/constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
-import { CreateLabRequestDto } from './dto/lab.dto';
+import { CreateLabRequestDto, SaveLabResultsDto } from './dto/lab.dto';
 import { LaboratoryService } from './laboratory.service';
 
 @Controller('laboratory/requests')
@@ -44,11 +44,11 @@ export class LabRequestsController {
 
   /**
    * Method: GET
-   * URL: /api/laboratory/requests?personId=&encounterId=&status=&paymentStatus=&source=&workQueue=&q=&page=&limit=
-   * Purpose: List lab requests (includes Unpaid). Optional workQueue=true → Paid/Waived only. LAB unpaid rows are redacted.
+   * URL: /api/laboratory/requests?personId=&encounterId=&status=&labStatus=&paymentStatus=&source=&workQueue=&q=&page=&limit=
+   * Purpose: List lab requests (includes Unpaid). Optional workQueue=true → Paid/Waived only. labStatus accepts a comma list (LIS work queues). LAB unpaid rows are redacted.
    * Required permission: lab:read
    * Request body: none
-   * Response example: { data: { items: [{ paymentCleared, processingLocked, ... }], meta } }
+   * Response example: { data: { items: [{ paymentCleared, processingLocked, labStatus, ... }], meta } }
    * Error cases: 401, 403
    */
   @Get()
@@ -58,6 +58,7 @@ export class LabRequestsController {
     @Query('personId') personId?: string,
     @Query('encounterId') encounterId?: string,
     @Query('status') status?: string,
+    @Query('labStatus') labStatus?: string,
     @Query('paymentStatus') paymentStatus?: string,
     @Query('source') source?: string,
     @Query('workQueue') workQueue?: string,
@@ -70,6 +71,7 @@ export class LabRequestsController {
         personId: personId ? Number(personId) : undefined,
         encounterId: encounterId ? Number(encounterId) : undefined,
         status,
+        labStatus,
         paymentStatus,
         source,
         workQueue: workQueue === 'true' || workQueue === '1',
@@ -119,5 +121,49 @@ export class LabRequestsController {
   ) {
     const request = await this.laboratoryService.cancelRequest(id, user);
     return { data: request };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/laboratory/requests/:id/collect
+   * Purpose: Collect specimens for a paid lab request — creates one LAB_SAMPLES row per distinct specimen type and sets LAB_STATUS=Collected
+   * Required permission: lab:collect
+   * Request body: none
+   * Response example: { data: { request: { labStatus: "Collected" }, samples: [{ sampleId, sampleNo: "SMP-2026-0001", specimenType, status: "Collected" }] } }
+   * Error cases: 400 unpaid / cancelled / already collected, 401, 403, 404
+   * Audit: lab:sample-collect
+   */
+  @Post(':id/collect')
+  @RequirePermissions(PERMISSIONS.LAB_COLLECT)
+  async collect(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const result = await this.laboratoryService.collectRequestSamples(
+      id,
+      user,
+    );
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/laboratory/requests/:id/results
+   * Purpose: Save draft or submit lab results for the request items (upserts LAB_RESULTS + immutable version rows). draft → LAB_STATUS=ResultDraft, submit → AwaitingValidation
+   * Required permission: lab:result
+   * Request body: { action: "draft" | "submit", items: [{ requestItemId, templateId?, values, comment? }] }
+   * Response example: { data: { request: { labStatus: "AwaitingValidation" }, results: [{ labResultId, status: "Submitted", version: 1 }] } }
+   * Error cases: 400 unpaid / not collected / validated item / bad item or template id, 401, 403, 404
+   * Audit: lab:result-save | lab:result-submit
+   */
+  @Post(':id/results')
+  @RequirePermissions(PERMISSIONS.LAB_RESULT)
+  async saveResults(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SaveLabResultsDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const result = await this.laboratoryService.saveResults(id, dto, user);
+    return { data: result };
   }
 }
