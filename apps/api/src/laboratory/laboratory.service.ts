@@ -1,6 +1,5 @@
 ﻿import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -121,6 +120,10 @@ export type LabRequestResponse = {
   paidAt: string | null;
   paidBy: string | null;
   totalAmount: number;
+  /** True when Paid or Waived — sample/result processing allowed. */
+  paymentCleared: boolean;
+  /** True for LAB (and clients) when unpaid — full clinical detail withheld. */
+  processingLocked: boolean;
   createdAt: string | null;
   updatedAt: string | null;
   doctorName: string | null;
@@ -136,6 +139,38 @@ export type LabRequestResponse = {
     phone: string | null;
   } | null;
 };
+
+function isPaymentCleared(paymentStatus: string): boolean {
+  return paymentStatus === 'Paid' || paymentStatus === 'Waived';
+}
+
+/** Strip clinical detail for unpaid requests shown to LAB role. */
+function redactUnpaidForLab(res: LabRequestResponse): LabRequestResponse {
+  return {
+    ...res,
+    clinicalIndication: null,
+    clinicalNotes: null,
+    paymentChannel: null,
+    paymentRef: null,
+    paidAt: null,
+    paidBy: null,
+    totalAmount: 0,
+    processingLocked: true,
+    paymentCleared: false,
+    items: res.items.map((i) => ({
+      ...i,
+      unitPrice: 0,
+      lineNotes: null,
+    })),
+    person: res.person
+      ? {
+          ...res.person,
+          phone: null,
+          dateOfBirth: null,
+        }
+      : null,
+  };
+}
 
 function toTestResponse(row: TestRow): LabTestResponse {
   return {
@@ -160,6 +195,7 @@ function toRequestResponse(row: RequestRow): LabRequestResponse {
     ? [row.doctor.FIRST_NAME, row.doctor.LAST_NAME].filter(Boolean).join(' ') ||
       row.doctor.USER_NAME
     : null;
+  const paymentCleared = isPaymentCleared(row.PAYMENT_STATUS);
   return {
     labRequestId: row.LAB_REQUEST_ID,
     requestNo: row.REQUEST_NO,
@@ -177,6 +213,8 @@ function toRequestResponse(row: RequestRow): LabRequestResponse {
     paidAt: row.PAID_AT?.toISOString() ?? null,
     paidBy: row.PAID_BY,
     totalAmount: Number(row.TOTAL_AMOUNT),
+    paymentCleared,
+    processingLocked: !paymentCleared,
     createdAt: row.CREATED_DATE?.toISOString() ?? null,
     updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
     doctorName,
@@ -203,6 +241,17 @@ function toRequestResponse(row: RequestRow): LabRequestResponse {
         }
       : null,
   };
+}
+
+function toRequestResponseForActor(
+  row: RequestRow,
+  actor?: AuthUser,
+): LabRequestResponse {
+  const res = toRequestResponse(row);
+  if (isLabWorkQueueOnly(actor) && !res.paymentCleared) {
+    return redactUnpaidForLab(res);
+  }
+  return res;
 }
 
 @Injectable()
@@ -472,7 +521,7 @@ export class LaboratoryService {
     if (params.encounterId) where.ENCOUNTER_ID = params.encounterId;
     if (params.source) where.SOURCE = params.source;
 
-    const workQueueOnly = isLabWorkQueueOnly(actor) || params.workQueue === true;
+    const workQueueOnly = params.workQueue === true;
     if (workQueueOnly) {
       where.PAYMENT_STATUS = { in: ['Paid', 'Waived'] };
       where.STATUS = params.status ?? 'Sent';
@@ -515,7 +564,7 @@ export class LaboratoryService {
       }),
     ]);
     return {
-      items: rows.map(toRequestResponse),
+      items: rows.map((row) => toRequestResponseForActor(row, actor)),
       meta: { page, limit, total },
     };
   }
@@ -529,16 +578,7 @@ export class LaboratoryService {
       include: REQUEST_INCLUDE,
     });
     if (!row) throw new NotFoundException('Lab request not found');
-    if (
-      isLabWorkQueueOnly(actor) &&
-      row.PAYMENT_STATUS !== 'Paid' &&
-      row.PAYMENT_STATUS !== 'Waived'
-    ) {
-      throw new ForbiddenException(
-        'Lab request is not paid yet — cashier must confirm payment first',
-      );
-    }
-    return toRequestResponse(row);
+    return toRequestResponseForActor(row, actor);
   }
 
   async cancelRequest(

@@ -1826,7 +1826,7 @@ Realtime queue state is also pushed via Socket.IO (see [WORKFLOWS.md](./WORKFLOW
 
 ### Laboratory (`/laboratory`)
 
-Catalog + doctor/walk-in lab requests. Payment is cashier-owned (`PAYMENT_STATUS` defaults to **Unpaid**). Lab staff work queue sees **Paid/Waived only** until cashier confirms. Sample collection / results LIS remain out of scope for this pass.
+Catalog + doctor/walk-in lab requests. Payment is cashier-owned (`PAYMENT_STATUS` defaults to **Unpaid**). Lab staff **see unpaid requests** with limited detail (`processingLocked`); sample/result processing unlocks after **Paid/Waived**. Sample collection / results LIS remain out of scope for this pass.
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
@@ -1843,13 +1843,13 @@ Catalog + doctor/walk-in lab requests. Payment is cashier-owned (`PAYMENT_STATUS
 
 **POST `/laboratory/requests` body:** `{ personId, encounterId?, priority?: "Routine"|"Urgent"|"Stat", clinicalIndication?, clinicalNotes?, source?: "Doctor"|"WalkIn", items: [{ testId, lineNotes? }] }`
 
-**List rules:** `workQueue=true` forces `paymentStatus in (Paid,Waived)` and default `status=Sent`. Callers with **only** the LAB role (no admin/doctor/cashier) are always forced to Paid/Waived on list and blocked (403) on unpaid detail — unpaid never leaks via `lab:read`.
+**List rules:** `workQueue=true` forces `paymentStatus in (Paid,Waived)` and default `status=Sent` (ready-to-process subset). LAB role otherwise lists unpaid too. Responses include `paymentCleared` and `processingLocked`. For LAB + unpaid, clinical indication/notes, prices, phone, and DOB are redacted.
 
 **Audit:** `lab:test-create|test-update|request-create|request-cancel|pay` (`request-create` newValue includes `source`).
 
-**Response example:** `{ data: { labRequestId, requestNo: "LR-2026-0001", source: "WalkIn", paymentStatus: "Unpaid", status: "Sent", totalAmount, items, person } }`
+**Response example:** `{ data: { labRequestId, requestNo: "LR-2026-0001", source: "WalkIn", paymentStatus: "Unpaid", paymentCleared: false, processingLocked: true, status: "Sent", totalAmount, items, person } }`
 
-**Errors:** 400 invalid/inactive tests or encounter mismatch / already paid cancel; 401; 403 (including unpaid detail for LAB); 404 patient/request.
+**Errors:** 400 invalid/inactive tests or encounter mismatch / already paid cancel; 401; 403; 404 patient/request.
 
 ---
 

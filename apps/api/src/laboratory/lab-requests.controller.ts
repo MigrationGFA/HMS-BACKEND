@@ -45,10 +45,10 @@ export class LabRequestsController {
   /**
    * Method: GET
    * URL: /api/laboratory/requests?personId=&encounterId=&status=&paymentStatus=&source=&workQueue=&q=&page=&limit=
-   * Purpose: List lab requests. LAB role is forced to Paid/Waived only (unpaid hidden until cashier confirms).
+   * Purpose: List lab requests (includes Unpaid). Optional workQueue=true → Paid/Waived only. LAB unpaid rows are redacted.
    * Required permission: lab:read
    * Request body: none
-   * Response example: { data: { items: [...], meta } }
+   * Response example: { data: { items: [{ paymentCleared, processingLocked, ... }], meta } }
    * Error cases: 401, 403
    */
   @Get()
@@ -85,11 +85,11 @@ export class LabRequestsController {
   /**
    * Method: GET
    * URL: /api/laboratory/requests/:id
-   * Purpose: Lab request detail with items and person (LAB role blocked if unpaid)
+   * Purpose: Lab request detail with items and person. LAB role receives redacted clinical fields when unpaid (`processingLocked`).
    * Required permission: lab:read
    * Request body: none
-   * Response example: { data: { labRequestId, requestNo, source, items, person, paymentStatus } }
-   * Error cases: 401, 403 unpaid for LAB, 404
+   * Response example: { data: { labRequestId, requestNo, source, paymentCleared, processingLocked, items, person, paymentStatus } }
+   * Error cases: 401, 403, 404
    */
   @Get(':id')
   @RequirePermissions(PERMISSIONS.LAB_READ)
