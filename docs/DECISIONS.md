@@ -189,6 +189,52 @@ Record of significant technical decisions. Format inspired by [ADR](https://adr.
 
 ---
 
+## ADR-011: Nursing Patient Queues as Facade over Triage
+
+**Status:** Accepted  
+**Date:** 2026-07-15
+
+**Context:** Nurses need a daily OPD Patient Queues surface (visit reason, payment status, vitals, send to doctor). Queue + vitals already live on `TRIAGE`; payment on `PATIENT_CARDS`.
+
+**Decision:** Implement nurse APIs under `/api/nursing/patient-queues*` that wrap `TriageService` and enrich with `CardsService.latestForPerson`. No new queue table. Frontend `fnph-aro` `/dashboard/nurse/queues` consumes these endpoints when `VITE_USE_API=true`.
+
+**Rationale:**
+- Keeps one source of truth for OPD queue
+- Gives a nurse-specific route/permission surface and audit types
+- Blocks send-to-doctor while card payment is Pending; still allows vitals capture
+
+**Alternatives considered:** Frontend calling `/api/triage` + `/api/cards` directly; new nursing queue Prisma model (deferred).
+
+**Consequences:** Later superseded for ward ops by ADR-012 nursing-ops tables; queues remain triage-backed.
+
+---
+
+## ADR-012: Nursing-owned ops tables with clinical/pharmacy/lab bridges
+
+**Status:** Accepted  
+**Date:** 2026-07-15
+
+**Context:** Nursing Phases 10–12 need orders, MAR, samples, shifts, handover, ICU, messaging, and reports. Dedicated clinical prescriptions, pharmacy, and laboratory domains are still empty scaffolds with no Prisma models.
+
+**Decision:** Persist nursing operational data in `NURSING_*` ops tables (`nursing-ops.prisma`) under `/api/nursing/*`. Expose thin bridges:
+
+- `POST /api/prescriptions` → drug order + MAR rows  
+- `POST /api/laboratory/requests` (+ samples collect) → lab nursing orders  
+- `POST /api/pharmacy/dispensing/:marId/dispense` → flip `PHARMACY_DISPENSED` / status DUE  
+
+Frontend dual-paths via `nursing-ops.ts` when `VITE_USE_API=true`.
+
+**Rationale:**
+- Unblocks full nursing E2E without blocking on unfinished clinical/pharmacy/lab schemas  
+- One writable store for nurse workflows; bridges keep REST shapes close to future modules  
+- Seed can create smoke data without a doctor UI
+
+**Alternatives considered:** Wait for full clinical/pharmacy/lab modules; invent parallel pharmacy/lab tables now (rejected as premature).
+
+**Consequences:** When real domains land, migrate writers off nursing-ops (or keep nursing-ops as the nurse projection). Inventory, pricing, and lab analyzers remain out of scope.
+
+---
+
 ## Template for New Decisions
 
 ```markdown

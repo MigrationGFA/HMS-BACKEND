@@ -1,0 +1,165 @@
+// Nursing ward clinical documentation (Phase 9)
+
+model NursingNotes {
+  NOTE_ID      Int       @id @default(autoincrement())
+  ADMISSION_ID Int?
+  PERSON_ID    Int
+  /// General | Shift | Incident | Progress | MentalHealth | Emergency | WoundCare | Medication | Discharge
+  NOTE_TYPE    String    @default("General") @db.VarChar(40)
+  /// Narrative | SOAP | DAR
+  FORMAT       String    @default("Narrative") @db.VarChar(20)
+  BODY         String    @db.Text
+  AUTHOR_BY    String?   @db.VarChar(100)
+  CREATED_BY_ID Int?
+  CREATED_DATE DateTime  @default(now())
+  UPDATED_DATE DateTime?
+
+  admission Admissions? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  person    Persons     @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@index([CREATED_DATE])
+  @@map("NURSING_NOTES")
+}
+
+model NursingVitals {
+  VITAL_ID       Int       @id @default(autoincrement())
+  ADMISSION_ID   Int?
+  PERSON_ID      Int
+  WEIGHT_KG      Decimal?  @db.Decimal(8, 2)
+  HEIGHT_CM      Decimal?  @db.Decimal(8, 2)
+  BMI            Decimal?  @db.Decimal(8, 2)
+  BLOOD_PRESSURE String?   @db.VarChar(20)
+  TEMPERATURE_C  Decimal?  @db.Decimal(5, 2)
+  PULSE_BPM      Int?
+  RESPIRATORY_RATE Int?
+  SPO2_PCT       Decimal?  @db.Decimal(5, 2)
+  BLOOD_SUGAR    Decimal?  @db.Decimal(8, 2)
+  PAIN_SCORE     Int?
+  ABNORMAL       Boolean   @default(false)
+  FLAGS          String?   @db.VarChar(500)
+  NOTES          String?   @db.Text
+  RECORDED_BY    String?   @db.VarChar(100)
+  RECORDED_AT    DateTime  @default(now())
+  CREATED_BY_ID  Int?
+
+  admission Admissions? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  person    Persons     @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@index([RECORDED_AT])
+  @@index([ABNORMAL])
+  @@map("NURSING_VITALS")
+}
+
+model NursingCarePlans {
+  CARE_PLAN_ID Int       @id @default(autoincrement())
+  ADMISSION_ID Int?
+  PERSON_ID    Int
+  DIAGNOSIS    String?   @db.VarChar(500)
+  PROBLEM      String?   @db.Text
+  GOAL         String?   @db.Text
+  INTERVENTION String?   @db.Text
+  ACTION_TAKEN String?   @db.Text
+  EVALUATION   String?   @db.Text
+  REVIEW_DATE  DateTime?
+  /// active | ongoing | resolved
+  STATUS       String    @default("active") @db.VarChar(20)
+  CREATED_BY   String?   @db.VarChar(100)
+  CREATED_DATE DateTime  @default(now())
+  UPDATED_DATE DateTime?
+
+  admission Admissions? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  person    Persons     @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@index([STATUS])
+  @@map("NURSING_CARE_PLANS")
+}
+
+model NursingObservations {
+  OBSERVATION_ID Int       @id @default(autoincrement())
+  ADMISSION_ID   Int?
+  PERSON_ID      Int
+  /// Observation | Psychiatric | Seclusion | Restraint | Turning | IntakeOutput | ICU
+  CHART          String    @default("Psychiatric") @db.VarChar(40)
+  INTERVAL       String?   @db.VarChar(20)
+  /// JSON fields blob
+  FIELDS_JSON    String    @db.Text
+  RECORDED_BY    String?   @db.VarChar(100)
+  RECORDED_AT    DateTime  @default(now())
+  CREATED_BY_ID  Int?
+
+  admission Admissions? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  person    Persons     @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@index([RECORDED_AT])
+  @@map("NURSING_OBSERVATIONS")
+}
+
+model NursingIncidents {
+  INCIDENT_ID   Int       @id @default(autoincrement())
+  ADMISSION_ID  Int?
+  PERSON_ID     Int?
+  PATIENT_NAME  String?   @db.VarChar(255)
+  /// Fall | MedicationError | Aggression | Absconding | Injury | EquipmentFailure | Emergency | Death | Security | NeedleStick | Other
+  INCIDENT_TYPE String    @db.VarChar(40)
+  DESCRIPTION   String    @db.Text
+  ACTION_TAKEN  String?   @db.Text
+  /// Low | Moderate | High | Critical
+  SEVERITY      String    @default("Moderate") @db.VarChar(20)
+  /// REPORTED | ESCALATED | REVIEWED | CLOSED
+  STATUS        String    @default("REPORTED") @db.VarChar(20)
+  REPORTED_BY   String?   @db.VarChar(100)
+  REVIEWED_BY   String?   @db.VarChar(100)
+  REVIEWED_AT   DateTime?
+  REVIEW_NOTE   String?   @db.Text
+  CREATED_DATE  DateTime  @default(now())
+  CREATED_BY_ID Int?
+
+  admission Admissions? @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  person    Persons?    @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([CREATED_DATE])
+  @@map("NURSING_INCIDENTS")
+}
+
+model NursingFormTemplates {
+  TEMPLATE_ID  Int       @id @default(autoincrement())
+  CODE         String    @unique @db.VarChar(50)
+  TITLE        String    @db.VarChar(255)
+  SCHEMA_JSON  String    @db.Text
+  ACTIVE       Boolean   @default(true)
+  CREATED_BY   String?   @db.VarChar(100)
+  CREATED_DATE DateTime  @default(now())
+  UPDATED_DATE DateTime?
+
+  instances NursingFormInstances[]
+
+  @@map("NURSING_FORM_TEMPLATES")
+}
+
+model NursingFormInstances {
+  INSTANCE_ID  Int       @id @default(autoincrement())
+  TEMPLATE_ID  Int
+  ADMISSION_ID Int?
+  PERSON_ID    Int
+  VALUES_JSON  String    @db.Text
+  SIGNED_BY    String?   @db.VarChar(100)
+  CREATED_DATE DateTime  @default(now())
+
+  template  NursingFormTemplates @relation(fields: [TEMPLATE_ID], references: [TEMPLATE_ID])
+  admission Admissions?          @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  person    Persons              @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([TEMPLATE_ID])
+  @@map("NURSING_FORM_INSTANCES")
+}

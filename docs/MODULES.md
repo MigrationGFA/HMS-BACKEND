@@ -58,9 +58,9 @@ apps/api/src/
 
 | Module | Route Prefix | Controllers |
 |--------|-------------|-------------|
-| **ClinicalModule** | sub-routes | encounters, diagnoses, clinical-notes, prescriptions, referrals, observations, care-plans |
-| **NursingModule** | `/nursing` | nursing |
-| **AdmissionsModule** | `/admissions/*` | admissions, wards, beds |
+| **ClinicalModule** | sub-routes | encounters, diagnoses, clinical-notes; prescriptions bridge → nursing drug orders; referrals, observations, care-plans |
+| **NursingModule** | `/nursing` | patient-queues; care docs; ops (orders, tasks, MAR, samples, shifts, handover, ICU, messages, reports, analytics) — [NURSING_MODULE.md](./NURSING_MODULE.md) |
+| **AdmissionsModule** | `/admissions/*` | list/stats/admit/transfer/discharge; wards (+ create); beds |
 | **DischargeModule** | `/discharge` | discharge |
 | **PsychiatryModule** | `/psychiatry/*` | opc, psychology, child-adolescent, addiction-rehab, psychogeriatrics |
 | **AlliedHealthModule** | `/allied-health/*` | physiotherapy, speech-therapy, nutrition, social-work |
@@ -88,9 +88,9 @@ Each submodule has its own controller and service.
 
 | Module | Route Prefix | Controllers |
 |--------|-------------|-------------|
-| **LaboratoryModule** | `/laboratory/*` | requests, results, samples |
+| **LaboratoryModule** | `/laboratory/*` | requests + samples bridge → nursing-ops (full lab domain TBD) |
 | **RadiologyModule** | `/radiology/*` | radiology, imaging, ecg |
-| **PharmacyModule** | `/pharmacy/*` | pharmacy, dispensing, inventory |
+| **PharmacyModule** | `/pharmacy/*` | dispensing bridge → MAR (inventory TBD) |
 
 ---
 

@@ -12,6 +12,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - Follow-up scheduling: `FOLLOW_UPS` table (migration `20260718160000_follow_ups`); `GET/POST /api/encounters/follow-ups`, `PATCH /api/encounters/follow-ups/:id`; complete consultation accepts `followUpDate` (+ clinic/time/priority/reason) and creates a follow-up; clinical workspace Follow-Up tab + complete/schedule dialogs wired to live API
 
+- **Nursing ops (Phases 10–12):** Prisma nursing-ops tables; `/api/nursing` orders, tasks, MAR, samples, shifts, handovers, ICU, messages, reports, analytics
+- **Admissions + nursing care (Phases 8–9):** `/api/admissions*`, nursing notes/vitals/care-plans/obs/incidents/forms/timeline/alerts; seed Ward 1C + ICU
+- Nursing Patient Queues E2E + tracker [NURSING_MODULE.md](./NURSING_MODULE.md); ADR-011/012
+- Lab requests/samples still bridge to nursing-ops until a dedicated lab domain lands
 - Doctor clinical summary: `GET /api/encounters/patients/:personId/clinical-summary` (demographics, triage vitals, allergies, meds, past diagnoses/notes) and `GET …/notes` timeline; expanded `ENCOUNTERS` note columns (migration `20260717180000_encounter_note_fields`); queue/encounter responses include real `vitals` + last completed visit; workspace eye-view + active consult panels + Doctor Note Timeline wired to live APIs
 - Doctor consultation queue: `ENCOUNTERS` table (migration `20260717160000_encounters`); `GET /api/encounters/consultation-queue`, `GET /active`, `POST /start` (payment Paid/Waived required), `GET/PATCH /:id`, `POST /:id/complete`; RBAC `encounter:*`; Records consult route re-checks payment; frontend `/dashboard/doctor/clinical/workspace` live with IndexedDB draft autosave
 - Records Patient Arrival: `GET /api/records/arrivals` (today's triage + pending check-in, summary cards) + `POST /api/records/arrivals/route` (triage|consult|emergency|checkout with `arrival:*` audit); RECORDS role gains `triage:update`; frontend `/records/arrivals` wired with loading/refresh/route states

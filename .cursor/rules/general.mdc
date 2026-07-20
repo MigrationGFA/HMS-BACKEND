@@ -1,5 +1,5 @@
 ---
-description: 
+description: NestJS/TypeScript coding standards, security, docs, and testing for HMS-BACKEND
 alwaysApply: true
 ---
 
@@ -44,37 +44,14 @@ Use NestJS built-in exceptions: `NotFoundException`, `ConflictException`, `Forbi
 - Never commit secrets or `.env` files.
 - Hash passwords with bcrypt (cost factor 12).
 - Validate and sanitize all user input via DTOs.
-- Log sensitive actions to `audit_logs`.
+- Log sensitive actions via the audit module.
 
 ## Documentation
 
-- Update `docs/API_REFERENCE.md` when adding endpoints.
-- Update `docs/FEATURES.md` status when completing features.
-- Add ADR entries to `docs/DECISIONS.md` for architectural choices.
-- Log changes in `docs/CHANGELOG.md`.
+When shipping meaningful code changes, update the relevant files under `docs/` (`API_REFERENCE.md`, `FEATURES.md`, `CHANGELOG.md`, `DECISIONS.md`, `TODO.md`, etc.) and keep `.cursor/rules/` in sync if conventions change.
 
 ## Testing
 
 - Unit test services with mocked dependencies.
 - E2E test critical flows (auth, patient CRUD).
 - Run `npm run lint` before committing.
-
-for any code changes made or create, always update the appropriate below 
-
-├── docs/
-│   ├── README.md
-│   ├── PROJECT_CONTEXT.md
-│   ├── SYSTEM_ARCHITECTURE.md
-│   ├── FEATURES.md
-│   ├── DATABASE.md
-│   ├── API_REFERENCE.md
-│   ├── MODULES.md
-│   ├── WORKFLOWS.md
-│   ├── CHANGELOG.md
-│   ├── DECISIONS.md
-│   └── TODO.md
-│
-├── .cursor/
-│   └── rules/
-│       ├── general.mdc
-│       └── hms-project.mdc
