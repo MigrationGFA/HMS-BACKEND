@@ -1,0 +1,44 @@
+// Doctor consultation encounters — started from TRIAGE consult queue.
+// Soft status transitions only — never hard-delete clinical rows.
+// Optimistic VERSION for draft note autosave / conflict detection.
+
+model Encounters {
+  ENCOUNTER_ID           Int       @id @default(autoincrement())
+  PERSON_ID              Int
+  TRIAGE_ID              Int       @unique
+  DOCTOR_ID              Int
+  /// In Consultation | Completed | Cancelled
+  STATUS                 String    @default("In Consultation") @db.VarChar(50)
+  CHIEF_COMPLAINT        String?   @db.Text
+  HISTORY                String?   @db.Text
+  EXAMINATION            String?   @db.Text
+  ASSESSMENT             String?   @db.Text
+  PLAN                   String?   @db.Text
+  PAST_MEDICAL_HISTORY   String?   @db.Text
+  DRUG_HISTORY           String?   @db.Text
+  ALLERGY_HISTORY        String?   @db.Text
+  FAMILY_HISTORY         String?   @db.Text
+  SOCIAL_HISTORY         String?   @db.Text
+  FOLLOW_UP_PLAN         String?   @db.Text
+  VERSION                Int       @default(1)
+  STARTED_AT             DateTime  @default(now())
+  COMPLETED_AT           DateTime?
+  OUTCOME                String?   @db.VarChar(255)
+  CREATED_BY_ID          Int?
+  CREATED_BY             String?   @db.VarChar(100)
+  CREATED_DATE           DateTime?
+  UPDATED_BY_ID          Int?
+  UPDATED_BY             String?   @db.VarChar(100)
+  UPDATED_DATE           DateTime?
+
+  person Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  triage Triage  @relation(fields: [TRIAGE_ID], references: [TRIAGE_ID])
+  doctor Users   @relation("EncounterDoctor", fields: [DOCTOR_ID], references: [USER_ID])
+  followUps FollowUps[]
+
+  @@index([PERSON_ID])
+  @@index([DOCTOR_ID])
+  @@index([STATUS])
+  @@index([STARTED_AT])
+  @@map("ENCOUNTERS")
+}

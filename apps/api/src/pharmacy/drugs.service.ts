@@ -10,8 +10,10 @@ import { CreateDrugDto } from './dto/create-drug.dto';
 import { UpdateDrugDto } from './dto/update-drug.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import type { AuthUser } from '../auth/types/auth-user.type';
+import { PharmacySettingsService } from './pharmacy-settings.service';
 
-const EXPIRING_SOON_DAYS = 180;
+const FALLBACK_EXPIRING_SOON_DAYS = 180;
+const FALLBACK_RECENTLY_RECEIVED_DAYS = 7;
 
 export type DrugBatchResponse = {
   batchId: number;
@@ -141,7 +143,25 @@ export class DrugsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly pharmacySettings: PharmacySettingsService,
   ) {}
+
+  private async thresholdDays() {
+    try {
+      const s = await this.pharmacySettings.getOrCreate();
+      return {
+        expiringSoon: s.expiringSoonDays || FALLBACK_EXPIRING_SOON_DAYS,
+        recentlyReceived: s.recentlyReceivedDays || FALLBACK_RECENTLY_RECEIVED_DAYS,
+        defaultReorder: s.defaultReorderLevel,
+      };
+    } catch {
+      return {
+        expiringSoon: FALLBACK_EXPIRING_SOON_DAYS,
+        recentlyReceived: FALLBACK_RECENTLY_RECEIVED_DAYS,
+        defaultReorder: 0,
+      };
+    }
+  }
 
   async create(dto: CreateDrugDto, actor?: AuthUser): Promise<DrugResponse> {
     if (dto.supplierId != null) {
@@ -150,6 +170,10 @@ export class DrugsService {
       });
       if (!supplier) throw new BadRequestException('Supplier does not exist');
     }
+
+    const thresholds = await this.thresholdDays();
+    const reorder =
+      dto.reorderLevel !== undefined ? dto.reorderLevel : thresholds.defaultReorder;
 
     const created = await this.prisma.drugs.create({
       data: {
@@ -160,7 +184,7 @@ export class DrugsService {
         STRENGTH: dto.strength ?? null,
         UNIT: dto.unit ?? null,
         UNIT_PRICE: dto.unitPrice ?? 0,
-        REORDER_LEVEL: dto.reorderLevel ?? 0,
+        REORDER_LEVEL: reorder,
         SHELF: dto.shelf ?? null,
         CONTROLLED_FLAG: dto.controlled ? 'Y' : 'N',
         SUPPLIER_ID: dto.supplierId ?? null,
@@ -231,7 +255,8 @@ export class DrugsService {
     let items = rows.map((r) => toDrugResponse(r));
     if (params?.stockStatus && params.stockStatus !== 'all') {
       const now = Date.now();
-      const soonCutoff = now + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000;
+      const { expiringSoon } = await this.thresholdDays();
+      const soonCutoff = now + expiringSoon * 24 * 60 * 60 * 1000;
       if (params.stockStatus === 'Expiring Soon') {
         items = items.filter((d) => {
           if (!d.earliestExpiry) return false;
@@ -314,10 +339,12 @@ export class DrugsService {
       include: { supplier: true, batches: true },
     });
     const items = rows.map((r) => toDrugResponse(r));
+    const { expiringSoon, recentlyReceived: recentDays } =
+      await this.thresholdDays();
 
     const now = Date.now();
-    const soonCutoff = now + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000;
-    const recentCutoff = now - 7 * 24 * 60 * 60 * 1000;
+    const soonCutoff = now + expiringSoon * 24 * 60 * 60 * 1000;
+    const recentCutoff = now - recentDays * 24 * 60 * 60 * 1000;
 
     const recentlyReceived = await this.prisma.drugBatches.count({
       where: { CREATED_DATE: { gte: new Date(recentCutoff) } },
@@ -336,6 +363,10 @@ export class DrugsService {
         return t >= now && t <= soonCutoff;
       }).length,
       recentlyReceived,
+      thresholds: {
+        expiringSoonDays: expiringSoon,
+        recentlyReceivedDays: recentDays,
+      },
     };
   }
 

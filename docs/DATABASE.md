@@ -67,8 +67,15 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `PURCHASE_ORDERS` | `PurchaseOrders` | POs to suppliers (`PO-YYYY-###`) with approval + send workflow |
 | `PURCHASE_ORDER_ITEMS` | `PurchaseOrderItems` | PO line items per drug |
 | `GOODS_RECEIVED_NOTES` | `GoodsReceivedNotes` | GRNs (`GRN-YYYY-###`) linking receipts to PO/drug/batch |
-| `PRESCRIPTIONS` | `Prescriptions` | Doctor prescriptions (`RX-YYYY-####`); status Draft/Sent/Dispensed/…; linked to `PERSON_ID` |
-| `PRESCRIPTION_ITEMS` | `PrescriptionItems` | Line items: `DRUG_ID` + dose/frequency/qty; drug name snapshotted for clinical immutability |
+| `PRESCRIPTIONS` | `Prescriptions` | Doctor prescriptions (`RX-YYYY-####`); payment fields + emergency receiver; status Draft/Sent/Dispensed/…; linked to `PERSON_ID` |
+| `PRESCRIPTION_ITEMS` | `PrescriptionItems` | Line items: `DRUG_ID` + dose/frequency/qty; `QTY_DISPENSED` / `QTY_RETURNED`; drug name snapshotted |
+| `PHARMACY_SALES` | `PharmacySales` | Walk-in OTC sales (`WS-YYYY-####`); pay then dispense |
+| `PHARMACY_SALE_ITEMS` | `PharmacySaleItems` | Walk-in lines; `QTY_DISPENSED` / `QTY_RETURNED` |
+| `PHARMACY_RETURNS` | `PharmacyReturns` | Drug returns (`RT-YYYY-####`) from dispensed Rx or walk-in |
+| `PHARMACY_RETURN_ITEMS` | `PharmacyReturnItems` | Return line quantities restored to batches |
+| `PHARMACY_SETTINGS` | `PharmacySettings` | Singleton hospital thresholds (reorder default, expiry alert days, flags) |
+| `ENCOUNTERS` | `Encounters` | Doctor consultations (start from triage queue; draft notes + complete) |
+| `FOLLOW_UPS` | `FollowUps` | Doctor-scheduled follow-up visits (from complete consult or schedule dialog) |
 
 ### Relationships
 
@@ -85,6 +92,8 @@ WARDS / BEDS ── ADMISSIONS
 ADMISSIONS / PERSONS ── nursing care docs (notes, vitals, care plans, …)
 ADMISSIONS / PERSONS ── nursing ops (orders, tasks, MAR, ICU …)
 WARDS ── nursing shifts / handovers / report snapshots
+PERSONS ── PHARMACY_SALES ── PHARMACY_SALE_ITEMS ── DRUGS
+PERSONS ── PHARMACY_RETURNS ── PHARMACY_RETURN_ITEMS ── DRUGS
 USERS ── AUDITS
 SUPPLIERS ── SUPPLIER_DRUGS ── DRUGS (drugs supplied, by ID)
 SUPPLIERS ── DRUGS (optional preferred supplier)
@@ -115,8 +124,16 @@ PURCHASE_ORDERS ── GOODS_RECEIVED_NOTES ── DRUG_BATCHES
 | `stock:receive` | GRN recorded, batch created |
 | `stock:adjust` | Manual stock adjustment (reason required) |
 | `prescription:create` / `prescription:send` | Prescription draft / sent to pharmacy |
+| `prescription:pay` | Cashier/billing confirms Rx payment |
+| `pharmacy:dispense` / `pharmacy:emergency-dispense` | Normal / emergency Rx dispense |
+| `pharmacy:sale-create` / `pharmacy:sale-pay` / `pharmacy:sale-dispense` | Walk-in sale lifecycle |
+| `pharmacy:return` | Drug return of dispensed stock |
 | `prescription:update` | Status / payment / pharmacy notes change |
 | `pharmacy:dispense` | Pharmacist dispensed Rx (FEFO stock deducted) |
+| `pharmacy:sale-create` | Walk-in pharmacy request created (awaiting cashier) |
+| `pharmacy:sale-pay` | Cashier confirmed walk-in sale payment |
+| `pharmacy:sale-dispense` | Pharmacist dispensed paid walk-in sale |
+| `pharmacy:sale-cancel` | Walk-in sale cancelled |
 | `auth:login` | (planned) successful login |
 
 Filter audits with `GET /api/audit/logs?type=triage:create`.
@@ -135,4 +152,12 @@ npx prisma migrate dev
 
 Migration `20260710140000_triage_and_audit_type` adds `TRIAGE` and `AUDITS.AUDIT_TYPE` / `ENTITY` / `ENTITY_ID`.
 
-Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). Migration `20260716210000_supplier_drugs_join` adds `SUPPLIER_DRUGS` (and drops legacy `SUPPLIERS.CATEGORIES`) for environments where the first pharmacy migration was applied before the join table existed in that SQL file. Migration `20260716220000_prescriptions` adds `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS`. Run `npx prisma migrate deploy` after pull.
+Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). Migration `20260716210000_supplier_drugs_join` adds `SUPPLIER_DRUGS` (and drops legacy `SUPPLIERS.CATEGORIES`) for environments where the first pharmacy migration was applied before the join table existed in that SQL file. Migration `20260716220000_prescriptions` adds `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS`. Migration `20260717100000_pharmacy_walk_in_sales` adds walk-in sales. Migration `20260717120000_pharmacy_pay_gate_returns` adds Rx payment/emergency columns, `QTY_RETURNED`, and `PHARMACY_RETURNS` tables. Migration `20260717130000_pharmacy_settings` adds `PHARMACY_SETTINGS` thresholds. Migration `20260717160000_encounters` creates `ENCOUNTERS`. Migration `20260717180000_encounter_note_fields` adds expanded note columns. Migration `20260718160000_follow_ups` creates `FOLLOW_UPS`. Run `npx prisma migrate deploy` after pull.
+
+### Production (Render)
+
+`render.yaml` runs `npx prisma migrate deploy` on every start. If `/api/encounters/*` returns **500** after a deploy, check Render logs for `relation "ENCOUNTERS" does not exist` (or missing column) — then either redeploy so migrate runs, or from the service shell / a machine with `DATABASE_URL`:
+
+```bash
+npx prisma migrate deploy
+```

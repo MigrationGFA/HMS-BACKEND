@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
+import { PatientsModule } from '../patients/patients.module';
 import { EncountersController } from './encounters/encounters.controller';
 import { DiagnosesController } from './diagnoses/diagnoses.controller';
 import { ClinicalNotesController } from './clinical-notes/clinical-notes.controller';
@@ -16,7 +17,7 @@ import { ObservationsService } from './observations/observations.service';
 import { CarePlansService } from './care-plans/care-plans.service';
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, PatientsModule],
   controllers: [
     EncountersController,
     DiagnosesController,

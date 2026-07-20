@@ -54,6 +54,8 @@ model Users {
   triageUpdated Triage[]       @relation("TriageUpdatedBy")
   cardsCreated  PatientCards[] @relation("CardCreatedBy")
   cardsConfirmed PatientCards[] @relation("CardConfirmedBy")
+  encountersDoctor Encounters[] @relation("EncounterDoctor")
+  followUpsDoctor  FollowUps[]  @relation("FollowUpDoctor")
 
   @@index([ROLE_ID])
   @@index([PERSON_ID])

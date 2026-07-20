@@ -16,17 +16,25 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { CardsService } from '../patients/cards.service';
 import { ConfirmCardPaymentDto } from './dto/confirm-card-payment.dto';
+import { ConfirmWalkInPaymentDto } from '../pharmacy/dto/walk-in-sale.dto';
+import { WalkInSalesService } from '../pharmacy/walk-in-sales.service';
+import { ConfirmPrescriptionPaymentDto } from '../clinical/prescriptions/dto/prescription.dto';
+import { PrescriptionsService } from '../clinical/prescriptions/prescriptions.service';
 
 @Controller('cashier/payments')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class PaymentsController {
-  constructor(private readonly cardsService: CardsService) {}
+  constructor(
+    private readonly cardsService: CardsService,
+    private readonly walkInSales: WalkInSalesService,
+    private readonly prescriptionsService: PrescriptionsService,
+  ) {}
 
   /**
    * Method: GET
    * URL: /api/cashier/payments/cards?paymentStatus=Pending&q=&page=&limit=
    * Purpose: Cashier work queue — registration cards awaiting payment
-   * Required permission: card:read (CASHIER, FINANCE, RECORDS, ADMIN, SUPER_ADMIN, CMD, IT)
+   * Required permission: card:read
    * Request body: none
    * Response example: { data: { items: [{ cardId, cardNo, paymentStatus, totalAmount, person }], meta } }
    * Error cases: 401 unauthorized, 403 missing permission
@@ -52,7 +60,7 @@ export class PaymentsController {
    * Method: POST
    * URL: /api/cashier/payments/cards/:cardId/confirm
    * Purpose: Confirm a pending registration-card payment (unblocks Records workflow)
-   * Required permission: card:confirm-payment (CASHIER, FINANCE, ADMIN, SUPER_ADMIN, CMD, IT)
+   * Required permission: card:confirm-payment
    * Request body: { paymentChannel: "Cash" | "POS Card" | "Bank Transfer" | "Online Card" | "Wallet", paymentRef?: string }
    * Response example: { data: { cardId, paymentStatus: "Paid", status: "Active", paidAt, confirmedBy } }
    * Error cases: 400 validation, 401 unauthorized, 403 missing permission, 404 card not found, 409 already paid/waived
@@ -66,5 +74,97 @@ export class PaymentsController {
   ) {
     const card = await this.cardsService.confirmPayment(cardId, dto, user);
     return { data: card };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/cashier/payments/pharmacy-sales?paymentStatus=Unpaid&q=&page=&limit=
+   * Purpose: Cashier queue — walk-in pharmacy sales awaiting payment before dispense
+   * Required permission: pharmacy:sale-read
+   * Request body: none
+   * Response example: { data: { items: [{ saleId, saleNo, total, paymentStatus, person, items }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('pharmacy-sales')
+  @RequirePermissions(PERMISSIONS.PHARMACY_SALE_READ)
+  async listPharmacySales(
+    @Query('paymentStatus') paymentStatus?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.walkInSales.list({
+      paymentStatus: paymentStatus ?? 'Unpaid',
+      q,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/cashier/payments/pharmacy-sales/:saleId/confirm
+   * Purpose: Confirm walk-in pharmacy payment — unlocks pharmacist dispense
+   * Required permission: pharmacy:sale-pay
+   * Request body: { paymentChannel: "Cash" | "POS Card" | "Bank Transfer" | "Online Card" | "Wallet", paymentRef?: string }
+   * Response example: { data: { saleId, saleNo, paymentStatus: "Paid", status: "Paid", paidBy } }
+   * Error cases: 400 already paid / cancelled, 401, 403, 404
+   */
+  @Post('pharmacy-sales/:saleId/confirm')
+  @RequirePermissions(PERMISSIONS.PHARMACY_SALE_PAY)
+  async confirmPharmacySalePayment(
+    @Param('saleId', ParseIntPipe) saleId: number,
+    @Body() dto: ConfirmWalkInPaymentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const sale = await this.walkInSales.confirmPayment(saleId, dto, user);
+    return { data: sale };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/cashier/payments/prescriptions?paymentStatus=Unpaid,Emergency&q=&page=&limit=
+   * Purpose: Cashier queue — doctor prescriptions awaiting payment (including emergency-dispensed unpaid bills)
+   * Required permission: prescription:read
+   * Request body: none
+   * Response example: { data: { items: [{ prescriptionId, rxNo, total, paymentStatus, person }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('prescriptions')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_READ)
+  async listPrescriptionPayments(
+    @Query('paymentStatus') paymentStatus?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.prescriptionsService.list({
+      paymentStatus: paymentStatus ?? 'Unpaid,Emergency',
+      q,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/cashier/payments/prescriptions/:id/confirm
+   * Purpose: Confirm doctor prescription payment (clears unpaid/emergency bill)
+   * Required permission: prescription:pay
+   * Request body: { paymentChannel, paymentRef? }
+   * Response example: { data: { prescriptionId, paymentStatus: "Paid", paidBy, ... } }
+   * Error cases: 400 already paid, 401, 403, 404
+   */
+  @Post('prescriptions/:id/confirm')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_PAY)
+  async confirmPrescriptionPayment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmPrescriptionPaymentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rx = await this.prescriptionsService.confirmPayment(id, dto, user);
+    return { data: rx };
   }
 }

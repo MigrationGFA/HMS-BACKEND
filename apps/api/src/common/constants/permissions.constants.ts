@@ -21,12 +21,12 @@ export const PERMISSIONS = {
   TRIAGE_READ: 'triage:read',
   TRIAGE_UPDATE: 'triage:update',
 
-  // Admissions / wards / beds
+  // Admissions / wards / beds (Abdul-Azeez)
   ADMISSION_CREATE: 'admission:create',
   ADMISSION_READ: 'admission:read',
   ADMISSION_UPDATE: 'admission:update',
 
-  // Nursing ward documentation
+  // Nursing ward documentation (Abdul-Azeez)
   NURSING_NOTE_CREATE: 'nursing-note:create',
   NURSING_NOTE_READ: 'nursing-note:read',
   NURSING_VITAL_CREATE: 'nursing-vital:create',
@@ -42,7 +42,7 @@ export const PERMISSIONS = {
   NURSING_FORM_CREATE: 'nursing-form:create',
   NURSING_FORM_READ: 'nursing-form:read',
 
-  // Nursing ops (Phases 10–12)
+  // Nursing ops (Phases 10–12) (Abdul-Azeez)
   NURSING_ORDER_CREATE: 'nursing-order:create',
   NURSING_ORDER_READ: 'nursing-order:read',
   NURSING_ORDER_UPDATE: 'nursing-order:update',
@@ -70,10 +70,18 @@ export const PERMISSIONS = {
   NURSING_REPORT_READ: 'nursing-report:read',
   NURSING_ANALYTICS_READ: 'nursing-analytics:read',
 
+  // Doctor consultation encounters (main)
+  ENCOUNTER_CREATE: 'encounter:create',
+  ENCOUNTER_READ: 'encounter:read',
+  ENCOUNTER_UPDATE: 'encounter:update',
+  ENCOUNTER_COMPLETE: 'encounter:complete',
+
   // Clinical prescriptions
   PRESCRIPTION_CREATE: 'prescription:create',
   PRESCRIPTION_READ: 'prescription:read',
   PRESCRIPTION_UPDATE: 'prescription:update',
+  /** Cashier/billing confirm payment for doctor prescriptions */
+  PRESCRIPTION_PAY: 'prescription:pay',
 
   // Pharmacy (suppliers, drugs, procurement, inventory)
   PHARMACY_READ: 'pharmacy:read',
@@ -86,6 +94,15 @@ export const PERMISSIONS = {
   STOCK_RECEIVE: 'stock:receive',
   STOCK_ADJUST: 'stock:adjust',
   PHARMACY_DISPENSE: 'pharmacy:dispense',
+  /** Walk-in / OTC sales (request → cashier pay → dispense) */
+  PHARMACY_SALE_CREATE: 'pharmacy:sale-create',
+  PHARMACY_SALE_READ: 'pharmacy:sale-read',
+  PHARMACY_SALE_PAY: 'pharmacy:sale-pay',
+  /** Return of already-dispensed drugs */
+  PHARMACY_RETURN_CREATE: 'pharmacy:return-create',
+  PHARMACY_RETURN_READ: 'pharmacy:return-read',
+  /** Update hospital-level pharmacy thresholds / alert settings */
+  PHARMACY_SETTINGS_UPDATE: 'pharmacy:settings-update',
 
   // Audit
   AUDIT_READ: 'audit:read',
@@ -115,6 +132,8 @@ const RECORDS_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.CARD_READ,
   PERMISSIONS.TRIAGE_CREATE,
   PERMISSIONS.TRIAGE_READ,
+  PERMISSIONS.TRIAGE_UPDATE,
+  PERMISSIONS.ENCOUNTER_READ,
   PERMISSIONS.AUDIT_READ,
   PERMISSIONS.USER_READ,
 ];
@@ -123,6 +142,10 @@ const CASHIER_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_READ,
   PERMISSIONS.CARD_READ,
   PERMISSIONS.CARD_CONFIRM_PAYMENT,
+  PERMISSIONS.PRESCRIPTION_READ,
+  PERMISSIONS.PRESCRIPTION_PAY,
+  PERMISSIONS.PHARMACY_SALE_READ,
+  PERMISSIONS.PHARMACY_SALE_PAY,
   PERMISSIONS.AUDIT_READ,
 ];
 
@@ -145,12 +168,19 @@ const PHARMACY_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.STOCK_RECEIVE,
   PERMISSIONS.STOCK_ADJUST,
   PERMISSIONS.PHARMACY_DISPENSE,
+  PERMISSIONS.PHARMACY_SALE_CREATE,
+  PERMISSIONS.PHARMACY_SALE_READ,
+  PERMISSIONS.PHARMACY_RETURN_CREATE,
+  PERMISSIONS.PHARMACY_RETURN_READ,
+  PERMISSIONS.PHARMACY_SETTINGS_UPDATE,
   PERMISSIONS.AUDIT_READ,
 ];
 
+// Combined read permissions for clinical roles (both nursing and encounters)
 const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_READ,
   PERMISSIONS.TRIAGE_READ,
+  // Nursing read permissions (Abdul-Azeez)
   PERMISSIONS.ADMISSION_READ,
   PERMISSIONS.NURSING_NOTE_READ,
   PERMISSIONS.NURSING_VITAL_READ,
@@ -168,16 +198,20 @@ const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.NURSING_COMMS_READ,
   PERMISSIONS.NURSING_REPORT_READ,
   PERMISSIONS.NURSING_ANALYTICS_READ,
+  // Encounter read (main)
+  PERMISSIONS.ENCOUNTER_READ,
   PERMISSIONS.PRESCRIPTION_READ,
   /** Doctors need catalog lookup while building prescriptions. */
   PERMISSIONS.PHARMACY_READ,
 ];
 
+// Full clinical permissions (read + write for nursing and encounters)
 const CLINICAL_PERMISSIONS: PermissionName[] = [
   ...CLINICAL_READ_PERMISSIONS,
   PERMISSIONS.PATIENT_UPDATE,
   PERMISSIONS.TRIAGE_CREATE,
   PERMISSIONS.TRIAGE_UPDATE,
+  // Nursing write permissions (Abdul-Azeez)
   PERMISSIONS.ADMISSION_CREATE,
   PERMISSIONS.ADMISSION_UPDATE,
   PERMISSIONS.NURSING_NOTE_CREATE,
@@ -204,6 +238,11 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.NURSING_COMMS_CREATE,
   PERMISSIONS.NURSING_COMMS_UPDATE,
   PERMISSIONS.NURSING_REPORT_CREATE,
+  // Encounter write permissions (main)
+  PERMISSIONS.ENCOUNTER_CREATE,
+  PERMISSIONS.ENCOUNTER_UPDATE,
+  PERMISSIONS.ENCOUNTER_COMPLETE,
+  // Prescription permissions
   PERMISSIONS.PRESCRIPTION_CREATE,
   PERMISSIONS.PRESCRIPTION_UPDATE,
 ];
@@ -224,6 +263,10 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.PATIENT_READ,
     PERMISSIONS.CARD_READ,
     PERMISSIONS.CARD_CONFIRM_PAYMENT,
+    PERMISSIONS.PRESCRIPTION_READ,
+    PERMISSIONS.PRESCRIPTION_PAY,
+    PERMISSIONS.PHARMACY_SALE_READ,
+    PERMISSIONS.PHARMACY_SALE_PAY,
     PERMISSIONS.AUDIT_READ,
   ],
 

@@ -53,13 +53,15 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Records Officer Overview uses same dashboard-stats endpoint | ✅ |
 | Patient Directory (`GET /records/directory` + `/directory-stats`) | ✅ |
 | Records Audit Trail (`GET /records/audit` + `/audit-stats`) | ✅ |
+| Patient Arrival / Check-In (`GET /records/arrivals`, `POST /records/arrivals/route`) | ✅ |
 | Records registration queue + payment gate (`/api/records/*`) | ✅ |
 | Card payment gate (`GET /cards/person/:id`; triage blocked with 409 while Pending) | ✅ |
 | Cashier confirm card payment (`POST /cashier/payments/cards/:id/confirm`) | ✅ |
 | Person search (`GET /patients?q=`) | ✅ |
 | Medical records management | 📋 |
 | Appointment booking | 📋 |
-| Walk-in queue | 📋 |
+| Walk-in queue | ✅ |
+| Walk-in sales: request → cashier pay → dispense (`/pharmacy/walk-in`, cashier pharmacy-sales) | ✅ |
 | PostgreSQL full-text search | 📋 |
 
 ## Clinical & Care (Scaffolded)
@@ -82,6 +84,9 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Shifts / handover / ICU board | ✅ (API) |
 | Nursing comms / reports / analytics | ✅ (API) |
 | Encounters & clinical notes | 📋 |
+| Encounters consultation queue + start/complete (`/api/encounters/*`, payment-gated) | ✅ |
+| Patient clinical summary + encounter notes timeline (`GET …/clinical-summary`, `GET …/notes`) | ✅ |
+| Full clinical note sections on encounters (PMH, drug/allergy/family/social Hx, follow-up) | ✅ |
 | Prescriptions (`POST/GET/PATCH /prescriptions`) | ✅ |
 | Diagnoses & care plans | 📋 |
 | Ward & bed management | ✅ (API) |
@@ -106,10 +111,22 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Drug catalog with supplier link (`/pharmacy/drugs`) | ✅ |
 | Batch-tracked inventory: stock, expiry, FEFO adjustments (`/pharmacy/inventory`) | ✅ |
 | Procurement: PR → PO → approve/send → receive (GRN) (`/pharmacy/procurement/*`) | ✅ |
+| Procurement receivable POs + History cards/table (`orders/receivable`, `history`) | ✅ |
 | Pharmacy audit logging on all mutations (supplier/drug/PR/PO/receive/adjust) | ✅ |
 | Pharmacist role granted pharmacy permissions (`PHARMACY_PERMISSIONS`) | ✅ |
 | Doctor prescriptions create/send + pharmacy inbound list (`POST/GET/PATCH /prescriptions`) | ✅ |
 | Pharmacy dispense by Rx (`GET …/by-rx/:rxNo`, `POST …/:id/dispense`, FEFO + audit) | ✅ |
+| Rx pay-before-dispense + emergency override (`emergency-dispense`, cashier prescription pay) | ✅ |
+| Pharmacy billing aggregate (`/pharmacy/billing` summary + bills + confirm) | ✅ |
+| Pharmacy billing Collect is cashier-only (pharmacy page is view + link) | ✅ |
+| Pharmacy settings thresholds (`/pharmacy/settings`, `/pharmacy/config`) | ✅ |
+| Pharmacy returns of dispensed drugs (`/pharmacy/returns`, stock restore) | ✅ |
+| Pharmacy operations dashboard (`GET /pharmacy/dashboard`) | ✅ |
+| Inpatient pharmacy ward queue (`GET /pharmacy/inpatient`) | ✅ |
+| Pharmacy operational reports (`GET /pharmacy/reports/catalog`, `/reports/:type`) | ✅ |
+| Pharmacy audit trail (`GET /pharmacy/audit`, `/audit/stats`) | ✅ |
+| Pharmacy expiry monitoring (`GET /pharmacy/expiry`, quarantine) | ✅ |
+| Pharmacy analytics (`GET /pharmacy/analytics`) | ✅ |
 | Async lab processing (RabbitMQ) | 📋 |
 
 ## Finance & Operations (Scaffolded)

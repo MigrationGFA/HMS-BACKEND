@@ -6,12 +6,30 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Render start command now runs `prisma migrate deploy` before `start:prod` so tables like `ENCOUNTERS` exist in production (fixes `GET /api/encounters/active` 500 when migrations were not applied)
+
 ### Added
+- Follow-up scheduling: `FOLLOW_UPS` table (migration `20260718160000_follow_ups`); `GET/POST /api/encounters/follow-ups`, `PATCH /api/encounters/follow-ups/:id`; complete consultation accepts `followUpDate` (+ clinic/time/priority/reason) and creates a follow-up; clinical workspace Follow-Up tab + complete/schedule dialogs wired to live API
 
 - **Nursing ops (Phases 10–12):** Prisma nursing-ops tables; `/api/nursing` orders, tasks, MAR, samples, shifts, handovers, ICU, messages, reports, analytics
 - **Admissions + nursing care (Phases 8–9):** `/api/admissions*`, nursing notes/vitals/care-plans/obs/incidents/forms/timeline/alerts; seed Ward 1C + ICU
 - Nursing Patient Queues E2E + tracker [NURSING_MODULE.md](./NURSING_MODULE.md); ADR-011/012
 - Lab requests/samples still bridge to nursing-ops until a dedicated lab domain lands
+- Doctor clinical summary: `GET /api/encounters/patients/:personId/clinical-summary` (demographics, triage vitals, allergies, meds, past diagnoses/notes) and `GET …/notes` timeline; expanded `ENCOUNTERS` note columns (migration `20260717180000_encounter_note_fields`); queue/encounter responses include real `vitals` + last completed visit; workspace eye-view + active consult panels + Doctor Note Timeline wired to live APIs
+- Doctor consultation queue: `ENCOUNTERS` table (migration `20260717160000_encounters`); `GET /api/encounters/consultation-queue`, `GET /active`, `POST /start` (payment Paid/Waived required), `GET/PATCH /:id`, `POST /:id/complete`; RBAC `encounter:*`; Records consult route re-checks payment; frontend `/dashboard/doctor/clinical/workspace` live with IndexedDB draft autosave
+- Records Patient Arrival: `GET /api/records/arrivals` (today's triage + pending check-in, summary cards) + `POST /api/records/arrivals/route` (triage|consult|emergency|checkout with `arrival:*` audit); RECORDS role gains `triage:update`; frontend `/records/arrivals` wired with loading/refresh/route states
+- Pharmacy expiry monitoring: `GET /api/pharmacy/expiry` (settings-based buckets) + `POST /api/pharmacy/expiry/batches/:batchId/quarantine` (`stock:quarantine` audit); frontend `/dashboard/pharmacy/expiry` live
+- Pharmacy analytics: `GET /api/pharmacy/analytics` (revenue, dispense volume, inventory, controlled, returns, procurement charts); frontend `/pharmacy/analytics` live (no mock NHIA)
+- Pharmacy operational pages APIs: `GET /api/pharmacy/dashboard`, `GET /api/pharmacy/inpatient`, `GET /api/pharmacy/reports/catalog`, `GET /api/pharmacy/reports/:type`, `GET /api/pharmacy/audit`, `GET /api/pharmacy/audit/stats`; frontend `/pharmacy`, `/pharmacy/inpatient`, `/pharmacy/reports`, `/pharmacy/audit` wired with loading/error/empty states
+- Pharmacy pay-before-dispense (Rx): payment fields + emergency receiver on `PRESCRIPTIONS`; `POST /api/prescriptions/:id/dispense` requires Paid|Waived|Emergency; `POST …/emergency-dispense` records receiver and leaves unpaid/Emergency bill; cashier `GET/POST /api/cashier/payments/prescriptions`; permission `prescription:pay`
+- Pharmacy settings thresholds: `PHARMACY_SETTINGS` (migration `20260717130000_pharmacy_settings`); `GET/PATCH /api/pharmacy/settings` for reorder default, expiry alert windows, inventory/controlled flags; inventory stats use configured days; `/pharmacy/config` UI; `pharmacy:settings-update`
+- Pharmacy billing page is view-only for pharmacy; Collect payment remains cashier-only (`/dashboard/cashier/pharmacy`)
+- Pharmacy billing aggregate: `GET /api/pharmacy/billing/summary`, `GET /api/pharmacy/billing/bills`, `POST /api/pharmacy/billing/bills/:type/:id/confirm` (Rx + walk-in)
+- Pharmacy returns: `PHARMACY_RETURNS` / `PHARMACY_RETURN_ITEMS` + `QTY_RETURNED` on line items (migration `20260717120000_pharmacy_pay_gate_returns`); `GET/POST /api/pharmacy/returns`, lookup + summary; stock restore to batches; RBAC `pharmacy:return-create|read`; audit `pharmacy:return`
+- Frontend: dispense confirmation modals (Rx + walk-in), emergency dispense UI, cashier Rx payments tab, `/pharmacy/billing` and `/pharmacy/returns` wired to APIs
+- Walk-in pharmacy sales: `PHARMACY_SALES` / `PHARMACY_SALE_ITEMS` (migration `20260717100000_pharmacy_walk_in_sales`); flow request → cashier pay → dispense; endpoints `POST/GET /api/pharmacy/walk-in`, `POST …/:id/dispense`, `GET/POST /api/cashier/payments/pharmacy-sales`; RBAC `pharmacy:sale-create|read|pay`; audit `pharmacy:sale-create|pay|dispense|cancel`
+- Procurement receive/history: `GET /api/pharmacy/procurement/orders/receivable`, `GET /api/pharmacy/procurement/history` (cards + table); receive requires Approved PO, auto-advances Not Sent→Sent, creates `DRUG_BATCHES` (stock increases), receiver locked to authenticated user; frontend Accept opens Receive Stock prefilled
 - Clinical prescriptions API: `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS` (migration `20260716220000_prescriptions`); `POST/GET/PATCH /api/prescriptions` with RBAC (`prescription:create|read|update`), patient-centric `PERSON_ID`, drug catalog FKs, audit on create/send/update; doctors send Rx, pharmacy lists `status=Sent`
 - Pharmacy dispense: `GET /api/prescriptions/by-rx/:rxNo`, `POST /api/prescriptions/:id/dispense` (`pharmacy:dispense`) — FEFO stock deduction from `DRUG_BATCHES`, status Dispensed, audit `pharmacy:dispense` + audit trail on detail
 - Frontend: Doctor Prescription Engine and Pharmacy queue (`/pharmacy/queue`, `/dashboard/pharmacy/queue`) wired to live prescriptions + drug catalog when `VITE_USE_API=true`

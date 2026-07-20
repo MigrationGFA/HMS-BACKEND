@@ -153,3 +153,26 @@ export class DispensePrescriptionDto {
   @MaxLength(4000)
   pharmacyNotes?: string;
 }
+
+export class EmergencyDispensePrescriptionDto extends DispensePrescriptionDto {
+  /** Staff or person who received the drugs (required for emergency unpaid dispense). */
+  @IsString()
+  @MaxLength(100)
+  receivedBy!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string;
+}
+
+export class ConfirmPrescriptionPaymentDto {
+  @IsString()
+  @IsIn(['Cash', 'POS Card', 'Bank Transfer', 'Online Card', 'Wallet'])
+  paymentChannel!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  paymentRef?: string;
+}

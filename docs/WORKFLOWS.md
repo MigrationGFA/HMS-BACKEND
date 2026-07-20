@@ -102,16 +102,25 @@ Records creates triage (after registration + payment rules)
 ## 5. Doctor Consultation
 
 ```
-Doctor opens patient from queue or appointment list
-  → GET /patients/:id (demographics, allergies, history)
-  → Records consultation notes (POST /encounters)
-  → Records vitals if needed (POST /vitals)
-  → Orders lab tests (POST /lab/orders)
-  → Writes prescription (POST /prescriptions)
-  → Each action → audit log entry
+Records routes paid patient to consult
+  → POST /api/records/arrivals/route { action: "consult" }
+  → TRIAGE.STATUS = Sent to Consultation (blocked if card Pending)
+
+Doctor opens Consultation Workspace (/dashboard/doctor/clinical/workspace)
+  → GET /api/encounters/consultation-queue (includes vitals + lastVisit)
+  → Eye / Return: GET /api/encounters/patients/:personId/clinical-summary
+  → View more notes: GET /api/encounters/patients/:personId/notes
+  → Start only when paymentCleared
+  → POST /api/encounters/start { triageId }
+  → ENCOUNTERS created; TRIAGE.STATUS = In Consultation
+  → Active panel loads clinical-summary for context (vitals, allergies, meds, history)
+  → Draft notes autosave: PATCH /api/encounters/:id (full note sections + version + idempotency)
+  → POST /api/encounters/:id/complete { outcome }
+  → Optional: POST /api/prescriptions after consult
+  → Each mutation → audit (encounter:start|update|complete)
 ```
 
-**Modules:** `ClinicalModule`, `LabModule`, `PharmacyModule`, `AuditModule`
+**Modules:** `ClinicalModule` (Encounters), `RecordsModule`, `PatientsModule` (Cards), `AuditModule`
 
 ---
 
@@ -158,6 +167,128 @@ Same pharmacist dispenses immediately (no separate Send step)
 
 **Modules:** `ClinicalModule` (PrescriptionsService), `AuditModule`  
 **Permission:** `pharmacy:dispense` (pharmacist role)
+
+Pay-before-dispense: normal dispense requires `PAYMENT_STATUS` in `Paid | Waived | Emergency`. Unpaid Rx must use emergency override (records receiver) or cashier/billing payment first.
+
+```
+Doctor sends Rx (Unpaid)
+  → Cashier/Billing: POST /api/cashier/payments/prescriptions/:id/confirm
+     OR pharmacy billing confirm
+  → Pharmacist: review modal → POST /api/prescriptions/:id/dispense
+
+Emergency path (clinical override):
+  → POST /api/prescriptions/:id/emergency-dispense { receivedBy }
+  → Dispensed + PAYMENT_STATUS=Emergency (unpaid bill remains)
+  → Cashier collects later
+```
+
+---
+
+## 7b. Walk-In Pharmacy (OTC)
+
+```
+Pharmacist creates request (/pharmacy/queue → Walk-In)
+  → POST /api/pharmacy/walk-in { personId|customerName, items }
+  → status Awaiting Payment / Unpaid — NO dispense yet
+  → Audit: pharmacy:sale-create
+
+Cashier collects payment (/dashboard/cashier/pharmacy)
+  → GET /api/cashier/payments/pharmacy-sales?paymentStatus=Unpaid
+  → POST /api/cashier/payments/pharmacy-sales/:id/confirm { paymentChannel }
+  → status Paid — unlocks dispense
+  → Audit: pharmacy:sale-pay
+
+Pharmacist dispenses (same queue)
+  → POST /api/pharmacy/walk-in/:id/dispense
+  → FEFO deduct DRUG_BATCHES (blocked if Unpaid)
+  → Audit: pharmacy:sale-dispense
+```
+
+**Modules:** `PharmacyModule` (WalkInSalesService), `CashierModule`, `AuditModule`  
+**Permissions:** `pharmacy:sale-create|read|pay`, `pharmacy:dispense`
+
+---
+
+## 7c. Pharmacy Billing (aggregate)
+
+```
+GET /api/pharmacy/billing/summary — paid/pending cards + channel totals
+GET /api/pharmacy/billing/bills — unified Rx + walk-in bills
+POST /api/pharmacy/billing/bills/:type/:id/confirm — collect payment
+```
+
+Frontend: `/pharmacy/billing`. Cashier also uses `/dashboard/cashier/pharmacy` (walk-in + Rx tabs).
+
+---
+
+## 7d. Pharmacy Returns
+
+```
+Lookup dispensed Rx/sale → GET /api/pharmacy/returns/lookup?q=RX-…
+Select lines/qty + returned-by role/name + reason
+  → POST /api/pharmacy/returns
+  → QTY_RETURNED incremented; stock restored to DRUG_BATCHES
+  → Audit: pharmacy:return
+```
+
+Frontend: `/pharmacy/returns` (Returns tab live; cancel/reverse/refund placeholders).
+
+---
+
+## 7e. Pharmacy Settings (thresholds)
+
+```
+GET /api/pharmacy/settings — reorder default, expiry alert days, flags
+PATCH /api/pharmacy/settings — pharmacist updates thresholds
+Inventory stats / Expiring Soon use configured expiringSoonDays
+```
+
+Frontend: `/pharmacy/config`
+
+---
+
+## 7f. Pharmacy Operational Pages
+
+```
+Dashboard (/pharmacy)
+  → GET /api/pharmacy/dashboard?timezoneOffsetMinutes=
+  → KPI cards, charts, live inventory/procurement/returns alerts
+
+Inpatient Pharmacy (/pharmacy/inpatient)
+  → GET /api/pharmacy/inpatient?q=&wardId=&status=
+  → Active ADMISSION rows + linked PRESCRIPTIONS
+  → Open Rx → existing /pharmacy/rx/:rxNo dispense flow
+  → MAR administration remains in Nursing
+
+Reports (/pharmacy/reports)
+  → GET /api/pharmacy/reports/catalog
+  → GET /api/pharmacy/reports/:type?from=&to=
+  → CSV/PDF export from returned rows
+
+Audit Trail (/pharmacy/audit)
+  → GET /api/pharmacy/audit?q=&category=
+  → Pharmacy-scoped AUDITS (pharmacy:*, drug:*, stock:*, procurement:*, prescription:pay/dispense)
+```
+
+**Permissions:** `pharmacy:read` (dashboard/inpatient/reports), `audit:read` (audit)
+
+---
+
+## 7g. Pharmacy Expiry Monitoring & Analytics
+
+```
+Expiry (/dashboard/pharmacy/expiry)
+  → GET /api/pharmacy/expiry?bucket=&q=
+  → Settings thresholds (critical / warning / soon)
+  → POST /api/pharmacy/expiry/batches/:id/quarantine
+  → Audit: stock:quarantine
+
+Analytics (/pharmacy/analytics)
+  → GET /api/pharmacy/analytics?from=&to=
+  → Revenue, dispense volume, inventory health, controlled, returns, procurement
+```
+
+**Permissions:** `pharmacy:read`; quarantine requires `stock:adjust`
 
 ---
 

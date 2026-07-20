@@ -79,6 +79,8 @@ model Drugs {
   purchaseOrderItems   PurchaseOrderItems[]
   goodsReceived        GoodsReceivedNotes[]
   prescriptionItems    PrescriptionItems[]
+  pharmacySaleItems    PharmacySaleItems[]
+  pharmacyReturnItems  PharmacyReturnItems[]
 
   @@index([NAME])
   @@index([CATEGORY])
