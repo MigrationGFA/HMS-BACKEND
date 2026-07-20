@@ -20,6 +20,8 @@ import { ConfirmWalkInPaymentDto } from '../pharmacy/dto/walk-in-sale.dto';
 import { WalkInSalesService } from '../pharmacy/walk-in-sales.service';
 import { ConfirmPrescriptionPaymentDto } from '../clinical/prescriptions/dto/prescription.dto';
 import { PrescriptionsService } from '../clinical/prescriptions/prescriptions.service';
+import { ConfirmLabRequestPaymentDto } from '../laboratory/dto/lab.dto';
+import { LaboratoryService } from '../laboratory/laboratory.service';
 
 @Controller('cashier/payments')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -28,6 +30,7 @@ export class PaymentsController {
     private readonly cardsService: CardsService,
     private readonly walkInSales: WalkInSalesService,
     private readonly prescriptionsService: PrescriptionsService,
+    private readonly laboratoryService: LaboratoryService,
   ) {}
 
   /**
@@ -166,5 +169,52 @@ export class PaymentsController {
   ) {
     const rx = await this.prescriptionsService.confirmPayment(id, dto, user);
     return { data: rx };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/cashier/payments/lab-requests?paymentStatus=Unpaid&q=&page=&limit=
+   * Purpose: Cashier queue — doctor lab requests awaiting payment
+   * Required permission: lab:pay
+   * Request body: none
+   * Response example: { data: { items: [{ labRequestId, requestNo, totalAmount, paymentStatus, person, items }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('lab-requests')
+  @RequirePermissions(PERMISSIONS.LAB_PAY)
+  async listLabRequestPayments(
+    @Query('paymentStatus') paymentStatus?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.laboratoryService.listRequests({
+      paymentStatus: paymentStatus ?? 'Unpaid',
+      status: 'Sent',
+      q,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/cashier/payments/lab-requests/:id/confirm
+   * Purpose: Confirm lab request payment (unlocks sample processing later)
+   * Required permission: lab:pay
+   * Request body: { paymentChannel, paymentRef? }
+   * Response example: { data: { labRequestId, paymentStatus: "Paid", paidBy, ... } }
+   * Error cases: 400 already paid/cancelled, 401, 403, 404
+   */
+  @Post('lab-requests/:id/confirm')
+  @RequirePermissions(PERMISSIONS.LAB_PAY)
+  async confirmLabRequestPayment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmLabRequestPaymentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const request = await this.laboratoryService.confirmPayment(id, dto, user);
+    return { data: request };
   }
 }

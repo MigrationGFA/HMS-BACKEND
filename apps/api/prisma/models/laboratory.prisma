@@ -1,0 +1,89 @@
+// Laboratory catalog + doctor lab requests (pay-before-process; cashier confirms payment).
+// Soft status only — never hard-delete clinical lab requests.
+
+model LabTests {
+  LAB_TEST_ID   Int       @id @default(autoincrement())
+  TEST_CODE     String    @unique @db.VarChar(50)
+  NAME          String    @db.VarChar(255)
+  CATEGORY      String    @db.VarChar(100)
+  SPECIMEN_TYPE String    @db.VarChar(100)
+  CONTAINER     String?   @db.VarChar(100)
+  TURNAROUND    String    @db.VarChar(50)
+  UNIT_PRICE    Decimal   @db.Decimal(14, 2)
+  LOINC_CODE    String?   @db.VarChar(50)
+  IS_PANEL      Boolean   @default(false)
+  /// Active | Inactive
+  STATUS        String    @default("Active") @db.VarChar(50)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime?
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  requestItems LabRequestItems[]
+
+  @@index([CATEGORY])
+  @@index([STATUS])
+  @@index([NAME])
+  @@map("LAB_TESTS")
+}
+
+model LabRequests {
+  LAB_REQUEST_ID      Int       @id @default(autoincrement())
+  REQUEST_NO          String    @unique @db.VarChar(50)
+  PERSON_ID           Int
+  ENCOUNTER_ID        Int?
+  DOCTOR_ID           Int
+  /// Routine | Urgent | Stat
+  PRIORITY            String    @default("Routine") @db.VarChar(50)
+  CLINICAL_INDICATION String?   @db.Text
+  CLINICAL_NOTES      String?   @db.Text
+  /// Draft | Sent | Cancelled
+  STATUS              String    @default("Sent") @db.VarChar(50)
+  /// Unpaid | Paid | Waived — cashier owns billing; doctor never sets this
+  PAYMENT_STATUS      String    @default("Unpaid") @db.VarChar(50)
+  PAYMENT_CHANNEL     String?   @db.VarChar(50)
+  PAYMENT_REF         String?   @db.VarChar(100)
+  PAID_AT             DateTime?
+  PAID_BY             String?   @db.VarChar(100)
+  TOTAL_AMOUNT        Decimal   @default(0) @db.Decimal(14, 2)
+  CREATED_BY_ID       Int?
+  CREATED_BY          String?   @db.VarChar(100)
+  CREATED_DATE        DateTime?
+  UPDATED_BY_ID       Int?
+  UPDATED_BY          String?   @db.VarChar(100)
+  UPDATED_DATE        DateTime?
+
+  person    Persons           @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  encounter Encounters?       @relation(fields: [ENCOUNTER_ID], references: [ENCOUNTER_ID])
+  doctor    Users             @relation("LabRequestDoctor", fields: [DOCTOR_ID], references: [USER_ID])
+  items     LabRequestItems[]
+
+  @@index([PERSON_ID])
+  @@index([ENCOUNTER_ID])
+  @@index([DOCTOR_ID])
+  @@index([STATUS])
+  @@index([PAYMENT_STATUS])
+  @@index([CREATED_DATE])
+  @@map("LAB_REQUESTS")
+}
+
+model LabRequestItems {
+  ITEM_ID          Int     @id @default(autoincrement())
+  LAB_REQUEST_ID   Int
+  LAB_TEST_ID      Int
+  TEST_CODE        String  @db.VarChar(50)
+  TEST_NAME        String  @db.VarChar(255)
+  CATEGORY         String? @db.VarChar(100)
+  SPECIMEN_TYPE    String? @db.VarChar(100)
+  UNIT_PRICE       Decimal @db.Decimal(14, 2)
+  LINE_NOTES       String? @db.Text
+
+  request LabRequests @relation(fields: [LAB_REQUEST_ID], references: [LAB_REQUEST_ID])
+  test    LabTests    @relation(fields: [LAB_TEST_ID], references: [LAB_TEST_ID])
+
+  @@index([LAB_REQUEST_ID])
+  @@index([LAB_TEST_ID])
+  @@map("LAB_REQUEST_ITEMS")
+}

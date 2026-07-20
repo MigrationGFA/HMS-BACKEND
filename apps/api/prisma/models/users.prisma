@@ -56,6 +56,8 @@ model Users {
   cardsConfirmed PatientCards[] @relation("CardConfirmedBy")
   encountersDoctor Encounters[] @relation("EncounterDoctor")
   followUpsDoctor  FollowUps[]  @relation("FollowUpDoctor")
+  clinicalNotesAuthored ClinicalNotes[] @relation("ClinicalNoteAuthor")
+  labRequestsDoctor LabRequests[] @relation("LabRequestDoctor")
 
   @@index([ROLE_ID])
   @@index([PERSON_ID])

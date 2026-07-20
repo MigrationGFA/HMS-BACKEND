@@ -81,6 +81,8 @@ model Persons {
   pharmacyReturns PharmacyReturns[]
   encounters      Encounters[]
   followUps       FollowUps[]
+  clinicalNotes   ClinicalNotes[]
+  labRequests     LabRequests[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])

@@ -27,6 +27,13 @@ export const PERMISSIONS = {
   ENCOUNTER_UPDATE: 'encounter:update',
   ENCOUNTER_COMPLETE: 'encounter:complete',
 
+  // Clinical documentation notes
+  CLINICAL_NOTE_CREATE: 'clinical-note:create',
+  CLINICAL_NOTE_READ: 'clinical-note:read',
+  CLINICAL_NOTE_UPDATE: 'clinical-note:update',
+  CLINICAL_NOTE_SIGN: 'clinical-note:sign',
+  CLINICAL_NOTE_REVIEW: 'clinical-note:review',
+
   // Clinical prescriptions
   PRESCRIPTION_CREATE: 'prescription:create',
   PRESCRIPTION_READ: 'prescription:read',
@@ -54,6 +61,13 @@ export const PERMISSIONS = {
   PHARMACY_RETURN_READ: 'pharmacy:return-read',
   /** Update hospital-level pharmacy thresholds / alert settings */
   PHARMACY_SETTINGS_UPDATE: 'pharmacy:settings-update',
+
+  // Laboratory (catalog + doctor requests; cashier confirms payment)
+  LAB_READ: 'lab:read',
+  LAB_CREATE: 'lab:create',
+  LAB_UPDATE: 'lab:update',
+  /** Cashier/billing confirm payment for lab requests */
+  LAB_PAY: 'lab:pay',
 
   // Audit
   AUDIT_READ: 'audit:read',
@@ -97,6 +111,8 @@ const CASHIER_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PRESCRIPTION_PAY,
   PERMISSIONS.PHARMACY_SALE_READ,
   PERMISSIONS.PHARMACY_SALE_PAY,
+  PERMISSIONS.LAB_READ,
+  PERMISSIONS.LAB_PAY,
   PERMISSIONS.AUDIT_READ,
 ];
 
@@ -131,9 +147,12 @@ const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_READ,
   PERMISSIONS.TRIAGE_READ,
   PERMISSIONS.ENCOUNTER_READ,
+  PERMISSIONS.CLINICAL_NOTE_READ,
   PERMISSIONS.PRESCRIPTION_READ,
   /** Doctors need catalog lookup while building prescriptions. */
   PERMISSIONS.PHARMACY_READ,
+  /** Doctors need lab catalog while building lab requests. */
+  PERMISSIONS.LAB_READ,
 ];
 
 const CLINICAL_PERMISSIONS: PermissionName[] = [
@@ -144,8 +163,14 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.ENCOUNTER_CREATE,
   PERMISSIONS.ENCOUNTER_UPDATE,
   PERMISSIONS.ENCOUNTER_COMPLETE,
+  PERMISSIONS.CLINICAL_NOTE_CREATE,
+  PERMISSIONS.CLINICAL_NOTE_UPDATE,
+  PERMISSIONS.CLINICAL_NOTE_SIGN,
+  PERMISSIONS.CLINICAL_NOTE_REVIEW,
   PERMISSIONS.PRESCRIPTION_CREATE,
   PERMISSIONS.PRESCRIPTION_UPDATE,
+  PERMISSIONS.LAB_CREATE,
+  PERMISSIONS.LAB_UPDATE,
 ];
 
 /**
@@ -168,6 +193,8 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.PRESCRIPTION_PAY,
     PERMISSIONS.PHARMACY_SALE_READ,
     PERMISSIONS.PHARMACY_SALE_PAY,
+    PERMISSIONS.LAB_READ,
+    PERMISSIONS.LAB_PAY,
     PERMISSIONS.AUDIT_READ,
   ],
 
@@ -183,7 +210,11 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
   [ROLES.NUTRITION]: CLINICAL_READ_PERMISSIONS,
   [ROLES.SOCIAL_WORK]: CLINICAL_READ_PERMISSIONS,
   [ROLES.ICU]: CLINICAL_PERMISSIONS,
-  [ROLES.LAB]: [PERMISSIONS.PATIENT_READ],
+  [ROLES.LAB]: [
+    PERMISSIONS.PATIENT_READ,
+    PERMISSIONS.LAB_READ,
+    PERMISSIONS.LAB_UPDATE,
+  ],
   [ROLES.RADIOLOGY]: [PERMISSIONS.PATIENT_READ],
   [ROLES.PHARMACIST]: PHARMACY_PERMISSIONS,
 };
