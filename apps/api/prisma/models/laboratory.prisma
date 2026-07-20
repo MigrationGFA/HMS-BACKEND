@@ -35,6 +35,8 @@ model LabRequests {
   PERSON_ID           Int
   ENCOUNTER_ID        Int?
   DOCTOR_ID           Int
+  /// Doctor | WalkIn
+  SOURCE              String    @default("Doctor") @db.VarChar(50)
   /// Routine | Urgent | Stat
   PRIORITY            String    @default("Routine") @db.VarChar(50)
   CLINICAL_INDICATION String?   @db.Text
@@ -65,6 +67,7 @@ model LabRequests {
   @@index([DOCTOR_ID])
   @@index([STATUS])
   @@index([PAYMENT_STATUS])
+  @@index([SOURCE])
   @@index([CREATED_DATE])
   @@map("LAB_REQUESTS")
 }

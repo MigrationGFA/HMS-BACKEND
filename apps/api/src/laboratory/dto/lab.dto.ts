@@ -137,6 +137,11 @@ export class CreateLabRequestDto {
   @IsString()
   clinicalNotes?: string;
 
+  @IsOptional()
+  @IsString()
+  @IsIn(['Doctor', 'WalkIn'])
+  source?: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

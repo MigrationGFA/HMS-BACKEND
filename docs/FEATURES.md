@@ -108,6 +108,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 |-------------|--------|
 | Lab test catalog (`GET/POST/PATCH /laboratory/tests`) | ✅ |
 | Doctor lab requests Unpaid → cashier pay (`/laboratory/requests`, `/cashier/payments/lab-requests`) | ✅ |
+| Lab walk-in create (`source=WalkIn`, Unpaid) + LAB `lab:create` | ✅ |
+| Lab Request Center Paid/Waived-only work queue (unpaid hidden from LAB) | ✅ |
 | Active Consultation previous history + lab request dialog | ✅ |
 | Lab sample collection / result entry | 📋 |
 | Imaging & ECG | 📋 |
