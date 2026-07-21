@@ -648,9 +648,9 @@ Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`. Wa
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
 | GET | `/admissions/billing-items` | Admission package catalogue (Active items) | `admission:read` |
-| GET | `/admissions/wards?status=&personSex=&q=` | List wards; `personSex` returns Male/Female + Mixed | `admission:read` |
+| GET | `/admissions/wards?status=&personSex=&q=` | List wards with free/occupied/total bed counts; `personSex` returns Male/Female + Mixed | `admission:read` |
 | POST | `/admissions/wards` | Create ward (`wardClass?`, `gender?`, rates?, `bedCount?`) | `admission:create` |
-| GET | `/admissions/beds` | List beds (`wardId`, `status=AVAILABLE`) | `admission:read` |
+| GET | `/admissions/beds` | List beds (`wardId`, `status=AVAILABLE\|OCCUPIED|…`) | `admission:read` |
 | GET | `/admissions` | List admissions (`status`, `wardId`, `q`, `page`, `limit`) | `admission:read` |
 | GET | `/admissions/stats` | `active`, `availableBeds`, `dischargeOrdered`, `constantSupervision` | `admission:read` |
 | GET | `/admissions/:id` | Admission detail + person | `admission:read` |
@@ -660,6 +660,8 @@ Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`. Wa
 | PATCH | `/admissions/:id/complete-discharge` | → `DISCHARGED`, bed `CLEANING` | `admission:update` |
 
 **GET `/admissions/wards` response:** `{ data: { items: [{ wardId, code, name, gender, wardClass, availableBeds, totalBeds, occupiedBeds, dailyBedRate, … }] } }`
+
+**Standard testing inventory (after `20260721160000_standard_wards_beds`):** Active wards `MGEN`, `FGEN`, `MIXG`, `MVIP`, `FVIP`, `GEN`, `PRIV`, `SEMI`, `VIP`, `ICU`, `W1C` — each with beds `01`–`20` (`AVAILABLE` until assigned). Admit marks bed `OCCUPIED`.
 
 **POST `/admissions/wards` body:** `{ code, name, wardType?, wardClass?, gender?, dailyBedRate?, admissionDepositDefault?, bedCount? }`
 

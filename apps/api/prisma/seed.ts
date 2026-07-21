@@ -472,10 +472,13 @@ async function seedWardsAndBeds() {
       await prisma.wards.update({
         where: { WARD_ID: ward.WARD_ID },
         data: {
+          NAME: w.name,
+          WARD_TYPE: w.wardType,
           WARD_CLASS: w.wardClass,
           GENDER: w.gender,
           DAILY_BED_RATE: w.dailyBedRate,
           ADMISSION_DEPOSIT_DEFAULT: w.depositDefault,
+          STATUS: 'Active',
           UPDATED_BY: 'SYSTEM',
           UPDATED_DATE: now,
         },
