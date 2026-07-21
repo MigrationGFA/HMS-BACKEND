@@ -36,7 +36,8 @@ model Encounters {
   doctor Users   @relation("EncounterDoctor", fields: [DOCTOR_ID], references: [USER_ID])
   followUps     FollowUps[]
   clinicalNotes ClinicalNotes[]
-  labRequests   LabRequests[]
+  labRequests     LabRequests[]
+  imagingRequests ImagingRequests[]
 
   @@index([PERSON_ID])
   @@index([DOCTOR_ID])

@@ -1,0 +1,92 @@
+// Imaging / radiology catalog + doctor requests (pay-before-process; cashier confirms).
+// Soft status only — never hard-delete clinical imaging requests.
+
+model ImagingStudies {
+  IMAGING_STUDY_ID Int       @id @default(autoincrement())
+  STUDY_CODE       String    @unique @db.VarChar(50)
+  NAME             String    @db.VarChar(255)
+  /// X-Ray | Ultrasound | CT Scan | MRI | ECG | EEG | Mammography | Fluoroscopy | Echocardiography | Portable
+  MODALITY         String    @db.VarChar(50)
+  BODY_REGION      String?   @db.VarChar(100)
+  TURNAROUND       String?   @db.VarChar(50)
+  UNIT_PRICE       Decimal   @db.Decimal(14, 2)
+  /// Active | Inactive
+  STATUS           String    @default("Active") @db.VarChar(50)
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+
+  requestItems ImagingRequestItems[]
+
+  @@index([MODALITY])
+  @@index([STATUS])
+  @@index([NAME])
+  @@map("IMAGING_STUDIES")
+}
+
+model ImagingRequests {
+  IMAGING_REQUEST_ID  Int       @id @default(autoincrement())
+  REQUEST_NO          String    @unique @db.VarChar(50)
+  PERSON_ID           Int
+  ENCOUNTER_ID        Int?
+  DOCTOR_ID           Int
+  /// Doctor | WalkIn | Ward | Emergency
+  SOURCE              String    @default("Doctor") @db.VarChar(50)
+  /// Routine | Urgent | Emergency | Stat
+  PRIORITY            String    @default("Routine") @db.VarChar(50)
+  CLINICAL_INDICATION String?   @db.Text
+  CLINICAL_NOTES      String?   @db.Text
+  CONTRAST            String?   @db.VarChar(50)
+  /// Sent | Accepted | Rejected | Cancelled | Scheduled | InProgress | Completed
+  STATUS              String    @default("Sent") @db.VarChar(50)
+  /// Unpaid | Paid | Waived — cashier owns billing; doctor never sets this
+  PAYMENT_STATUS      String    @default("Unpaid") @db.VarChar(50)
+  PAYMENT_CHANNEL     String?   @db.VarChar(50)
+  PAYMENT_REF         String?   @db.VarChar(100)
+  PAID_AT             DateTime?
+  PAID_BY             String?   @db.VarChar(100)
+  TOTAL_AMOUNT        Decimal   @default(0) @db.Decimal(14, 2)
+  REJECTION_REASON    String?   @db.Text
+  CREATED_BY_ID       Int?
+  CREATED_BY          String?   @db.VarChar(100)
+  CREATED_DATE        DateTime?
+  UPDATED_BY_ID       Int?
+  UPDATED_BY          String?   @db.VarChar(100)
+  UPDATED_DATE        DateTime?
+
+  person    Persons               @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  encounter Encounters?           @relation(fields: [ENCOUNTER_ID], references: [ENCOUNTER_ID])
+  doctor    Users                 @relation("ImagingRequestDoctor", fields: [DOCTOR_ID], references: [USER_ID])
+  items     ImagingRequestItems[]
+
+  @@index([PERSON_ID])
+  @@index([ENCOUNTER_ID])
+  @@index([DOCTOR_ID])
+  @@index([STATUS])
+  @@index([PAYMENT_STATUS])
+  @@index([SOURCE])
+  @@index([CREATED_DATE])
+  @@map("IMAGING_REQUESTS")
+}
+
+model ImagingRequestItems {
+  ITEM_ID             Int     @id @default(autoincrement())
+  IMAGING_REQUEST_ID  Int
+  IMAGING_STUDY_ID    Int
+  STUDY_CODE          String  @db.VarChar(50)
+  STUDY_NAME          String  @db.VarChar(255)
+  MODALITY            String  @db.VarChar(50)
+  BODY_REGION         String? @db.VarChar(100)
+  UNIT_PRICE          Decimal @db.Decimal(14, 2)
+  LINE_NOTES          String? @db.Text
+
+  request ImagingRequests @relation(fields: [IMAGING_REQUEST_ID], references: [IMAGING_REQUEST_ID])
+  study   ImagingStudies  @relation(fields: [IMAGING_STUDY_ID], references: [IMAGING_STUDY_ID])
+
+  @@index([IMAGING_REQUEST_ID])
+  @@index([IMAGING_STUDY_ID])
+  @@map("IMAGING_REQUEST_ITEMS")
+}

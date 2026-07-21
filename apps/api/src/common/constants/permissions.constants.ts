@@ -133,6 +133,13 @@ export const PERMISSIONS = {
   /** Validate, return or amend lab results */
   LAB_VALIDATE: 'lab:validate',
 
+  // Imaging / radiology (catalog + doctor requests; cashier confirms payment)
+  IMAGING_READ: 'imaging:read',
+  IMAGING_CREATE: 'imaging:create',
+  IMAGING_UPDATE: 'imaging:update',
+  /** Cashier/billing confirm payment for imaging requests */
+  IMAGING_PAY: 'imaging:pay',
+
   // Audit
   AUDIT_READ: 'audit:read',
 
@@ -180,6 +187,8 @@ const CASHIER_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PHARMACY_SALE_PAY,
   PERMISSIONS.LAB_READ,
   PERMISSIONS.LAB_PAY,
+  PERMISSIONS.IMAGING_READ,
+  PERMISSIONS.IMAGING_PAY,
   PERMISSIONS.ADMISSION_READ,
   PERMISSIONS.ADMISSION_PAY,
   PERMISSIONS.AUDIT_READ,
@@ -243,6 +252,8 @@ const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PHARMACY_READ,
   /** Doctors need lab catalog while building lab requests. */
   PERMISSIONS.LAB_READ,
+  /** Doctors need imaging catalog while building imaging requests. */
+  PERMISSIONS.IMAGING_READ,
 ];
 
 // Full clinical permissions (read + write for nursing and encounters)
@@ -294,6 +305,8 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.LAB_UPDATE,
   /** Ward/clinic staff may collect specimens for paid lab requests. */
   PERMISSIONS.LAB_COLLECT,
+  PERMISSIONS.IMAGING_CREATE,
+  PERMISSIONS.IMAGING_UPDATE,
 ];
 
 /**
@@ -318,6 +331,8 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.PHARMACY_SALE_PAY,
     PERMISSIONS.LAB_READ,
     PERMISSIONS.LAB_PAY,
+    PERMISSIONS.IMAGING_READ,
+    PERMISSIONS.IMAGING_PAY,
     PERMISSIONS.ADMISSION_READ,
     PERMISSIONS.ADMISSION_PAY,
     PERMISSIONS.AUDIT_READ,
@@ -351,6 +366,8 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
   ],
   [ROLES.RADIOLOGY]: [
     PERMISSIONS.PATIENT_READ,
+    PERMISSIONS.IMAGING_READ,
+    PERMISSIONS.IMAGING_UPDATE,
     PERMISSIONS.NURSING_ORDER_CREATE,
     PERMISSIONS.NURSING_ORDER_READ,
   ],
