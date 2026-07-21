@@ -48,8 +48,8 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `TRIAGE` | `Triage` | Queue + vitals; stores `PERSON_ID` only (no duplicated demographics). Also backing store for Nursing Patient Queues (`/api/nursing/patient-queues*`) |
 | `PATIENT_CARDS` | `PatientCards` | Registration card per person; `PAYMENT_STATUS` starts `Pending` and gates the workflow until a cashier confirms |
 | `AUDITS` | `Audits` | Immutable audit trail with filterable `AUDIT_TYPE` |
-| `WARDS` | `Wards` | Inpatient wards; `WARD_CLASS`, `GENDER` (Male\|Female\|Mixed), `DAILY_BED_RATE`, `ADMISSION_DEPOSIT_DEFAULT` |
-| `BEDS` | `Beds` | Beds per ward (`AVAILABLE` / `OCCUPIED` / `CLEANING` / …) |
+| `WARDS` | `Wards` | Inpatient wards; `CODE`, `NAME`, `WARD_CLASS`, `GENDER` (Male\|Female\|Mixed), rates, `STATUS` Active\|Inactive. Standard testing codes: MGEN, FGEN, MIXG, MVIP, FVIP, GEN, PRIV, SEMI, VIP, ICU, W1C (20 beds each via migration `20260721160000_standard_wards_beds`) |
+| `BEDS` | `Beds` | Beds per ward; `LABEL` (01–20), `STATUS` (`AVAILABLE` / `OCCUPIED` / `CLEANING` / `RESERVED` / `OUT_OF_SERVICE`). Admit sets OCCUPIED; discharge frees AVAILABLE |
 | `ADMISSIONS` | `Admissions` | Inpatient stays linked to person + optional ward/bed |
 | `ADMISSION_REQUESTS` | `AdmissionRequests` | Doctor pending admission queue; statuses Draft\|Submitted\|UnderReview\|Approved\|Rejected\|Cancelled\|Admitted |
 | `ADMISSION_BILLING_ITEMS` | `AdmissionBillingItems` | Configured admission package catalogue (fee, nursing, folder, consumables, deposit) |
