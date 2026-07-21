@@ -24,6 +24,8 @@ import { ConfirmLabRequestPaymentDto } from '../laboratory/dto/lab.dto';
 import { LaboratoryService } from '../laboratory/laboratory.service';
 import { AdmissionBillsService } from '../admissions/admission-bills.service';
 import { ConfirmAdmissionBillPaymentDto } from '../admissions/dto/admission-bill.dto';
+import { RadiologyService } from '../radiology/radiology.service';
+import { ConfirmImagingRequestPaymentDto } from '../radiology/dto/imaging.dto';
 
 @Controller('cashier/payments')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -34,6 +36,7 @@ export class PaymentsController {
     private readonly prescriptionsService: PrescriptionsService,
     private readonly laboratoryService: LaboratoryService,
     private readonly admissionBills: AdmissionBillsService,
+    private readonly radiologyService: RadiologyService,
   ) {}
 
   /**
@@ -265,5 +268,51 @@ export class PaymentsController {
   ) {
     const bill = await this.admissionBills.confirmPayment(id, dto, user);
     return { data: bill };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/cashier/payments/imaging-requests?paymentStatus=Unpaid&q=&page=&limit=
+   * Purpose: Cashier queue — doctor imaging requests awaiting payment
+   * Required permission: imaging:pay
+   * Response: { data: { items: [{ imagingRequestId, requestNo, totalAmount, paymentStatus, person, items }], meta } }
+   * Errors: 401, 403
+   */
+  @Get('imaging-requests')
+  @RequirePermissions(PERMISSIONS.IMAGING_PAY)
+  async listImagingRequestPayments(
+    @Query('paymentStatus') paymentStatus?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.radiologyService.listRequests({
+      paymentStatus: paymentStatus ?? 'Unpaid',
+      status: 'Sent,Accepted',
+      q,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/cashier/payments/imaging-requests/:id/confirm
+   * Purpose: Confirm imaging request payment (unlocks radiology attendance)
+   * Required permission: imaging:pay
+   * Request body: { paymentChannel, paymentRef? }
+   * Response: { data: { imagingRequestId, paymentStatus: "Paid", … } }
+   * Errors: 400 already paid/cancelled, 401, 403, 404
+   */
+  @Post('imaging-requests/:id/confirm')
+  @RequirePermissions(PERMISSIONS.IMAGING_PAY)
+  async confirmImagingRequestPayment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmImagingRequestPaymentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const request = await this.radiologyService.confirmPayment(id, dto, user);
+    return { data: request };
   }
 }

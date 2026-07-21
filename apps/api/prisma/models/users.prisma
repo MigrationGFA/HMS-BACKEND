@@ -57,7 +57,8 @@ model Users {
   encountersDoctor Encounters[] @relation("EncounterDoctor")
   followUpsDoctor  FollowUps[]  @relation("FollowUpDoctor")
   clinicalNotesAuthored ClinicalNotes[] @relation("ClinicalNoteAuthor")
-  labRequestsDoctor LabRequests[] @relation("LabRequestDoctor")
+  labRequestsDoctor     LabRequests[]     @relation("LabRequestDoctor")
+  imagingRequestsDoctor ImagingRequests[] @relation("ImagingRequestDoctor")
 
   @@index([ROLE_ID])
   @@index([PERSON_ID])

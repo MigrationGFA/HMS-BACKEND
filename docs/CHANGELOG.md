@@ -9,6 +9,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - **Doctor admission request:** Proposed Ward removed from the doctor form. Doctors submit clinical requests only; Records allocates ward and free bed on admit. Doctor Beds tab is read-only occupancy (live API when enabled).
 
+### Added
+- **Imaging pay-before-process:** `IMAGING_STUDIES` catalog + `IMAGING_REQUESTS` / `IMAGING_REQUEST_ITEMS` (migration `20260721170000_imaging_requests`, 18 priced studies seeded). Doctor `POST /api/radiology/imaging/requests` always Unpaid; cashier `GET/POST /api/cashier/payments/imaging-requests`; radiology Accept blocked until Paid. RBAC `imaging:read|create|update|pay`. Doctor imaging UI removes billing; Radiology Request Center + Cashier Imaging tab wired.
+
 ### Fixed
 - **Records admit "Validation failed (numeric string is expected)":** `GET /api/admissions/wards` and `/beds` were captured by `GET /admissions/:id` (`id=wards|beds`) because those routes lived on separate controllers registered after the param route. Wards/beds endpoints are now static routes on `AdmissionsController` declared before `:id`.
 - **Records admit wards/beds empty:** migration `20260721160000_standard_wards_beds` aligns legacy init `WARDS`/`BEDS` columns (`WARD_NAME`/`WARDS_ID`/`BED_NO`/`AVAILABILITY`) to inpatient `CODE`/`NAME`/`WARD_ID`/`LABEL`/`STATUS`, then seeds 11 standard Active wards × 20 AVAILABLE beds for allocation. Records admit dialog shows loading/error and free/occupied counts. **Deploy:** `npx prisma migrate deploy` (also on Render start). Optional: `npm run prisma:seed` refreshes the same inventory.

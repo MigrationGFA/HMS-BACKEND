@@ -714,6 +714,8 @@ Auto-priced admission package invoices (mirror lab unpaid → paid). Prisma: `AD
 | GET | `/admission-bills/:id` | Detail + snapshotted lines | `admission:read` |
 | GET | `/cashier/payments/admission-bills?paymentStatus=Unpaid` | Cashier unpaid queue | `admission:pay` |
 | POST | `/cashier/payments/admission-bills/:id/confirm` | Confirm payment `{ paymentChannel, paymentRef? }` | `admission:pay` |
+| GET | `/cashier/payments/imaging-requests?paymentStatus=Unpaid` | Cashier unpaid imaging requests | `imaging:pay` |
+| POST | `/cashier/payments/imaging-requests/:id/confirm` | Confirm imaging payment `{ paymentChannel, paymentRef? }` | `imaging:pay` |
 
 **POST confirm body:** `{ paymentChannel: "Cash"|"POS Card"|"Bank Transfer"|"Online Card"|"Wallet", paymentRef?: string }`
 
@@ -1920,6 +1922,27 @@ Query params: `type` (`person:create`, `triage:create`, `triage:update`, …), `
 | PATCH | `/queues/:id/complete` | Mark visit complete | `queue:update` |
 
 Realtime queue state is also pushed via Socket.IO (see [WORKFLOWS.md](./WORKFLOWS.md)).
+
+---
+
+### Imaging / Radiology requests (`/radiology/imaging`)
+
+Priced study catalog + doctor imaging requests (pay-before-process). Doctor create always sets `PAYMENT_STATUS=Unpaid`. Radiology Accept / Schedule blocked until Paid/Waived.
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/radiology/imaging/studies?modality=&status=&q=` | Priced catalog | `imaging:read` |
+| POST | `/radiology/imaging/requests` | Create request (always Unpaid) | `imaging:create` |
+| GET | `/radiology/imaging/requests?paymentStatus=&workQueue=&q=` | List (`workQueue=true` → Paid only) | `imaging:read` |
+| GET | `/radiology/imaging/requests/:id` | Detail | `imaging:read` |
+| PATCH | `/radiology/imaging/requests/:id` | Accept/Reject/Schedule (Accept needs Paid) | `imaging:update` |
+| POST | `/radiology/imaging/requests/:id/cancel` | Cancel if unpaid | `imaging:update` |
+| GET | `/cashier/payments/imaging-requests` | Cashier unpaid queue | `imaging:pay` |
+| POST | `/cashier/payments/imaging-requests/:id/confirm` | Confirm payment | `imaging:pay` |
+
+**POST `/radiology/imaging/requests` body:** `{ personId, encounterId?, priority?, clinicalIndication?, clinicalNotes?, contrast?, source?, items: [{ studyId, lineNotes? }] }`
+
+**Response:** `{ data: { imagingRequestId, requestNo, paymentStatus: "Unpaid", totalAmount, paymentCleared, processingLocked, items, person } }`
 
 ---
 

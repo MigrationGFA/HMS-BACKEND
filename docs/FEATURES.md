@@ -128,7 +128,10 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Doctor Admission Request Engine (API Mine/All; clinical only — no ward/bed/payment) | ✅ |
 | Standard ward/bed inventory (11 wards × 20 beds; AVAILABLE/OCCUPIED tracking) | ✅ |
 | Records Admission Requests live (approve/reject/allocate ward+bed/admit + Unpaid bill) | ✅ |
-| Imaging & ECG | 📋 |
+| Imaging study catalog + doctor requests (pay-before-process) | ✅ |
+| Cashier Imaging Requests tab (`?tab=imaging`) | ✅ |
+| Radiology Request Center live (Accept locked until Paid) | ✅ |
+| Imaging & ECG advanced RIS (schedule/report/PACS) | 📋 |
 | Supplier management (`POST/GET/PATCH /pharmacy/suppliers`) | ✅ |
 | Drug catalog with supplier link (`/pharmacy/drugs`) | ✅ |
 | Batch-tracked inventory: stock, expiry, FEFO adjustments (`/pharmacy/inventory`) | ✅ |
