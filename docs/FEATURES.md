@@ -72,11 +72,13 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Nursing | ✅ | Phases 0–12 E2E (queues, admissions, care docs, orders/MAR/samples, shifts/ICU, comms/reports) — [NURSING_MODULE.md](./NURSING_MODULE.md) |
 | Admissions | ✅ | `/api/admissions/*` — wards (gender + free beds), beds, admit/transfer/discharge; admit auto-posts package bill |
 | Patient transfers (multi-role) | ✅ | `/api/transfers` — doctor request (no bed) → nurse prepare → Records/nurse allocate → receive → confirm; occupancy on confirm |
+| Clinical referrals (multi-role) | ✅ | `/api/referrals` — doctor Internal/External → Records route/clear → bed allocate/admit or Accept→Complete |
 | In-app notifications | ✅ | `/api/notifications` — inbox read/ack/stats |
 | Admission requests (doctor queue) | ✅ | `/api/admission-requests` — create/list mine\|all/update; statuses incl. Admitted |
 | Admission bills (package invoice) | ✅ | `/api/admission-bills` + cashier confirm; catalogue + Day-1 bed rate |
 | Diagnoses (ICD catalog + problem list) | ✅ | `/api/diagnoses` catalog/list/create/update/stats |
-| Discharge | ✅ | `/api/discharge` |
+| Discharge drafts (doctor → cashier → Records) | ✅ | `/api/discharge-drafts` — draft/submit/`order-discharge` → payment clear → finalize/`complete-discharge`; empty `/api/discharge` retired (403) |
+| Doctor clinical boards | ✅ | Patient Directory, Active Board, Ward Round (admissions + clinical notes) live when `VITE_USE_API` |
 | Psychiatry | ✅ | `/api/psychiatry/*` |
 | Allied Health | ✅ | `/api/allied-health/*` |
 | ICU | ✅ | `/api/icu` |

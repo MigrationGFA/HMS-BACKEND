@@ -651,13 +651,13 @@ Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`. Wa
 | GET | `/admissions/wards?status=&personSex=&q=` | List wards with free/occupied/total bed counts; `personSex` returns Male/Female + Mixed | `admission:read` |
 | POST | `/admissions/wards` | Create ward (`wardClass?`, `gender?`, rates?, `bedCount?`) | `admission:create` |
 | GET | `/admissions/beds` | List beds (`wardId`, `status=AVAILABLE\|OCCUPIED|…`) | `admission:read` |
-| GET | `/admissions` | List admissions (`status`, `wardId`, `q`, `page`, `limit`) | `admission:read` |
+| GET | `/admissions` | List admissions (`status` supports comma-separated values, `wardId`, `q`, `page`, `limit`) | `admission:read` |
 | GET | `/admissions/stats` | `active`, `availableBeds`, `dischargeOrdered`, `constantSupervision` | `admission:read` |
 | GET | `/admissions/:id` | Admission detail + person | `admission:read` |
 | POST | `/admissions` | Admit person to bed; auto-posts Unpaid admission package bill | `admission:create` |
 | PATCH | `/admissions/:id/transfer` | `{ bedId }` — free old bed (`CLEANING`), occupy new | `admission:update` |
 | PATCH | `/admissions/:id/order-discharge` | `{ reason? }` → `DISCHARGE_ORDERED` | `admission:update` |
-| PATCH | `/admissions/:id/complete-discharge` | → `DISCHARGED`, bed `CLEANING` | `admission:update` |
+| PATCH | `/admissions/:id/complete-discharge` | → `DISCHARGED`, bed `CLEANING` (prefer `PATCH /discharge-drafts/:id/finalize`) | `discharge:finalize` |
 
 **GET `/admissions/wards` response:** `{ data: { items: [{ wardId, code, name, gender, wardClass, availableBeds, totalBeds, occupiedBeds, dailyBedRate, … }] } }`
 
@@ -2072,6 +2072,67 @@ Multi-role clinical referral workflow. Doctor never selects a bed — only Inter
 **Frontend:** Doctor `/dashboard/doctor/clinical/referrals` (+ consultation sheet); Records `/records/referrals` (+ arrivals deep-link `?id=`); Nurse `/dashboard/nurse/referrals`. Clear FE mock keys `fnph_doc_referral_*` when `VITE_USE_API` on.
 
 **Deploy:** migration `20260721190000_clinical_referrals` via `npx prisma migrate deploy`.
+
+### Discharge drafts (`/discharge-drafts`)
+
+Doctor clinical discharge draft → Cashier payment clearance (all unpaid domain bills) → Records finalize (bed release). Prisma: `DISCHARGE_DRAFTS`, `DISCHARGE_DRAFT_EVENTS` (migration `20260721200000_discharge_drafts`). Statuses: `Draft` | `Submitted` | `AwaitingPayment` | `PaymentCleared` | `Discharged` | `Returned` | `Cancelled`.
+
+Legacy empty `/api/discharge` returns **403** and points clients to `/api/discharge-drafts`.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| POST | `/discharge-drafts` | Create draft for an admission | `discharge:create` |
+| GET | `/discharge-drafts?scope=mine\|queue\|all&status=&personId=&admissionId=&q=&page=&limit=` | List drafts | `discharge:read` |
+| GET | `/discharge-drafts/:id` | Detail + events + payment snapshot | `discharge:read` |
+| GET | `/discharge-drafts/:id/payment-status` | Aggregate unpaid bills for draft person | `discharge:read` |
+| PATCH | `/discharge-drafts/:id` | Update clinical fields (Draft/Returned only) | `discharge:update` |
+| PATCH | `/discharge-drafts/:id/submit` | Submit → `AwaitingPayment` + `order-discharge` on admission | `discharge:update` |
+| PATCH | `/discharge-drafts/:id/clear-payment` | Cashier marks `PaymentCleared` when unpaid count = 0 | `discharge:clear-payment` |
+| PATCH | `/discharge-drafts/:id/return` | Return to doctor `{ reason }` | `discharge:update` |
+| PATCH | `/discharge-drafts/:id/finalize` | Records final → `Discharged` + `completeDischarge` (bed `CLEANING`) | `discharge:finalize` |
+| PATCH | `/discharge-drafts/:id/cancel` | Cancel if not finalized `{ reason? }` | `discharge:update` |
+
+**POST `/discharge-drafts` body:**
+```json
+{
+  "admissionId": 12,
+  "dischargeType": "Normal Discharge",
+  "admissionDiagnosis": "…",
+  "finalDiagnosis": "…",
+  "clinicalSummary": "…",
+  "treatmentGiven": "…",
+  "dischargeMedications": "…",
+  "followUpPlan": "…",
+  "riskSafetyNotes": "…"
+}
+```
+
+**Response example (create/list item):**
+```json
+{
+  "data": {
+    "draftId": 1,
+    "draftNo": "DSD-2026-0001",
+    "personId": 42,
+    "admissionId": 12,
+    "status": "Draft",
+    "person": { "personId": 42, "hospitalNo": "FNPH-…", "firstName": "…" },
+    "admission": { "admissionId": 12, "status": "ADMITTED", "ward": { "name": "Male Acute" } }
+  }
+}
+```
+
+**Payment status response:** `{ data: { unpaidCount, unpaidTotal, items: [{ domain, id, ref, amount, status }] } }` — domains include admission bills, lab, imaging, prescriptions, pharmacy walk-in sales.
+
+**Errors:** `400` validation / wrong status transition / unpaid remain on clear or finalize; `401`/`403`; `404` draft/admission; `409` conflict (duplicate open draft, admission not orderable).
+
+**Audit:** `discharge:create`, `discharge:update`, `discharge:submit`, `discharge:clear-payment`, `discharge:return`, `discharge:finalize`, `discharge:cancel`. Notifications: `DischargeSubmitted` | `PaymentCleared` | `Discharged` | `Returned`.
+
+**RBAC:** Doctor `discharge:create|read|update`; Cashier `discharge:read|clear-payment`; Records `discharge:read|update|finalize`; Admin/CMD all.
+
+**Frontend:** Doctor `/dashboard/doctor/clinical/discharge`; Cashier Clinical Payments `?tab=discharge`; Records `/records/discharge`. Clear FE mock keys `fnph_doc_discharge_*`, `fnph_doc_board_*` (except watchlist), `fnph_doc_wardround_*`, `fnph_doc_patient_dir_*` when `VITE_USE_API` on. Related boards: `/dashboard/doctor/clinical/{patients,active,ward-round}` use live patients/admissions/encounters/clinical-notes.
+
+**Deploy:** migration `20260721200000_discharge_drafts` via `npx prisma migrate deploy`.
 
 ---
 

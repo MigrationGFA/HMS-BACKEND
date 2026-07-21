@@ -318,7 +318,18 @@ export class AdmissionsService {
     const term = params?.q?.trim();
 
     const where: Prisma.AdmissionsWhereInput = {
-      ...(params?.status ? { STATUS: params.status } : {}),
+      ...(params?.status
+        ? (() => {
+            const statuses = params.status
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean);
+            return {
+              STATUS:
+                statuses.length === 1 ? statuses[0] : { in: statuses },
+            };
+          })()
+        : {}),
       ...(params?.wardId ? { WARD_ID: params.wardId } : {}),
       ...(term
         ? {
@@ -693,13 +704,9 @@ export class AdmissionsService {
       where: { ADMISSION_ID: id },
     });
     if (!existing) throw new NotFoundException('Admission not found');
-    if (
-      existing.STATUS !== 'DISCHARGE_ORDERED' &&
-      existing.STATUS !== 'ADMITTED' &&
-      existing.STATUS !== 'ON_LEAVE'
-    ) {
+    if (existing.STATUS !== 'DISCHARGE_ORDERED') {
       throw new ConflictException(
-        `Cannot complete discharge from status ${existing.STATUS}`,
+        `Cannot complete discharge from status ${existing.STATUS} — use discharge draft finalize after payment clearance`,
       );
     }
 

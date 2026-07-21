@@ -1,0 +1,66 @@
+// Discharge drafts: doctor draft → cashier payment clearance → Records finalize (bed release).
+
+model DischargeDrafts {
+  DRAFT_ID               Int       @id @default(autoincrement())
+  DRAFT_NO               String    @unique @db.VarChar(50)
+  PERSON_ID              Int
+  ADMISSION_ID           Int
+  /// Draft | Submitted | AwaitingPayment | PaymentCleared | Discharged | Returned | Cancelled
+  STATUS                 String    @default("Draft") @db.VarChar(40)
+  ADMISSION_DIAGNOSIS    String?   @db.Text
+  FINAL_DIAGNOSIS        String?   @db.Text
+  REASON_FOR_ADMISSION   String?   @db.Text
+  CLINICAL_SUMMARY       String?   @db.Text
+  INVESTIGATIONS         String?   @db.Text
+  TREATMENT_GIVEN        String?   @db.Text
+  DISCHARGE_MEDICATIONS  String?   @db.Text
+  MEDICATIONS_CHANGED    String?   @db.Text
+  FOLLOW_UP_PLAN         String?   @db.Text
+  NEXT_APPOINTMENT       String?   @db.VarChar(255)
+  PATIENT_EDUCATION      String?   @db.Text
+  RISK_SAFETY_NOTES      String?   @db.Text
+  DISCHARGE_TYPE         String?   @db.VarChar(50)
+  RETURN_REASON          String?   @db.Text
+  REQUESTED_BY_USER_ID   Int?
+  SUBMITTED_AT           DateTime?
+  PAYMENT_CLEARED_BY_USER_ID Int?
+  PAYMENT_CLEARED_AT     DateTime?
+  FINALIZED_BY_USER_ID   Int?
+  FINALIZED_AT           DateTime?
+  CREATED_BY_ID          Int?
+  CREATED_BY             String?   @db.VarChar(100)
+  CREATED_DATE           DateTime?
+  UPDATED_BY_ID          Int?
+  UPDATED_BY             String?   @db.VarChar(100)
+  UPDATED_DATE           DateTime?
+
+  person     Persons                 @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission  Admissions              @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  requestedBy Users?                 @relation("DischargeDraftRequestedBy", fields: [REQUESTED_BY_USER_ID], references: [USER_ID])
+  events     DischargeDraftEvents[]
+
+  @@index([PERSON_ID])
+  @@index([ADMISSION_ID])
+  @@index([STATUS])
+  @@index([REQUESTED_BY_USER_ID])
+  @@index([CREATED_DATE])
+  @@map("DISCHARGE_DRAFTS")
+}
+
+model DischargeDraftEvents {
+  EVENT_ID       Int       @id @default(autoincrement())
+  DRAFT_ID       Int
+  EVENT_TYPE     String    @db.VarChar(50)
+  ACTOR_USER_ID  Int?
+  ACTOR_LABEL    String?   @db.VarChar(150)
+  NOTE           String?   @db.Text
+  OLD_STATUS     String?   @db.VarChar(40)
+  NEW_STATUS     String?   @db.VarChar(40)
+  CREATED_DATE   DateTime  @default(now())
+
+  draft DischargeDrafts @relation(fields: [DRAFT_ID], references: [DRAFT_ID])
+
+  @@index([DRAFT_ID])
+  @@index([CREATED_DATE])
+  @@map("DISCHARGE_DRAFT_EVENTS")
+}

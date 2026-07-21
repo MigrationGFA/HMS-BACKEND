@@ -507,6 +507,7 @@ async function seedWardsAndBeds() {
   await seedAdmissionRequestsDemo();
   await seedPatientTransfersDemo();
   await seedClinicalReferralsDemo();
+  await seedDischargeDraftsDemo();
 }
 
 /** Demo Submitted admission requests for Records queue smoke tests. */
@@ -851,6 +852,81 @@ async function seedClinicalReferralsDemo() {
       },
     });
     console.log(`Created referral ${referralNo} (${s.kind}/${s.status})`);
+  }
+}
+
+/** Demo discharge drafts for doctor / cashier / Records smoke tests. */
+async function seedDischargeDraftsDemo() {
+  const existing = await prisma.dischargeDrafts.count();
+  if (existing >= 1) {
+    console.log('Discharge draft demo skipped (drafts already present).');
+    return;
+  }
+
+  const admissions = await prisma.admissions.findMany({
+    where: { STATUS: { in: ['ADMITTED', 'DISCHARGE_ORDERED'] } },
+    orderBy: { ADMISSION_ID: 'asc' },
+    take: 2,
+  });
+  if (admissions.length === 0) {
+    console.log('Discharge draft demo skipped (no active admissions).');
+    return;
+  }
+
+  const year = new Date().getFullYear();
+  const now = new Date();
+  let seq = 1;
+  for (const adm of admissions) {
+    const draftNo = `DSD-${year}-${String(seq).padStart(4, '0')}`;
+    seq += 1;
+    const clash = await prisma.dischargeDrafts.findUnique({
+      where: { DRAFT_NO: draftNo },
+    });
+    if (clash) continue;
+
+    const created = await prisma.dischargeDrafts.create({
+      data: {
+        DRAFT_NO: draftNo,
+        PERSON_ID: adm.PERSON_ID,
+        ADMISSION_ID: adm.ADMISSION_ID,
+        STATUS: 'AwaitingPayment',
+        ADMISSION_DIAGNOSIS: adm.DIAGNOSIS,
+        FINAL_DIAGNOSIS: adm.DIAGNOSIS ?? 'Demo final diagnosis',
+        CLINICAL_SUMMARY: 'Seeded discharge draft for smoke tests',
+        DISCHARGE_MEDICATIONS: 'Continue current meds x 14 days',
+        FOLLOW_UP_PLAN: 'OPC review in 1 week',
+        DISCHARGE_TYPE: 'Routine',
+        SUBMITTED_AT: now,
+        CREATED_BY: 'SYSTEM',
+        CREATED_DATE: now,
+        UPDATED_BY: 'SYSTEM',
+        UPDATED_DATE: now,
+      },
+    });
+    await prisma.dischargeDraftEvents.create({
+      data: {
+        DRAFT_ID: created.DRAFT_ID,
+        EVENT_TYPE: 'discharge:seed',
+        ACTOR_LABEL: 'SYSTEM',
+        NOTE: 'Seeded demo discharge draft',
+        NEW_STATUS: 'AwaitingPayment',
+        CREATED_DATE: now,
+      },
+    });
+    if (adm.STATUS === 'ADMITTED') {
+      await prisma.admissions.update({
+        where: { ADMISSION_ID: adm.ADMISSION_ID },
+        data: {
+          STATUS: 'DISCHARGE_ORDERED',
+          DISCHARGE_ORDERED_AT: now,
+          DISCHARGE_ORDERED_BY: 'SYSTEM',
+          DISCHARGE_REASON: 'Seeded discharge draft',
+          UPDATED_BY: 'SYSTEM',
+          UPDATED_DATE: now,
+        },
+      });
+    }
+    console.log(`Created discharge draft ${draftNo}`);
   }
 }
 
