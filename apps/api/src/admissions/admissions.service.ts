@@ -44,6 +44,15 @@ function actorLabelOf(actor?: AuthUser): string {
   );
 }
 
+/** Normalize person sex to Male | Female for ward GENDER filter; null = no filter. */
+function normalizePersonSex(raw?: string | null): 'Male' | 'Female' | null {
+  if (!raw?.trim()) return null;
+  const s = raw.trim().toLowerCase();
+  if (s === 'male' || s === 'm' || s === 'man') return 'Male';
+  if (s === 'female' || s === 'f' || s === 'woman') return 'Female';
+  return null;
+}
+
 function mapPerson(
   p: {
     PERSON_ID: number;
@@ -87,13 +96,18 @@ export class AdmissionsService {
     private readonly admissionBills: AdmissionBillsService,
   ) {}
 
-  async listWards(): Promise<{
+  async listWards(params?: {
+    status?: string;
+    personSex?: string;
+    q?: string;
+  }): Promise<{
     items: Array<{
       wardId: number;
       code: string;
       name: string;
       wardType: string | null;
       wardClass: string | null;
+      gender: string;
       dailyBedRate: number;
       admissionDepositDefault: number;
       status: string;
@@ -102,7 +116,24 @@ export class AdmissionsService {
       occupiedBeds: number;
     }>;
   }> {
+    const where: Prisma.WardsWhereInput = {};
+    if (params?.status?.trim()) {
+      where.STATUS = params.status.trim();
+    }
+    if (params?.q?.trim()) {
+      const q = params.q.trim();
+      where.OR = [
+        { NAME: { contains: q, mode: 'insensitive' } },
+        { CODE: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    const sex = normalizePersonSex(params?.personSex);
+    if (sex) {
+      where.GENDER = { in: [sex, 'Mixed'] };
+    }
+
     const wards = await this.prisma.wards.findMany({
+      where,
       orderBy: { NAME: 'asc' },
       include: {
         beds: { select: { STATUS: true } },
@@ -120,6 +151,7 @@ export class AdmissionsService {
           name: w.NAME,
           wardType: w.WARD_TYPE,
           wardClass: w.WARD_CLASS,
+          gender: w.GENDER,
           dailyBedRate: Number(w.DAILY_BED_RATE ?? 0),
           admissionDepositDefault: Number(w.ADMISSION_DEPOSIT_DEFAULT ?? 0),
           status: w.STATUS,
@@ -139,6 +171,10 @@ export class AdmissionsService {
     code: string;
     name: string;
     wardType: string | null;
+    wardClass: string | null;
+    gender: string;
+    dailyBedRate: number;
+    admissionDepositDefault: number;
     status: string;
     bedsCreated: number;
   }> {
@@ -151,6 +187,8 @@ export class AdmissionsService {
     const actorLabel = actorLabelOf(actor);
     const now = new Date();
     const bedCount = dto.bedCount ?? 0;
+    const gender = dto.gender?.trim() || 'Mixed';
+    const wardClass = dto.wardClass?.trim() || null;
 
     const ward = await this.prisma.$transaction(async (tx) => {
       const created = await tx.wards.create({
@@ -158,6 +196,10 @@ export class AdmissionsService {
           CODE: code,
           NAME: dto.name.trim(),
           WARD_TYPE: dto.wardType?.trim() || null,
+          WARD_CLASS: wardClass,
+          GENDER: gender,
+          DAILY_BED_RATE: dto.dailyBedRate ?? 0,
+          ADMISSION_DEPOSIT_DEFAULT: dto.admissionDepositDefault ?? 0,
           STATUS: 'Active',
           CREATED_BY: actorLabel,
           CREATED_DATE: now,
@@ -184,6 +226,10 @@ export class AdmissionsService {
       code: ward.CODE,
       name: ward.NAME,
       wardType: ward.WARD_TYPE,
+      wardClass: ward.WARD_CLASS,
+      gender: ward.GENDER,
+      dailyBedRate: Number(ward.DAILY_BED_RATE ?? 0),
+      admissionDepositDefault: Number(ward.ADMISSION_DEPOSIT_DEFAULT ?? 0),
       status: ward.STATUS,
       bedsCreated: bedCount,
     };

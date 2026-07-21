@@ -7,6 +7,8 @@ model Wards {
   WARD_TYPE    String?   @db.VarChar(50)
   /// General | SemiPrivate | Private | VIP | ICU
   WARD_CLASS   String?   @db.VarChar(40)
+  /// Male | Female | Mixed — which patient sex may be admitted
+  GENDER       String    @default("Mixed") @db.VarChar(20)
   /// Configured daily bed / accommodation rate (NGN)
   DAILY_BED_RATE Decimal  @default(0) @db.Decimal(14, 2)
   /// Default deposit suggested when admitting to this ward (NGN)
@@ -25,6 +27,8 @@ model Wards {
   nursingHandovers NursingHandovers[]
   nursingReports NursingReportSnapshots[]
 
+  @@index([GENDER])
+  @@index([STATUS])
   @@map("WARDS")
 }
 

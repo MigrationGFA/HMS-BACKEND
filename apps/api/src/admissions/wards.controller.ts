@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
@@ -15,22 +15,35 @@ export class WardsController {
 
   /**
    * Method: GET
-   * URL: /api/admissions/wards
-   * Purpose: List wards with bed counts and configured rates
+   * URL: /api/admissions/wards?status=Active&personSex=Male|Female&q=
+   * Purpose: List wards with bed counts, gender, rates; optional sex filter (Male/Female + Mixed)
    * Required permission: admission:read
+   * Response: { data: { items: [{ wardId, code, name, gender, wardClass, availableBeds, totalBeds, ... }] } }
+   * Errors: 401, 403
    */
   @Get()
   @RequirePermissions(PERMISSIONS.ADMISSION_READ)
-  async list() {
-    const result = await this.admissionsService.listWards();
+  async list(
+    @Query('status') status?: string,
+    @Query('personSex') personSex?: string,
+    @Query('q') q?: string,
+  ) {
+    const result = await this.admissionsService.listWards({
+      status,
+      personSex,
+      q,
+    });
     return { data: result };
   }
 
   /**
    * Method: POST
    * URL: /api/admissions/wards
-   * Purpose: Create a ward (optional bedCount seeds AVAILABLE beds)
+   * Purpose: Create a ward with optional gender/class/rates and bedCount AVAILABLE beds
    * Required permission: admission:create
+   * Request body: { code, name, wardType?, wardClass?, gender?, dailyBedRate?, admissionDepositDefault?, bedCount? }
+   * Response: { data: { wardId, code, name, gender, wardClass, bedsCreated, ... } }
+   * Errors: 400 validation, 409 duplicate code, 401, 403
    */
   @Post()
   @RequirePermissions(PERMISSIONS.ADMISSION_CREATE)

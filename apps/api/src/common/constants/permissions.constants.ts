@@ -85,6 +85,11 @@ export const PERMISSIONS = {
   CLINICAL_NOTE_SIGN: 'clinical-note:sign',
   CLINICAL_NOTE_REVIEW: 'clinical-note:review',
 
+  // Structured diagnoses (ICD catalog + patient problem list)
+  DIAGNOSIS_CREATE: 'diagnosis:create',
+  DIAGNOSIS_READ: 'diagnosis:read',
+  DIAGNOSIS_UPDATE: 'diagnosis:update',
+
   // Clinical prescriptions
   PRESCRIPTION_CREATE: 'prescription:create',
   PRESCRIPTION_READ: 'prescription:read',
@@ -232,6 +237,7 @@ const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   // Encounter read (main)
   PERMISSIONS.ENCOUNTER_READ,
   PERMISSIONS.CLINICAL_NOTE_READ,
+  PERMISSIONS.DIAGNOSIS_READ,
   PERMISSIONS.PRESCRIPTION_READ,
   /** Doctors need catalog lookup while building prescriptions. */
   PERMISSIONS.PHARMACY_READ,
@@ -280,6 +286,8 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.CLINICAL_NOTE_UPDATE,
   PERMISSIONS.CLINICAL_NOTE_SIGN,
   PERMISSIONS.CLINICAL_NOTE_REVIEW,
+  PERMISSIONS.DIAGNOSIS_CREATE,
+  PERMISSIONS.DIAGNOSIS_UPDATE,
   PERMISSIONS.PRESCRIPTION_CREATE,
   PERMISSIONS.PRESCRIPTION_UPDATE,
   PERMISSIONS.LAB_CREATE,

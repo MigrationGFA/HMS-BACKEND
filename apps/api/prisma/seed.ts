@@ -319,16 +319,21 @@ async function main() {
 
   await seedWardsAndBeds();
   await seedNursingOpsDemo();
+  await seedDiagnosesDemo();
 }
 
 async function seedWardsAndBeds() {
   const now = new Date();
+  const twentyBeds = Array.from({ length: 20 }, (_, i) =>
+    String(i + 1).padStart(2, '0'),
+  );
 
   const wards: Array<{
     code: string;
     name: string;
     wardType: string;
     wardClass: string;
+    gender: string;
     dailyBedRate: number;
     depositDefault: number;
     beds: string[];
@@ -338,54 +343,110 @@ async function seedWardsAndBeds() {
       name: 'Ward 1C',
       wardType: 'Psychiatric',
       wardClass: 'General',
+      gender: 'Mixed',
       dailyBedRate: 5000,
       depositDefault: 50000,
-      beds: ['01', '02', '03', '04'],
+      beds: twentyBeds,
     },
     {
       code: 'ICU',
       name: 'ICU',
       wardType: 'ICU',
       wardClass: 'ICU',
+      gender: 'Mixed',
       dailyBedRate: 80000,
       depositDefault: 100000,
-      beds: ['01', '02', '03'],
+      beds: twentyBeds,
     },
     {
       code: 'GEN',
       name: 'General Ward',
       wardType: 'General',
       wardClass: 'General',
+      gender: 'Mixed',
       dailyBedRate: 5000,
       depositDefault: 50000,
-      beds: ['01', '02', '03', '04'],
+      beds: twentyBeds,
     },
     {
       code: 'PRIV',
       name: 'Private Ward',
       wardType: 'General',
       wardClass: 'Private',
+      gender: 'Mixed',
       dailyBedRate: 40000,
       depositDefault: 75000,
-      beds: ['01', '02', '03', '04'],
+      beds: twentyBeds,
     },
     {
       code: 'VIP',
       name: 'VIP Ward',
       wardType: 'General',
       wardClass: 'VIP',
+      gender: 'Mixed',
       dailyBedRate: 80000,
       depositDefault: 100000,
-      beds: ['01', '02', '03', '04'],
+      beds: twentyBeds,
     },
     {
       code: 'SEMI',
       name: 'Semi Private Ward',
       wardType: 'General',
       wardClass: 'SemiPrivate',
+      gender: 'Mixed',
       dailyBedRate: 20000,
       depositDefault: 60000,
-      beds: ['01', '02', '03', '04'],
+      beds: twentyBeds,
+    },
+    {
+      code: 'MGEN',
+      name: 'Male General Ward',
+      wardType: 'General',
+      wardClass: 'General',
+      gender: 'Male',
+      dailyBedRate: 5000,
+      depositDefault: 50000,
+      beds: twentyBeds,
+    },
+    {
+      code: 'FGEN',
+      name: 'Female General Ward',
+      wardType: 'General',
+      wardClass: 'General',
+      gender: 'Female',
+      dailyBedRate: 5000,
+      depositDefault: 50000,
+      beds: twentyBeds,
+    },
+    {
+      code: 'MVIP',
+      name: 'Male VIP Ward',
+      wardType: 'General',
+      wardClass: 'VIP',
+      gender: 'Male',
+      dailyBedRate: 80000,
+      depositDefault: 100000,
+      beds: twentyBeds,
+    },
+    {
+      code: 'FVIP',
+      name: 'Female VIP Ward',
+      wardType: 'General',
+      wardClass: 'VIP',
+      gender: 'Female',
+      dailyBedRate: 80000,
+      depositDefault: 100000,
+      beds: twentyBeds,
+    },
+    {
+      code: 'MIXG',
+      name: 'Mixed Medical Ward',
+      wardType: 'General',
+      wardClass: 'General',
+      gender: 'Mixed',
+      dailyBedRate: 5000,
+      depositDefault: 50000,
+      beds: twentyBeds,
     },
   ];
 
@@ -398,6 +459,7 @@ async function seedWardsAndBeds() {
           NAME: w.name,
           WARD_TYPE: w.wardType,
           WARD_CLASS: w.wardClass,
+          GENDER: w.gender,
           DAILY_BED_RATE: w.dailyBedRate,
           ADMISSION_DEPOSIT_DEFAULT: w.depositDefault,
           STATUS: 'Active',
@@ -411,6 +473,7 @@ async function seedWardsAndBeds() {
         where: { WARD_ID: ward.WARD_ID },
         data: {
           WARD_CLASS: w.wardClass,
+          GENDER: w.gender,
           DAILY_BED_RATE: w.dailyBedRate,
           ADMISSION_DEPOSIT_DEFAULT: w.depositDefault,
           UPDATED_BY: 'SYSTEM',
@@ -437,7 +500,7 @@ async function seedWardsAndBeds() {
     }
   }
 
-  console.log('Seeded wards/beds with configured daily rates if missing.');
+  console.log('Seeded wards/beds with gender + 20 beds each if missing.');
   await seedAdmissionRequestsDemo();
 }
 
@@ -601,6 +664,53 @@ async function seedNursingOpsDemo() {
   console.log(
     `Seeded nursing ops demo (person #${person.PERSON_ID}: lab #${lab.ORDER_ID}, drug #${drug.ORDER_ID}).`,
   );
+}
+
+/** Demo patient diagnoses for Doctor Diagnosis Engine smoke tests. */
+async function seedDiagnosesDemo() {
+  const catalogCount = await prisma.diagnosisCodes.count();
+  if (catalogCount === 0) {
+    console.log('Diagnosis demo skipped (catalog empty — run migrations).');
+    return;
+  }
+  const existing = await prisma.patientDiagnoses.count();
+  if (existing > 0) {
+    console.log('Diagnosis demo skipped (patient diagnoses already present).');
+    return;
+  }
+  const person = await prisma.persons.findFirst({ orderBy: { PERSON_ID: 'asc' } });
+  if (!person) {
+    console.log('Diagnosis demo skipped (no persons).');
+    return;
+  }
+  const codes = await prisma.diagnosisCodes.findMany({
+    where: { CODE: { in: ['6A70.1', 'BA00', '6B00'] }, STATUS: 'Active' },
+  });
+  const now = new Date();
+  for (const c of codes) {
+    await prisma.patientDiagnoses.create({
+      data: {
+        PERSON_ID: person.PERSON_ID,
+        CODE: c.CODE,
+        DSM_CODE: c.DSM_CODE,
+        SYSTEM: c.SYSTEM,
+        NAME: c.NAME,
+        TYPE: c.CODE === 'BA00' ? 'Secondary' : 'Primary',
+        SEVERITY: 'Moderate',
+        STATUS: c.CODE === 'BA00' ? 'Chronic' : 'Active',
+        CERTAINTY: 'Confirmed',
+        ON_PROBLEM_LIST: true,
+        IS_PSYCHIATRIC: c.IS_PSYCHIATRIC,
+        CLINIC: c.IS_PSYCHIATRIC ? 'OPC' : 'GMPC',
+        NOTES: 'Seed diagnosis for testing',
+        CREATED_BY: 'SYSTEM',
+        CREATED_DATE: now,
+        UPDATED_BY: 'SYSTEM',
+        UPDATED_DATE: now,
+      },
+    });
+  }
+  console.log(`Seeded ${codes.length} patient diagnoses for person #${person.PERSON_ID}.`);
 }
 
 main()
