@@ -336,7 +336,11 @@ export class AdmissionsService {
   async admit(
     dto: CreateAdmissionDto,
     actor?: AuthUser,
-  ): Promise<ReturnType<AdmissionsService['toResponse']>> {
+  ): Promise<
+    ReturnType<AdmissionsService['toResponse']> & {
+      admissionBill: ReturnType<AdmissionBillsService['toResponse']>;
+    }
+  > {
     const person = await this.prisma.persons.findUnique({
       where: { PERSON_ID: dto.personId },
     });
