@@ -328,19 +328,64 @@ async function seedWardsAndBeds() {
     code: string;
     name: string;
     wardType: string;
+    wardClass: string;
+    dailyBedRate: number;
+    depositDefault: number;
     beds: string[];
   }> = [
     {
       code: 'W1C',
       name: 'Ward 1C',
       wardType: 'Psychiatric',
+      wardClass: 'General',
+      dailyBedRate: 5000,
+      depositDefault: 50000,
       beds: ['01', '02', '03', '04'],
     },
     {
       code: 'ICU',
       name: 'ICU',
       wardType: 'ICU',
+      wardClass: 'ICU',
+      dailyBedRate: 80000,
+      depositDefault: 100000,
       beds: ['01', '02', '03'],
+    },
+    {
+      code: 'GEN',
+      name: 'General Ward',
+      wardType: 'General',
+      wardClass: 'General',
+      dailyBedRate: 5000,
+      depositDefault: 50000,
+      beds: ['01', '02', '03', '04'],
+    },
+    {
+      code: 'PRIV',
+      name: 'Private Ward',
+      wardType: 'General',
+      wardClass: 'Private',
+      dailyBedRate: 40000,
+      depositDefault: 75000,
+      beds: ['01', '02', '03', '04'],
+    },
+    {
+      code: 'VIP',
+      name: 'VIP Ward',
+      wardType: 'General',
+      wardClass: 'VIP',
+      dailyBedRate: 80000,
+      depositDefault: 100000,
+      beds: ['01', '02', '03', '04'],
+    },
+    {
+      code: 'SEMI',
+      name: 'Semi Private Ward',
+      wardType: 'General',
+      wardClass: 'SemiPrivate',
+      dailyBedRate: 20000,
+      depositDefault: 60000,
+      beds: ['01', '02', '03', '04'],
     },
   ];
 
@@ -352,12 +397,26 @@ async function seedWardsAndBeds() {
           CODE: w.code,
           NAME: w.name,
           WARD_TYPE: w.wardType,
+          WARD_CLASS: w.wardClass,
+          DAILY_BED_RATE: w.dailyBedRate,
+          ADMISSION_DEPOSIT_DEFAULT: w.depositDefault,
           STATUS: 'Active',
           CREATED_BY: 'SYSTEM',
           CREATED_DATE: now,
         },
       });
       console.log(`Created ward: ${w.name} (${w.code})`);
+    } else {
+      await prisma.wards.update({
+        where: { WARD_ID: ward.WARD_ID },
+        data: {
+          WARD_CLASS: w.wardClass,
+          DAILY_BED_RATE: w.dailyBedRate,
+          ADMISSION_DEPOSIT_DEFAULT: w.depositDefault,
+          UPDATED_BY: 'SYSTEM',
+          UPDATED_DATE: now,
+        },
+      });
     }
 
     for (const label of w.beds) {
@@ -378,7 +437,64 @@ async function seedWardsAndBeds() {
     }
   }
 
-  console.log('Seeded wards/beds (Ward 1C, ICU) if missing.');
+  console.log('Seeded wards/beds with configured daily rates if missing.');
+  await seedAdmissionRequestsDemo();
+}
+
+/** Demo Submitted admission requests for Records queue smoke tests. */
+async function seedAdmissionRequestsDemo() {
+  const existing = await prisma.admissionRequests.count({
+    where: { STATUS: 'Submitted' },
+  });
+  if (existing >= 2) {
+    console.log('Admission request demo skipped (Submitted requests already present).');
+    return;
+  }
+
+  const persons = await prisma.persons.findMany({
+    orderBy: { PERSON_ID: 'asc' },
+    take: 3,
+  });
+  if (persons.length === 0) {
+    console.log('Admission request demo skipped (no persons).');
+    return;
+  }
+
+  const ward = await prisma.wards.findFirst({
+    where: { CODE: { in: ['GEN', 'W1C'] }, STATUS: 'Active' },
+    orderBy: { WARD_ID: 'asc' },
+  });
+
+  const year = new Date().getFullYear();
+  const now = new Date();
+  let seq = (await prisma.admissionRequests.count()) + 1;
+
+  for (const person of persons.slice(0, 2)) {
+    const requestNo = `AR-${year}-${String(seq).padStart(4, '0')}`;
+    seq += 1;
+    const clash = await prisma.admissionRequests.findUnique({
+      where: { REQUEST_NO: requestNo },
+    });
+    if (clash) continue;
+
+    await prisma.admissionRequests.create({
+      data: {
+        REQUEST_NO: requestNo,
+        PERSON_ID: person.PERSON_ID,
+        WARD_ID: ward?.WARD_ID ?? null,
+        WARD_PREFERENCE: ward?.NAME ?? 'General Ward',
+        PRIORITY: 'Routine',
+        ADMISSION_TYPE: 'New admission',
+        PROVISIONAL_DIAGNOSIS: 'Seed provisional diagnosis for Records admit flow',
+        CLINICAL_INDICATION: 'Demo admission request — allocate bed then admit',
+        STATUS: 'Submitted',
+        REQUESTED_BY: 'SYSTEM',
+        CREATED_BY: 'SYSTEM',
+        CREATED_DATE: now,
+      },
+    });
+    console.log(`Created admission request ${requestNo} for person ${person.PERSON_ID}`);
+  }
 }
 
 /** Demo orders / MAR / tasks for nursing Phases 10–12 smoke tests. */

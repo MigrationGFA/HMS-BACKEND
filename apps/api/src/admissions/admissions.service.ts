@@ -15,6 +15,7 @@ import type {
   OrderDischargeDto,
   TransferAdmissionDto,
 } from './dto/admission.dto';
+import { AdmissionBillsService } from './admission-bills.service';
 
 const PERSON_SELECT = {
   PERSON_ID: true,
@@ -83,6 +84,7 @@ export class AdmissionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly admissionBills: AdmissionBillsService,
   ) {}
 
   async listWards(): Promise<{
@@ -91,6 +93,9 @@ export class AdmissionsService {
       code: string;
       name: string;
       wardType: string | null;
+      wardClass: string | null;
+      dailyBedRate: number;
+      admissionDepositDefault: number;
       status: string;
       totalBeds: number;
       availableBeds: number;
@@ -114,6 +119,9 @@ export class AdmissionsService {
           code: w.CODE,
           name: w.NAME,
           wardType: w.WARD_TYPE,
+          wardClass: w.WARD_CLASS,
+          dailyBedRate: Number(w.DAILY_BED_RATE ?? 0),
+          admissionDepositDefault: Number(w.ADMISSION_DEPOSIT_DEFAULT ?? 0),
           status: w.STATUS,
           totalBeds,
           availableBeds,
@@ -371,7 +379,24 @@ export class AdmissionsService {
     const actorLabel = actorLabelOf(actor);
     const now = new Date();
 
-    const row = await this.prisma.$transaction(async (tx) => {
+    if (dto.admissionRequestId) {
+      const req = await this.prisma.admissionRequests.findUnique({
+        where: { ADMISSION_REQUEST_ID: dto.admissionRequestId },
+      });
+      if (!req) throw new NotFoundException('Admission request not found');
+      if (req.PERSON_ID !== dto.personId) {
+        throw new BadRequestException(
+          'Admission request person does not match personId',
+        );
+      }
+      if (['Rejected', 'Cancelled', 'Admitted'].includes(req.STATUS)) {
+        throw new ConflictException(
+          `Cannot admit from request in status ${req.STATUS}`,
+        );
+      }
+    }
+
+    const { row, bill } = await this.prisma.$transaction(async (tx) => {
       await tx.beds.update({
         where: { BED_ID: dto.bedId },
         data: {
@@ -381,7 +406,7 @@ export class AdmissionsService {
         },
       });
 
-      return tx.admissions.create({
+      const admission = await tx.admissions.create({
         data: {
           PERSON_ID: dto.personId,
           WARD_ID: dto.wardId,
@@ -402,6 +427,31 @@ export class AdmissionsService {
           bed: true,
         },
       });
+
+      if (dto.admissionRequestId) {
+        await tx.admissionRequests.update({
+          where: { ADMISSION_REQUEST_ID: dto.admissionRequestId },
+          data: {
+            STATUS: 'Admitted',
+            WARD_ID: dto.wardId,
+            UPDATED_BY_ID: actor?.id ?? null,
+            UPDATED_BY: actorLabel,
+            UPDATED_DATE: now,
+          },
+        });
+      }
+
+      const createdBill = await this.admissionBills.createPackageBillInTx(tx, {
+        personId: dto.personId,
+        admissionId: admission.ADMISSION_ID,
+        admissionRequestId: dto.admissionRequestId ?? null,
+        wardId: dto.wardId,
+        actorLabel,
+        actorId: actor?.id ?? null,
+        now,
+      });
+
+      return { row: admission, bill: createdBill };
     });
 
     await this.audit.log({
@@ -417,10 +467,31 @@ export class AdmissionsService {
         wardId: dto.wardId,
         bedId: dto.bedId,
         status: 'ADMITTED',
+        admissionRequestId: dto.admissionRequestId ?? null,
+        admissionBillId: bill.ADMISSION_BILL_ID,
+        billNo: bill.BILL_NO,
       },
     });
 
-    return this.toResponse(row);
+    await this.audit.log({
+      type: 'admission-bill:create',
+      entity: 'admission-bill',
+      entityId: bill.ADMISSION_BILL_ID,
+      personId: row.PERSON_ID,
+      userId: actor?.id,
+      createdBy: actorLabel,
+      item: `Admission bill ${bill.BILL_NO} posted (Unpaid)`,
+      newValue: {
+        billNo: bill.BILL_NO,
+        totalAmount: Number(bill.TOTAL_AMOUNT),
+        paymentStatus: 'Unpaid',
+      },
+    });
+
+    return {
+      ...this.toResponse(row),
+      admissionBill: this.admissionBills.toResponse(bill),
+    };
   }
 
   async transfer(

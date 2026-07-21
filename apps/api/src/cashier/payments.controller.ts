@@ -22,6 +22,8 @@ import { ConfirmPrescriptionPaymentDto } from '../clinical/prescriptions/dto/pre
 import { PrescriptionsService } from '../clinical/prescriptions/prescriptions.service';
 import { ConfirmLabRequestPaymentDto } from '../laboratory/dto/lab.dto';
 import { LaboratoryService } from '../laboratory/laboratory.service';
+import { AdmissionBillsService } from '../admissions/admission-bills.service';
+import { ConfirmAdmissionBillPaymentDto } from '../admissions/dto/admission-bill.dto';
 
 @Controller('cashier/payments')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -31,6 +33,7 @@ export class PaymentsController {
     private readonly walkInSales: WalkInSalesService,
     private readonly prescriptionsService: PrescriptionsService,
     private readonly laboratoryService: LaboratoryService,
+    private readonly admissionBills: AdmissionBillsService,
   ) {}
 
   /**
@@ -216,5 +219,51 @@ export class PaymentsController {
   ) {
     const request = await this.laboratoryService.confirmPayment(id, dto, user);
     return { data: request };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/cashier/payments/admission-bills?paymentStatus=Unpaid&q=&page=&limit=
+   * Purpose: Cashier queue — admission package bills awaiting payment
+   * Required permission: admission:pay
+   * Request body: none
+   * Response example: { data: { items: [{ admissionBillId, billNo, totalAmount, paymentStatus, person, lines }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('admission-bills')
+  @RequirePermissions(PERMISSIONS.ADMISSION_PAY)
+  async listAdmissionBillPayments(
+    @Query('paymentStatus') paymentStatus?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.admissionBills.list({
+      paymentStatus: paymentStatus ?? 'Unpaid',
+      q,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/cashier/payments/admission-bills/:id/confirm
+   * Purpose: Confirm admission package payment (cashier does not set prices)
+   * Required permission: admission:pay
+   * Request body: { paymentChannel, paymentRef? }
+   * Response example: { data: { admissionBillId, billNo, paymentStatus: "Paid", paidBy, ... } }
+   * Error cases: 400 already paid, 401, 403, 404
+   */
+  @Post('admission-bills/:id/confirm')
+  @RequirePermissions(PERMISSIONS.ADMISSION_PAY)
+  async confirmAdmissionBillPayment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmAdmissionBillPaymentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const bill = await this.admissionBills.confirmPayment(id, dto, user);
+    return { data: bill };
   }
 }

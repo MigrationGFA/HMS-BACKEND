@@ -16,6 +16,7 @@ import { PERMISSIONS } from '../common/constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { AdmissionsService } from './admissions.service';
+import { AdmissionBillsService } from './admission-bills.service';
 import {
   CompleteDischargeDto,
   CreateAdmissionDto,
@@ -26,7 +27,10 @@ import {
 @Controller('admissions')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AdmissionsController {
-  constructor(private readonly admissionsService: AdmissionsService) {}
+  constructor(
+    private readonly admissionsService: AdmissionsService,
+    private readonly billsService: AdmissionBillsService,
+  ) {}
 
   /**
    * Method: GET
@@ -38,6 +42,21 @@ export class AdmissionsController {
   @RequirePermissions(PERMISSIONS.ADMISSION_READ)
   async stats() {
     const data = await this.admissionsService.stats();
+    return { data };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/admissions/billing-items
+   * Purpose: Active admission package catalogue (finance-configured prices)
+   * Required permission: admission:read
+   * Response: { data: { items: [{ itemCode, name, category, unitPrice }] } }
+   * Errors: 401, 403
+   */
+  @Get('billing-items')
+  @RequirePermissions(PERMISSIONS.ADMISSION_READ)
+  async billingItems() {
+    const data = await this.billsService.listBillingItems();
     return { data };
   }
 

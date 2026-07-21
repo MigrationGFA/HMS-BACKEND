@@ -20,7 +20,7 @@ apps/api/prisma/
 │   ├── encounters.prisma     # ENCOUNTERS
 │   ├── followups.prisma      # FOLLOW_UPS
 │   ├── clinical-notes.prisma # CLINICAL_NOTES + CLINICAL_NOTE_VERSIONS
-│   ├── admissions.prisma     # WARDS, BEDS, ADMISSIONS, ADMISSION_REQUESTS
+│   ├── admissions.prisma     # WARDS, BEDS, ADMISSIONS, ADMISSION_REQUESTS, ADMISSION_BILLING_ITEMS, ADMISSION_BILLS, ADMISSION_BILL_LINES
 │   ├── nursing-care.prisma   # nursing notes/vitals/care plans/obs/incidents/forms
 │   ├── nursing-ops.prisma    # orders, tasks, MAR, shifts, handover, ICU, messages, reports
 │   ├── pharmacy.prisma       # SUPPLIERS, SUPPLIER_DRUGS, DRUGS, DRUG_BATCHES, PRs/POs/GRNs
@@ -47,10 +47,13 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `TRIAGE` | `Triage` | Queue + vitals; stores `PERSON_ID` only (no duplicated demographics). Also backing store for Nursing Patient Queues (`/api/nursing/patient-queues*`) |
 | `PATIENT_CARDS` | `PatientCards` | Registration card per person; `PAYMENT_STATUS` starts `Pending` and gates the workflow until a cashier confirms |
 | `AUDITS` | `Audits` | Immutable audit trail with filterable `AUDIT_TYPE` |
-| `WARDS` | `Wards` | Inpatient wards |
+| `WARDS` | `Wards` | Inpatient wards; `WARD_CLASS`, `DAILY_BED_RATE`, `ADMISSION_DEPOSIT_DEFAULT` |
 | `BEDS` | `Beds` | Beds per ward (`AVAILABLE` / `OCCUPIED` / `CLEANING` / …) |
 | `ADMISSIONS` | `Admissions` | Inpatient stays linked to person + optional ward/bed |
-| `ADMISSION_REQUESTS` | `AdmissionRequests` | Doctor pending admission queue (no payment/bed yet); statuses Draft\|Submitted\|UnderReview\|Approved\|Rejected\|Cancelled |
+| `ADMISSION_REQUESTS` | `AdmissionRequests` | Doctor pending admission queue; statuses Draft\|Submitted\|UnderReview\|Approved\|Rejected\|Cancelled\|Admitted |
+| `ADMISSION_BILLING_ITEMS` | `AdmissionBillingItems` | Configured admission package catalogue (fee, nursing, folder, consumables, deposit) |
+| `ADMISSION_BILLS` | `AdmissionBills` | Admission package invoices (`AB-YYYY-####`); `PAYMENT_STATUS` Unpaid\|Paid\|Waived |
+| `ADMISSION_BILL_LINES` | `AdmissionBillLines` | Immutable snapshotted bill lines (incl. Day-1 bed charge) |
 | `NURSING_NOTES` | `NursingNotes` | Ward nursing notes |
 | `NURSING_VITALS` | `NursingVitals` | Ward vitals + abnormal flags |
 | `NURSING_CARE_PLANS` | `NursingCarePlans` | Nursing care plans |
@@ -104,10 +107,13 @@ PERSONS ── TRIAGE (1:N)
 PERSONS ── PATIENT_CARDS (1:N; created by / confirmed by USERS)
 PERSONS ── ADMISSIONS (1:N)
 PERSONS ── ADMISSION_REQUESTS (1:N)
+PERSONS ── ADMISSION_BILLS (1:N)
 PERSONS ── PRESCRIPTIONS ── PRESCRIPTION_ITEMS ── DRUGS
 WARDS ── BEDS (1:N)
 WARDS / BEDS ── ADMISSIONS
 WARDS ── ADMISSION_REQUESTS (optional ward preference)
+ADMISSIONS / ADMISSION_REQUESTS ── ADMISSION_BILLS (optional)
+ADMISSION_BILLS ── ADMISSION_BILL_LINES (1:N)
 ADMISSIONS / PERSONS ── nursing care docs (notes, vitals, care plans, …)
 ADMISSIONS / PERSONS ── nursing ops (orders, tasks, MAR, ICU …)
 WARDS ── nursing shifts / handovers / report snapshots
