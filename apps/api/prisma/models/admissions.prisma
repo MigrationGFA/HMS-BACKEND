@@ -23,6 +23,8 @@ model Wards {
   beds        Beds[]
   admissions  Admissions[]
   admissionRequests AdmissionRequests[]
+  transfersFrom PatientTransfers[] @relation("TransferFromWard")
+  transfersTo   PatientTransfers[] @relation("TransferToWard")
   nursingShifts NursingShifts[]
   nursingHandovers NursingHandovers[]
   nursingReports NursingReportSnapshots[]
@@ -45,6 +47,7 @@ model Beds {
 
   ward       Wards        @relation(fields: [WARD_ID], references: [WARD_ID])
   admissions Admissions[]
+  transfers  PatientTransfers[]
 
   @@unique([WARD_ID, LABEL])
   @@index([WARD_ID])
@@ -95,6 +98,7 @@ model Admissions {
   nursingIcuNotes     NursingIcuNotes[]
   nursingIcuInfusions NursingIcuInfusions[]
   admissionBills      AdmissionBills[]
+  patientTransfers    PatientTransfers[]
 
   @@index([PERSON_ID])
   @@index([STATUS])

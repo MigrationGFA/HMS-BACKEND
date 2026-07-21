@@ -1946,6 +1946,88 @@ Priced study catalog + doctor imaging requests (pay-before-process). Doctor crea
 
 ---
 
+### Patient transfers (`/transfers`)
+
+Multi-role ward/unit transfer workflow. Doctor never selects a bed — only destination preference, reason, urgency. Records **or** Nurse allocate ward+bed (`RESERVED`). Location/occupancy updates only when receiving ward confirms arrival (calls shared admissions bed-move helper). Theatre / RadiologyEscort types are stubs (rejected on create).
+
+**Permissions:** `transfer:create` (Doctor), `transfer:read`, `transfer:update` (prepare/depart/reject/cancel), `transfer:allocate` (Records/Nurse), `transfer:receive` (accept/confirm-arrival). Admin/CMD: all.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| POST | `/transfers` | Doctor create/submit (no bed) | `transfer:create` |
+| GET | `/transfers?scope=mine\|ward\|all&status=&personId=&q=&page=&limit=` | List transfers | `transfer:read` |
+| GET | `/transfers/:id` | Detail + events | `transfer:read` |
+| PATCH | `/transfers/:id/prepare` | Current ward ack/ready `{ note?, ready? }` | `transfer:update` |
+| PATCH | `/transfers/:id/allocate` | Reserve bed `{ wardId, bedId, note? }` | `transfer:allocate` |
+| PATCH | `/transfers/:id/accept` | Receiving nurse accept | `transfer:receive` |
+| PATCH | `/transfers/:id/depart` | Current nurse InTransit `{ handoverNotes? }` | `transfer:update` |
+| PATCH | `/transfers/:id/confirm-arrival` | Complete + occupy bed / update location | `transfer:receive` |
+| PATCH | `/transfers/:id/reject` | Reject `{ reason }` | `transfer:update` |
+| PATCH | `/transfers/:id/cancel` | Cancel if not completed | `transfer:update` |
+
+**POST `/transfers` body:**
+```json
+{
+  "personId": 42,
+  "admissionId": 10,
+  "transferType": "WardToWard",
+  "priority": "Urgent",
+  "toWardId": 3,
+  "toWardPreference": "ICU",
+  "reason": "Deteriorating — needs closer monitoring",
+  "clinicalNotes": "…",
+  "skipPrepare": false
+}
+```
+
+**Response example:**
+```json
+{
+  "data": {
+    "transferId": 1,
+    "transferNo": "XFR-2026-0001",
+    "status": "Submitted",
+    "transferType": "WardToWard",
+    "priority": "Urgent",
+    "allocatedBedId": null,
+    "person": { "personId": 42, "firstName": "…", "hospitalNo": "…" },
+    "events": [{ "eventType": "transfer:create", "newStatus": "Submitted" }]
+  }
+}
+```
+
+**Errors:** `400` invalid type/admission mismatch/no admission when required; `401`; `403`; `404` person/ward/transfer/bed; `409` illegal status transition / bed not AVAILABLE.
+
+**Audit:** `transfer:create|prepare|allocate|accept|depart|complete|reject|cancel` (+ `admission:transfer` on confirm when bed occupied).
+
+**Statuses:** `Draft` → `Submitted` → `NursePreparing` → `AwaitingBed` → `BedReserved` → `ReceivingAccepted` → `InTransit` → `Completed` (+ `Rejected` / `Cancelled`).
+
+**Frontend:** Doctor `/dashboard/doctor/clinical/transfers`; Nurse `/dashboard/nurse/transfers`; Records `/records/transfers`. Clear FE mock keys when `VITE_USE_API` on.
+
+**Deploy:** migration `20260721180000_patient_transfers` via `npx prisma migrate deploy`.
+
+---
+
+### Notifications (`/notifications`)
+
+Shared in-app inbox (transfer events and future clinical alerts).
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/notifications?unreadOnly=&page=&limit=` | My inbox | `notification:read` |
+| GET | `/notifications/stats` | `{ unread }` badge count | `notification:read` |
+| PATCH | `/notifications/:id/read` | Mark read | `notification:read` |
+| POST | `/notifications/:id/ack` | Acknowledge | `notification:read` |
+| POST | `/notifications/read-all` | Mark all read | `notification:read` |
+
+**Response example:** `{ data: { items: [{ notificationId, type, title, body, linkPath, isRead, createdAt }], meta } }`
+
+**Errors:** `401`; `403`; `404` notification not owned by user.
+
+**Audit filter:** `GET /api/audit/logs?type=transfer:*` supports prefix (`*` or trailing `:`) for transfer audit rows.
+
+---
+
 ### Laboratory (`/laboratory`)
 
 Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample collection → result entry → validation → amendment). Payment is cashier-owned (`PAYMENT_STATUS` defaults to **Unpaid**). Lab staff **see unpaid requests** with limited detail (`processingLocked`); sample/result processing unlocks after **Paid/Waived**.

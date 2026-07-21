@@ -23,6 +23,7 @@ import { QueuesModule } from './queues/queues.module';
 import { ClinicalModule } from './clinical/clinical.module';
 import { NursingModule } from './nursing/nursing.module';
 import { AdmissionsModule } from './admissions/admissions.module';
+import { TransfersModule } from './transfers/transfers.module';
 import { DischargeModule } from './discharge/discharge.module';
 import { PsychiatryModule } from './psychiatry/psychiatry.module';
 import { AlliedHealthModule } from './allied-health/allied-health.module';
@@ -81,6 +82,7 @@ import { HrModule } from './hr/hr.module';
     ClinicalModule,
     NursingModule,
     AdmissionsModule,
+    TransfersModule,
     DischargeModule,
     PsychiatryModule,
     AlliedHealthModule,

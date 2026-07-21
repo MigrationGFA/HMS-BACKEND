@@ -21,6 +21,7 @@ apps/api/prisma/
 │   ├── followups.prisma      # FOLLOW_UPS
 │   ├── clinical-notes.prisma # CLINICAL_NOTES + CLINICAL_NOTE_VERSIONS
 │   ├── admissions.prisma     # WARDS (+GENDER), BEDS, ADMISSIONS, ADMISSION_REQUESTS, ADMISSION_BILLING_ITEMS, ADMISSION_BILLS, ADMISSION_BILL_LINES
+│   ├── transfers.prisma      # PATIENT_TRANSFERS, PATIENT_TRANSFER_EVENTS, NOTIFICATIONS
 │   ├── clinical-diagnoses.prisma # DIAGNOSIS_CODES, PATIENT_DIAGNOSES
 │   ├── nursing-care.prisma   # nursing notes/vitals/care plans/obs/incidents/forms
 │   ├── nursing-ops.prisma    # orders, tasks, MAR, shifts, handover, ICU, messages, reports
@@ -53,6 +54,9 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `IMAGING_STUDIES` | `ImagingStudies` | Priced radiology catalog (modality + unit price); migration `20260721170000_imaging_requests` |
 | `IMAGING_REQUESTS` | `ImagingRequests` | Doctor imaging orders; `PAYMENT_STATUS` Unpaid\|Paid\|Waived (cashier confirms) |
 | `IMAGING_REQUEST_ITEMS` | `ImagingRequestItems` | Snapshotted study lines on a request |
+| `PATIENT_TRANSFERS` | `PatientTransfers` | Multi-role transfer requests (`XFR-YYYY-####`); statuses Draft→Completed (+ Rejected/Cancelled); migration `20260721180000_patient_transfers` |
+| `PATIENT_TRANSFER_EVENTS` | `PatientTransferEvents` | Immutable step log per transfer |
+| `NOTIFICATIONS` | `Notifications` | In-app inbox (transfer + system); indexed by user + unread |
 | `ADMISSIONS` | `Admissions` | Inpatient stays linked to person + optional ward/bed |
 | `ADMISSION_REQUESTS` | `AdmissionRequests` | Doctor pending admission queue; statuses Draft\|Submitted\|UnderReview\|Approved\|Rejected\|Cancelled\|Admitted |
 | `ADMISSION_BILLING_ITEMS` | `AdmissionBillingItems` | Configured admission package catalogue (fee, nursing, folder, consumables, deposit) |
@@ -113,10 +117,14 @@ PERSONS ── TRIAGE (1:N)
 PERSONS ── PATIENT_CARDS (1:N; created by / confirmed by USERS)
 PERSONS ── ADMISSIONS (1:N)
 PERSONS ── ADMISSION_REQUESTS (1:N)
+PERSONS ── PATIENT_TRANSFERS (1:N)
 PERSONS ── ADMISSION_BILLS (1:N)
 PERSONS ── PRESCRIPTIONS ── PRESCRIPTION_ITEMS ── DRUGS
+USERS ── NOTIFICATIONS (1:N)
+PATIENT_TRANSFERS ── PATIENT_TRANSFER_EVENTS (1:N)
 WARDS ── BEDS (1:N)
 WARDS / BEDS ── ADMISSIONS
+WARDS / BEDS ── PATIENT_TRANSFERS (from/to / allocated)
 WARDS ── ADMISSION_REQUESTS (optional ward preference)
 ADMISSIONS / ADMISSION_REQUESTS ── ADMISSION_BILLS (optional)
 ADMISSION_BILLS ── ADMISSION_BILL_LINES (1:N)

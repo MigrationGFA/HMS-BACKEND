@@ -505,6 +505,7 @@ async function seedWardsAndBeds() {
 
   console.log('Seeded wards/beds with gender + 20 beds each if missing.');
   await seedAdmissionRequestsDemo();
+  await seedPatientTransfersDemo();
 }
 
 /** Demo Submitted admission requests for Records queue smoke tests. */
@@ -560,6 +561,196 @@ async function seedAdmissionRequestsDemo() {
       },
     });
     console.log(`Created admission request ${requestNo} for person ${person.PERSON_ID}`);
+  }
+}
+
+/**
+ * Demo inpatient admissions + transfer queue rows for nurse/records smoke tests.
+ * Creates up to 2 active admissions on different wards when missing, then
+ * Submitted / AwaitingBed / BedReserved transfers.
+ */
+async function seedPatientTransfersDemo() {
+  const existing = await prisma.patientTransfers.count();
+  if (existing >= 3) {
+    console.log('Patient transfer demo skipped (transfers already present).');
+    return;
+  }
+
+  const persons = await prisma.persons.findMany({
+    orderBy: { PERSON_ID: 'asc' },
+    take: 4,
+  });
+  if (persons.length < 2) {
+    console.log('Patient transfer demo skipped (need ≥2 persons).');
+    return;
+  }
+
+  const genWard = await prisma.wards.findFirst({
+    where: { CODE: { in: ['GEN', 'W1C'] }, STATUS: 'Active' },
+  });
+  const icuWard = await prisma.wards.findFirst({
+    where: { CODE: { in: ['ICU', 'PRIV'] }, STATUS: 'Active' },
+  });
+  if (!genWard || !icuWard) {
+    console.log('Patient transfer demo skipped (wards missing).');
+    return;
+  }
+
+  const now = new Date();
+  const year = new Date().getFullYear();
+
+  async function ensureAdmission(
+    personId: number,
+    wardId: number,
+  ): Promise<{ admissionId: number; bedId: number | null; wardId: number } | null> {
+    const existingAdm = await prisma.admissions.findFirst({
+      where: {
+        PERSON_ID: personId,
+        STATUS: { in: ['ADMITTED', 'ACTIVE', 'Active', 'Admitted', 'BED_ALLOCATED'] },
+      },
+      orderBy: { ADMISSION_ID: 'desc' },
+    });
+    if (existingAdm) {
+      return {
+        admissionId: existingAdm.ADMISSION_ID,
+        bedId: existingAdm.BED_ID,
+        wardId: existingAdm.WARD_ID ?? wardId,
+      };
+    }
+    const bed = await prisma.beds.findFirst({
+      where: { WARD_ID: wardId, STATUS: 'AVAILABLE' },
+      orderBy: { BED_ID: 'asc' },
+    });
+    if (!bed) return null;
+    const adm = await prisma.admissions.create({
+      data: {
+        PERSON_ID: personId,
+        WARD_ID: wardId,
+        BED_ID: bed.BED_ID,
+        DIAGNOSIS: 'Seed admission for transfer demo',
+        ADMISSION_TYPE: 'General',
+        STATUS: 'ADMITTED',
+        ADMITTED_AT: now,
+        CREATED_BY: 'SYSTEM',
+        CREATED_DATE: now,
+      },
+    });
+    await prisma.beds.update({
+      where: { BED_ID: bed.BED_ID },
+      data: { STATUS: 'OCCUPIED', UPDATED_BY: 'SYSTEM', UPDATED_DATE: now },
+    });
+    return { admissionId: adm.ADMISSION_ID, bedId: bed.BED_ID, wardId };
+  }
+
+  const admA = await ensureAdmission(persons[0].PERSON_ID, genWard.WARD_ID);
+  const admB = await ensureAdmission(persons[1].PERSON_ID, icuWard.WARD_ID);
+  if (!admA || !admB) {
+    console.log('Patient transfer demo skipped (could not ensure admissions/beds).');
+    return;
+  }
+
+  let seq = (await prisma.patientTransfers.count()) + 1;
+  const nextNo = () => {
+    const no = `XFR-${year}-${String(seq).padStart(4, '0')}`;
+    seq += 1;
+    return no;
+  };
+
+  const destBed = await prisma.beds.findFirst({
+    where: { WARD_ID: icuWard.WARD_ID, STATUS: 'AVAILABLE' },
+    orderBy: { BED_ID: 'asc' },
+  });
+
+  const samples: Array<{
+    personId: number;
+    admissionId: number;
+    fromWardId: number;
+    toWardId: number;
+    status: string;
+    preference: string;
+    allocateBedId?: number;
+  }> = [
+    {
+      personId: persons[0].PERSON_ID,
+      admissionId: admA.admissionId,
+      fromWardId: admA.wardId,
+      toWardId: icuWard.WARD_ID,
+      status: 'Submitted',
+      preference: icuWard.NAME,
+    },
+    {
+      personId: persons[1].PERSON_ID,
+      admissionId: admB.admissionId,
+      fromWardId: admB.wardId,
+      toWardId: genWard.WARD_ID,
+      status: 'AwaitingBed',
+      preference: genWard.NAME,
+    },
+  ];
+
+  if (destBed && persons[2]) {
+    const admC = await ensureAdmission(persons[2].PERSON_ID, genWard.WARD_ID);
+    if (admC) {
+      samples.push({
+        personId: persons[2].PERSON_ID,
+        admissionId: admC.admissionId,
+        fromWardId: admC.wardId,
+        toWardId: icuWard.WARD_ID,
+        status: 'BedReserved',
+        preference: icuWard.NAME,
+        allocateBedId: destBed.BED_ID,
+      });
+    }
+  }
+
+  for (const s of samples) {
+    const transferNo = nextNo();
+    const clash = await prisma.patientTransfers.findUnique({
+      where: { TRANSFER_NO: transferNo },
+    });
+    if (clash) continue;
+
+    if (s.allocateBedId) {
+      await prisma.beds.update({
+        where: { BED_ID: s.allocateBedId },
+        data: { STATUS: 'RESERVED', UPDATED_BY: 'SYSTEM', UPDATED_DATE: now },
+      });
+    }
+
+    const created = await prisma.patientTransfers.create({
+      data: {
+        TRANSFER_NO: transferNo,
+        PERSON_ID: s.personId,
+        ADMISSION_ID: s.admissionId,
+        TRANSFER_TYPE: 'WardToWard',
+        PRIORITY: 'Routine',
+        FROM_WARD_ID: s.fromWardId,
+        TO_WARD_ID: s.toWardId,
+        TO_WARD_PREFERENCE: s.preference,
+        DESTINATION_LABEL: s.preference,
+        ALLOCATED_BED_ID: s.allocateBedId ?? null,
+        REASON: 'Seed demo transfer for nurse/records queue',
+        CLINICAL_NOTES: 'Demo clinical notes — safe to process in non-prod',
+        STATUS: s.status,
+        ALLOCATED_AT: s.allocateBedId ? now : null,
+        CREATED_BY: 'SYSTEM',
+        CREATED_DATE: now,
+        UPDATED_BY: 'SYSTEM',
+        UPDATED_DATE: now,
+      },
+    });
+    await prisma.patientTransferEvents.create({
+      data: {
+        TRANSFER_ID: created.TRANSFER_ID,
+        EVENT_TYPE: 'transfer:create',
+        ACTOR_LABEL: 'SYSTEM',
+        NOTE: 'Seeded demo transfer',
+        OLD_STATUS: null,
+        NEW_STATUS: s.status,
+        CREATED_DATE: now,
+      },
+    });
+    console.log(`Created transfer ${transferNo} (${s.status})`);
   }
 }
 

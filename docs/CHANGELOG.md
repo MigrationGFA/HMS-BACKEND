@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Patient Transfer Management:** multi-role workflow (doctor request → nurse prepare → Records/nurse allocate bed → receiving accept → depart → confirm arrival). Prisma `PATIENT_TRANSFERS` / `PATIENT_TRANSFER_EVENTS` / `NOTIFICATIONS` (migration `20260721180000_patient_transfers`). APIs `/api/transfers/*` and `/api/notifications/*`. RBAC `transfer:create|read|update|allocate|receive`, `notification:read`. On Completed, reuses `AdmissionsService.transfer` for occupancy. Frontend: Doctor Transfer Engine (no bed UI), Nurse `/dashboard/nurse/transfers`, Records `/records/transfers`, live notifications + transfer audit. Seed demo admissions/transfers. **Deploy:** `npx prisma migrate deploy`.
+
 ### Changed
 - **Doctor admission request:** Proposed Ward removed from the doctor form. Doctors submit clinical requests only; Records allocates ward and free bed on admit. Doctor Beds tab is read-only occupancy (live API when enabled).
 
