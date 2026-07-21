@@ -643,14 +643,14 @@ Nurse-facing facade over **Triage** + latest **PATIENT_CARDS** payment status. S
 
 ### Admissions (`/admissions`)
 
-Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`. Ward list includes configured `dailyBedRate`, `wardClass`, `admissionDepositDefault` (read-only for Records).
+Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`. Ward list includes `gender` (Male|Female|Mixed), `dailyBedRate`, `wardClass`, free/occupied bed counts.
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
 | GET | `/admissions/billing-items` | Admission package catalogue (Active items) | `admission:read` |
-| GET | `/admissions/wards` | List wards with bed counts + rates | `admission:read` |
-| POST | `/admissions/wards` | Create ward (optional `bedCount`) | `admission:create` |
-| GET | `/admissions/beds` | List beds (`wardId`, `status`) | `admission:read` |
+| GET | `/admissions/wards?status=&personSex=&q=` | List wards; `personSex` returns Male/Female + Mixed | `admission:read` |
+| POST | `/admissions/wards` | Create ward (`wardClass?`, `gender?`, rates?, `bedCount?`) | `admission:create` |
+| GET | `/admissions/beds` | List beds (`wardId`, `status=AVAILABLE`) | `admission:read` |
 | GET | `/admissions` | List admissions (`status`, `wardId`, `q`, `page`, `limit`) | `admission:read` |
 | GET | `/admissions/stats` | `active`, `availableBeds`, `dischargeOrdered`, `constantSupervision` | `admission:read` |
 | GET | `/admissions/:id` | Admission detail + person | `admission:read` |
@@ -658,6 +658,10 @@ Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`. Wa
 | PATCH | `/admissions/:id/transfer` | `{ bedId }` — free old bed (`CLEANING`), occupy new | `admission:update` |
 | PATCH | `/admissions/:id/order-discharge` | `{ reason? }` → `DISCHARGE_ORDERED` | `admission:update` |
 | PATCH | `/admissions/:id/complete-discharge` | → `DISCHARGED`, bed `CLEANING` | `admission:update` |
+
+**GET `/admissions/wards` response:** `{ data: { items: [{ wardId, code, name, gender, wardClass, availableBeds, totalBeds, occupiedBeds, dailyBedRate, … }] } }`
+
+**POST `/admissions/wards` body:** `{ code, name, wardType?, wardClass?, gender?, dailyBedRate?, admissionDepositDefault?, bedCount? }`
 
 **POST `/admissions` body:** `{ personId, wardId, bedId, admissionRequestId?, admissionType?, diagnosis?, … }` — optional `admissionRequestId` marks the request `Admitted` and links the bill.
 
@@ -830,6 +834,29 @@ Drugs a supplier supplies are referenced by **drug ID** (from the drug catalog),
 **Errors:** `400` validation / unknown drug id, `401`, `403` missing `supplier:create`, `409` duplicate supplier name. Writes audit `supplier:create`.
 
 `PATCH /api/pharmacy/suppliers/:id` accepts the same fields; sending `drugIds` **replaces** the supplier's full set of supplied drugs.
+
+---
+
+### Diagnoses (`/diagnoses`)
+
+ICD/DSM catalog + patient problem list. Prisma: `DIAGNOSIS_CODES`, `PATIENT_DIAGNOSES`. No hard delete.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/diagnoses/catalog?q=&system=&category=` | Search Active catalog | `diagnosis:read` |
+| GET | `/diagnoses/stats?personId=` | KPI counts | `diagnosis:read` |
+| GET | `/diagnoses?personId=&status=&type=&tab=&q=&page=&limit=` | List patient diagnoses | `diagnosis:read` |
+| GET | `/diagnoses/:id` | Detail | `diagnosis:read` |
+| POST | `/diagnoses` | Add diagnosis (`personId`, `diagnosisCodeId` or `code`+`name`, type/status…) | `diagnosis:create` |
+| PATCH | `/diagnoses/:id` | Update / resolve / rule-out / mark chronic | `diagnosis:update` |
+
+**POST body example:** `{ "personId": 42, "diagnosisCodeId": 1, "type": "Primary", "severity": "Moderate", "certainty": "Confirmed", "clinic": "OPC" }`
+
+**Response example:** `{ data: { patientDiagnosisId, code, name, type, status, personId, isPsychiatric, … } }`
+
+**Errors:** `400` missing code/name; `404` person/diagnosis; `401`; `403`.
+
+**Audit:** `diagnosis:create`, `diagnosis:update`.
 
 ---
 

@@ -20,7 +20,8 @@ apps/api/prisma/
 │   ├── encounters.prisma     # ENCOUNTERS
 │   ├── followups.prisma      # FOLLOW_UPS
 │   ├── clinical-notes.prisma # CLINICAL_NOTES + CLINICAL_NOTE_VERSIONS
-│   ├── admissions.prisma     # WARDS, BEDS, ADMISSIONS, ADMISSION_REQUESTS, ADMISSION_BILLING_ITEMS, ADMISSION_BILLS, ADMISSION_BILL_LINES
+│   ├── admissions.prisma     # WARDS (+GENDER), BEDS, ADMISSIONS, ADMISSION_REQUESTS, ADMISSION_BILLING_ITEMS, ADMISSION_BILLS, ADMISSION_BILL_LINES
+│   ├── clinical-diagnoses.prisma # DIAGNOSIS_CODES, PATIENT_DIAGNOSES
 │   ├── nursing-care.prisma   # nursing notes/vitals/care plans/obs/incidents/forms
 │   ├── nursing-ops.prisma    # orders, tasks, MAR, shifts, handover, ICU, messages, reports
 │   ├── pharmacy.prisma       # SUPPLIERS, SUPPLIER_DRUGS, DRUGS, DRUG_BATCHES, PRs/POs/GRNs
@@ -47,7 +48,7 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `TRIAGE` | `Triage` | Queue + vitals; stores `PERSON_ID` only (no duplicated demographics). Also backing store for Nursing Patient Queues (`/api/nursing/patient-queues*`) |
 | `PATIENT_CARDS` | `PatientCards` | Registration card per person; `PAYMENT_STATUS` starts `Pending` and gates the workflow until a cashier confirms |
 | `AUDITS` | `Audits` | Immutable audit trail with filterable `AUDIT_TYPE` |
-| `WARDS` | `Wards` | Inpatient wards; `WARD_CLASS`, `DAILY_BED_RATE`, `ADMISSION_DEPOSIT_DEFAULT` |
+| `WARDS` | `Wards` | Inpatient wards; `WARD_CLASS`, `GENDER` (Male\|Female\|Mixed), `DAILY_BED_RATE`, `ADMISSION_DEPOSIT_DEFAULT` |
 | `BEDS` | `Beds` | Beds per ward (`AVAILABLE` / `OCCUPIED` / `CLEANING` / …) |
 | `ADMISSIONS` | `Admissions` | Inpatient stays linked to person + optional ward/bed |
 | `ADMISSION_REQUESTS` | `AdmissionRequests` | Doctor pending admission queue; statuses Draft\|Submitted\|UnderReview\|Approved\|Rejected\|Cancelled\|Admitted |
@@ -96,6 +97,8 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `LAB_SAMPLES` | `LabSamples` | Collected specimens (`SMP-YYYY-####`) per request per specimen type; Collected/Rejected + reject reason |
 | `LAB_RESULTS` | `LabResults` | One row per request item; `VALUES` JSONB keyed by template field key; status Draft/Submitted/Validated/PendingRevalidation; `VERSION` counter |
 | `LAB_RESULT_VERSIONS` | `LabResultVersions` | Immutable snapshot per result change (draft/submit/validate/return/amend + reason) |
+| `DIAGNOSIS_CODES` | `DiagnosisCodes` | ICD-11/DSM/Local catalog for doctor coding |
+| `PATIENT_DIAGNOSES` | `PatientDiagnoses` | Patient problem-list diagnoses (immutable history via status; no hard delete) |
 
 ### Relationships
 

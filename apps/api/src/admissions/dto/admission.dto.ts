@@ -95,6 +95,26 @@ export class CreateWardDto {
   wardType?: string;
 
   @IsOptional()
+  @IsString()
+  @IsIn(['General', 'SemiPrivate', 'Private', 'VIP', 'ICU'])
+  wardClass?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['Male', 'Female', 'Mixed'])
+  gender?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  dailyBedRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  admissionDepositDefault?: number;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)

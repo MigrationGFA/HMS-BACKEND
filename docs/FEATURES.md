@@ -70,9 +70,10 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 |--------|--------|-------|
 | Clinical | ✅ | `/api/encounters`, `/diagnoses`, etc. |
 | Nursing | ✅ | Phases 0–12 E2E (queues, admissions, care docs, orders/MAR/samples, shifts/ICU, comms/reports) — [NURSING_MODULE.md](./NURSING_MODULE.md) |
-| Admissions | ✅ | `/api/admissions/*` — wards, beds, admit/transfer/discharge; admit auto-posts package bill |
+| Admissions | ✅ | `/api/admissions/*` — wards (gender + free beds), beds, admit/transfer/discharge; admit auto-posts package bill |
 | Admission requests (doctor queue) | ✅ | `/api/admission-requests` — create/list mine\|all/update; statuses incl. Admitted |
 | Admission bills (package invoice) | ✅ | `/api/admission-bills` + cashier confirm; catalogue + Day-1 bed rate |
+| Diagnoses (ICD catalog + problem list) | ✅ | `/api/diagnoses` catalog/list/create/update/stats |
 | Discharge | ✅ | `/api/discharge` |
 | Psychiatry | ✅ | `/api/psychiatry/*` |
 | Allied Health | ✅ | `/api/allied-health/*` |

@@ -96,6 +96,7 @@ model Persons {
   followUps            FollowUps[]
   clinicalNotes        ClinicalNotes[]
   labRequests          LabRequests[]
+  patientDiagnoses     PatientDiagnoses[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])
