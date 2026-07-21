@@ -643,33 +643,38 @@ Nurse-facing facade over **Triage** + latest **PATIENT_CARDS** payment status. S
 
 ### Admissions (`/admissions`)
 
-Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`.
+Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`. Ward list includes configured `dailyBedRate`, `wardClass`, `admissionDepositDefault` (read-only for Records).
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/admissions/wards` | List wards with bed counts | `admission:read` |
+| GET | `/admissions/billing-items` | Admission package catalogue (Active items) | `admission:read` |
+| GET | `/admissions/wards` | List wards with bed counts + rates | `admission:read` |
 | POST | `/admissions/wards` | Create ward (optional `bedCount`) | `admission:create` |
 | GET | `/admissions/beds` | List beds (`wardId`, `status`) | `admission:read` |
 | GET | `/admissions` | List admissions (`status`, `wardId`, `q`, `page`, `limit`) | `admission:read` |
 | GET | `/admissions/stats` | `active`, `availableBeds`, `dischargeOrdered`, `constantSupervision` | `admission:read` |
 | GET | `/admissions/:id` | Admission detail + person | `admission:read` |
-| POST | `/admissions` | Admit person to bed (occupies bed) | `admission:create` |
+| POST | `/admissions` | Admit person to bed; auto-posts Unpaid admission package bill | `admission:create` |
 | PATCH | `/admissions/:id/transfer` | `{ bedId }` — free old bed (`CLEANING`), occupy new | `admission:update` |
 | PATCH | `/admissions/:id/order-discharge` | `{ reason? }` → `DISCHARGE_ORDERED` | `admission:update` |
 | PATCH | `/admissions/:id/complete-discharge` | → `DISCHARGED`, bed `CLEANING` | `admission:update` |
 
-**Audit:** `admission:create`, `admission:transfer`, `admission:order-discharge`, `admission:discharge`.
+**POST `/admissions` body:** `{ personId, wardId, bedId, admissionRequestId?, admissionType?, diagnosis?, … }` — optional `admissionRequestId` marks the request `Admitted` and links the bill.
+
+**Response example (admit):** `{ data: { admissionId, status: "ADMITTED", admissionBill: { admissionBillId, billNo, totalAmount, paymentStatus: "Unpaid", lines: […] } } }`
+
+**Audit:** `admission:create`, `admission-bill:create`, `admission:transfer`, `admission:order-discharge`, `admission:discharge`.
 
 ### Admission requests (`/admission-requests`)
 
-Doctor-initiated **pending admission queue** (no payment fields, no bed assignment). Bed admit remains `POST /admissions`. Prisma: `ADMISSION_REQUESTS`.
+Doctor-initiated **pending admission queue** (no payment fields, no bed assignment). Bed admit remains `POST /admissions`. Prisma: `ADMISSION_REQUESTS`. Statuses: `Draft` | `Submitted` | `UnderReview` | `Approved` | `Rejected` | `Cancelled` | `Admitted`.
 
 | Method | URL | Purpose | Permission |
 |--------|-----|---------|------------|
 | POST | `/admission-requests` | Create/submit request (`asDraft` → Draft, else Submitted) | `admission:create` |
 | GET | `/admission-requests` | List (`scope=mine\|all`, `status`, `personId`, `q`, `page`, `limit`) | `admission:read` |
 | GET | `/admission-requests/:id` | Detail + person + ward | `admission:read` |
-| PATCH | `/admission-requests/:id` | Update draft / cancel / status (Records later) | `admission:update` |
+| PATCH | `/admission-requests/:id` | Update draft / cancel / Approve / Reject / UnderReview | `admission:update` |
 
 **Request body (POST):** `personId` (required), optional `encounterId`, `wardId`, `wardPreference`, `priority` (`Routine`\|`Urgent`\|`Emergency`), `priorityReason` (required if not Routine), `admissionType`, `estimatedLos`, clinical/risk fields, consent, `asDraft`. **No** `paymentCategory` / Cash / NHIA / HMO.
 
@@ -692,6 +697,44 @@ Doctor-initiated **pending admission queue** (no payment fields, no bed assignme
 **Errors:** `400` validation / missing clinical fields / `scope=mine` without auth; `404` person, ward, or request.
 
 **Audit:** `admission-request:create`, `admission-request:update`.
+
+### Admission bills (`/admission-bills`)
+
+Auto-priced admission package invoices (mirror lab unpaid → paid). Prisma: `ADMISSION_BILLING_ITEMS`, `ADMISSION_BILLS`, `ADMISSION_BILL_LINES`. Created on admit (package catalogue + Day-1 bed rate + optional deposit). Cashier never edits unit prices.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/admission-bills?paymentStatus=&personId=&admissionId=&q=&page=&limit=` | List bills | `admission:read` |
+| GET | `/admission-bills/:id` | Detail + snapshotted lines | `admission:read` |
+| GET | `/cashier/payments/admission-bills?paymentStatus=Unpaid` | Cashier unpaid queue | `admission:pay` |
+| POST | `/cashier/payments/admission-bills/:id/confirm` | Confirm payment `{ paymentChannel, paymentRef? }` | `admission:pay` |
+
+**POST confirm body:** `{ paymentChannel: "Cash"|"POS Card"|"Bank Transfer"|"Online Card"|"Wallet", paymentRef?: string }`
+
+**Response example:**
+```json
+{
+  "data": {
+    "admissionBillId": 1,
+    "billNo": "AB-2026-0001",
+    "personId": 42,
+    "admissionId": 10,
+    "totalAmount": 66500,
+    "paymentStatus": "Paid",
+    "paymentChannel": "Cash",
+    "lines": [
+      { "itemCode": "ADM-FEE", "description": "Admission Fee", "qty": 1, "unitPrice": 5000, "lineTotal": 5000 }
+    ],
+    "person": { "personId": 42, "hospitalNo": "FNPH-…", "firstName": "…" }
+  }
+}
+```
+
+**Errors:** `400` already paid/waived; `401`; `403`; `404` bill not found.
+
+**Audit:** `admission-bill:create`, `admission-bill:pay`.
+
+**Deploy note:** apply migration `20260721120000_admission_billing` via `npx prisma migrate deploy` (same as LIS).
 
 ---
 
@@ -1883,6 +1926,8 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 | PATCH | `/laboratory/templates/:id` | Update template (fields/name/status; deactivate = `status: Inactive`) | `lab:template-manage` |
 | GET | `/cashier/payments/lab-requests?paymentStatus=Unpaid` | Cashier unpaid queue | `lab:pay` |
 | POST | `/cashier/payments/lab-requests/:id/confirm` | Confirm payment `{ paymentChannel, paymentRef? }` | `lab:pay` |
+| GET | `/cashier/payments/admission-bills?paymentStatus=Unpaid` | Cashier unpaid admission packages | `admission:pay` |
+| POST | `/cashier/payments/admission-bills/:id/confirm` | Confirm admission payment `{ paymentChannel, paymentRef? }` | `admission:pay` |
 
 **POST `/laboratory/requests` body:** `{ personId, encounterId?, priority?: "Routine"|"Urgent"|"Stat", clinicalIndication?, clinicalNotes?, source?: "Doctor"|"WalkIn", items: [{ testId, lineNotes? }] }`
 

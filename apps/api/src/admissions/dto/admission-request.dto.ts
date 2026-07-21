@@ -18,6 +18,7 @@ const STATUSES = [
   'Approved',
   'Rejected',
   'Cancelled',
+  'Admitted',
 ] as const;
 const ADMISSION_TYPES = [
   'New admission',

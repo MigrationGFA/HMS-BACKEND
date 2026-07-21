@@ -16,7 +16,7 @@ export class WardsController {
   /**
    * Method: GET
    * URL: /api/admissions/wards
-   * Purpose: List wards with bed counts
+   * Purpose: List wards with bed counts and configured rates
    * Required permission: admission:read
    */
   @Get()

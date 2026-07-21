@@ -50,6 +50,13 @@ export class CreateAdmissionDto {
   @IsString()
   @IsIn(['General', 'Close', 'Constant'])
   supervisionLevel?: string;
+
+  /** Link doctor admission request when Records allocates bed. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  admissionRequestId?: number;
 }
 
 export class TransferAdmissionDto {

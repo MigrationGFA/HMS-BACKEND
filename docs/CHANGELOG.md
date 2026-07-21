@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Admission billing Phase 1:** ward `WARD_CLASS` / `DAILY_BED_RATE` / `ADMISSION_DEPOSIT_DEFAULT`; catalogue `ADMISSION_BILLING_ITEMS`; bills `ADMISSION_BILLS` + `ADMISSION_BILL_LINES` (migration `20260721120000_admission_billing`). `POST /api/admissions` with optional `admissionRequestId` occupies bed, marks request `Admitted`, auto-posts Unpaid package bill (catalogue + Day-1 bed + deposit). APIs: `GET /api/admission-bills`, `GET /api/admission-bills/:id`, `GET /api/admissions/billing-items`, cashier `GET/POST /api/cashier/payments/admission-bills`. RBAC `admission:pay`; RECORDS `admission:read|create|update`; audit `admission-bill:create|pay`. Frontend: Records live admit queue; Cashier Clinical Payments `?tab=admission`; Pending/Paid aggregate includes admission. Seed wards with NGN rates + demo Submitted requests. **Deploy:** `npx prisma migrate deploy`. **Smoke test:** Doctor submit → Records allocate bed/admit → Cashier Collect → Paid.
+
 ### Fixed
 - Render start command now runs `prisma migrate deploy` before `start:prod` so tables like `ENCOUNTERS` exist in production (fixes `GET /api/encounters/active` 500 when migrations were not applied)
 - Cashier `GET /api/cashier/payments/lab-requests` 500 when `LAB_REQUESTS.SOURCE` missing: apply migration `20260720140000_lab_request_source` via `npx prisma migrate deploy` (Render startCommand runs this on redeploy)
