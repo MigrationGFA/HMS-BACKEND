@@ -20,7 +20,7 @@ apps/api/prisma/
 │   ├── encounters.prisma     # ENCOUNTERS
 │   ├── followups.prisma      # FOLLOW_UPS
 │   ├── clinical-notes.prisma # CLINICAL_NOTES + CLINICAL_NOTE_VERSIONS
-│   ├── admissions.prisma     # WARDS, BEDS, ADMISSIONS
+│   ├── admissions.prisma     # WARDS, BEDS, ADMISSIONS, ADMISSION_REQUESTS
 │   ├── nursing-care.prisma   # nursing notes/vitals/care plans/obs/incidents/forms
 │   ├── nursing-ops.prisma    # orders, tasks, MAR, shifts, handover, ICU, messages, reports
 │   ├── pharmacy.prisma       # SUPPLIERS, SUPPLIER_DRUGS, DRUGS, DRUG_BATCHES, PRs/POs/GRNs
@@ -50,6 +50,7 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `WARDS` | `Wards` | Inpatient wards |
 | `BEDS` | `Beds` | Beds per ward (`AVAILABLE` / `OCCUPIED` / `CLEANING` / …) |
 | `ADMISSIONS` | `Admissions` | Inpatient stays linked to person + optional ward/bed |
+| `ADMISSION_REQUESTS` | `AdmissionRequests` | Doctor pending admission queue (no payment/bed yet); statuses Draft\|Submitted\|UnderReview\|Approved\|Rejected\|Cancelled |
 | `NURSING_NOTES` | `NursingNotes` | Ward nursing notes |
 | `NURSING_VITALS` | `NursingVitals` | Ward vitals + abnormal flags |
 | `NURSING_CARE_PLANS` | `NursingCarePlans` | Nursing care plans |
@@ -102,9 +103,11 @@ USERS ── PERSON_ID ── PERSONS (optional link)
 PERSONS ── TRIAGE (1:N)
 PERSONS ── PATIENT_CARDS (1:N; created by / confirmed by USERS)
 PERSONS ── ADMISSIONS (1:N)
+PERSONS ── ADMISSION_REQUESTS (1:N)
 PERSONS ── PRESCRIPTIONS ── PRESCRIPTION_ITEMS ── DRUGS
 WARDS ── BEDS (1:N)
 WARDS / BEDS ── ADMISSIONS
+WARDS ── ADMISSION_REQUESTS (optional ward preference)
 ADMISSIONS / PERSONS ── nursing care docs (notes, vitals, care plans, …)
 ADMISSIONS / PERSONS ── nursing ops (orders, tasks, MAR, ICU …)
 WARDS ── nursing shifts / handovers / report snapshots

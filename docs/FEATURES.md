@@ -71,6 +71,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Clinical | ✅ | `/api/encounters`, `/diagnoses`, etc. |
 | Nursing | ✅ | Phases 0–12 E2E (queues, admissions, care docs, orders/MAR/samples, shifts/ICU, comms/reports) — [NURSING_MODULE.md](./NURSING_MODULE.md) |
 | Admissions | ✅ | `/api/admissions/*` — wards, beds, admit/transfer/discharge |
+| Admission requests (doctor queue) | ✅ | `/api/admission-requests` — create/list mine\|all/update; no payment or bed |
 | Discharge | ✅ | `/api/discharge` |
 | Psychiatry | ✅ | `/api/psychiatry/*` |
 | Allied Health | ✅ | `/api/allied-health/*` |
@@ -121,6 +122,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Lab result validation / return-to-bench (`/laboratory/results/:id/validate\|return`) | ✅ |
 | Lab result amendment + immutable version history (`/laboratory/results/:id/amend`, `/versions`) | ✅ |
 | Lab dashboard pages live (requests/samples/results/validation/amendment/templates) | ✅ |
+| Doctor Lab Request Engine live queues (`listLabRequests`) + Results Viewer (`listLabResults` Validated/Submitted) | ✅ |
+| Doctor Admission Request Engine (API Mine/All, no payment UI) | ✅ |
 | Imaging & ECG | 📋 |
 | Supplier management (`POST/GET/PATCH /pharmacy/suppliers`) | ✅ |
 | Drug catalog with supplier link (`/pharmacy/drugs`) | ✅ |

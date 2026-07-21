@@ -660,6 +660,39 @@ Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`.
 
 **Audit:** `admission:create`, `admission:transfer`, `admission:order-discharge`, `admission:discharge`.
 
+### Admission requests (`/admission-requests`)
+
+Doctor-initiated **pending admission queue** (no payment fields, no bed assignment). Bed admit remains `POST /admissions`. Prisma: `ADMISSION_REQUESTS`.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| POST | `/admission-requests` | Create/submit request (`asDraft` → Draft, else Submitted) | `admission:create` |
+| GET | `/admission-requests` | List (`scope=mine\|all`, `status`, `personId`, `q`, `page`, `limit`) | `admission:read` |
+| GET | `/admission-requests/:id` | Detail + person + ward | `admission:read` |
+| PATCH | `/admission-requests/:id` | Update draft / cancel / status (Records later) | `admission:update` |
+
+**Request body (POST):** `personId` (required), optional `encounterId`, `wardId`, `wardPreference`, `priority` (`Routine`\|`Urgent`\|`Emergency`), `priorityReason` (required if not Routine), `admissionType`, `estimatedLos`, clinical/risk fields, consent, `asDraft`. **No** `paymentCategory` / Cash / NHIA / HMO.
+
+**Response example:**
+```json
+{
+  "data": {
+    "admissionRequestId": 1,
+    "requestNo": "AR-2026-0001",
+    "personId": 42,
+    "status": "Submitted",
+    "priority": "Urgent",
+    "provisionalDiagnosis": "…",
+    "person": { "personId": 42, "hospitalNo": "FNPH-…", "firstName": "…" },
+    "ward": { "wardId": 1, "name": "Male Acute Ward" }
+  }
+}
+```
+
+**Errors:** `400` validation / missing clinical fields / `scope=mine` without auth; `404` person, ward, or request.
+
+**Audit:** `admission-request:create`, `admission-request:update`.
+
 ---
 
 ### Nursing (`/nursing`) — Care documentation (Phase 9)
