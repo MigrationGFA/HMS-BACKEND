@@ -23,6 +23,7 @@ apps/api/prisma/
 │   ├── admissions.prisma     # WARDS (+GENDER), BEDS, ADMISSIONS, ADMISSION_REQUESTS, ADMISSION_BILLING_ITEMS, ADMISSION_BILLS, ADMISSION_BILL_LINES
 │   ├── transfers.prisma      # PATIENT_TRANSFERS, PATIENT_TRANSFER_EVENTS, NOTIFICATIONS
 │   ├── referrals.prisma      # CLINICAL_REFERRALS, CLINICAL_REFERRAL_EVENTS
+│   ├── discharge.prisma      # DISCHARGE_DRAFTS, DISCHARGE_DRAFT_EVENTS
 │   ├── clinical-diagnoses.prisma # DIAGNOSIS_CODES, PATIENT_DIAGNOSES
 │   ├── nursing-care.prisma   # nursing notes/vitals/care plans/obs/incidents/forms
 │   ├── nursing-ops.prisma    # orders, tasks, MAR, shifts, handover, ICU, messages, reports
@@ -59,7 +60,9 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `PATIENT_TRANSFER_EVENTS` | `PatientTransferEvents` | Immutable step log per transfer |
 | `CLINICAL_REFERRALS` | `ClinicalReferrals` | Clinical referrals (`REF-YYYY-####`); Internal/External; Outpatient/Inpatient; state machine Draft→Submitted→…→Completed/Admitted/ClearedExternal (+ Returned/Rejected/Cancelled); migration `20260721190000_clinical_referrals` |
 | `CLINICAL_REFERRAL_EVENTS` | `ClinicalReferralEvents` | Immutable step log per referral |
-| `NOTIFICATIONS` | `Notifications` | In-app inbox (transfer + referral + system); indexed by user + unread |
+| `DISCHARGE_DRAFTS` | `DischargeDrafts` | Doctor discharge drafts (`DSD-YYYY-####`); statuses Draft→AwaitingPayment→PaymentCleared→Discharged (+ Returned/Cancelled); migration `20260721200000_discharge_drafts` |
+| `DISCHARGE_DRAFT_EVENTS` | `DischargeDraftEvents` | Immutable step log per discharge draft |
+| `NOTIFICATIONS` | `Notifications` | In-app inbox (transfer + referral + discharge + system); indexed by user + unread |
 | `ADMISSIONS` | `Admissions` | Inpatient stays linked to person + optional ward/bed |
 | `ADMISSION_REQUESTS` | `AdmissionRequests` | Doctor pending admission queue; statuses Draft\|Submitted\|UnderReview\|Approved\|Rejected\|Cancelled\|Admitted |
 | `ADMISSION_BILLING_ITEMS` | `AdmissionBillingItems` | Configured admission package catalogue (fee, nursing, folder, consumables, deposit) |
@@ -169,6 +172,7 @@ PURCHASE_ORDERS ── GOODS_RECEIVED_NOTES ── DRUG_BATCHES
 | `admission:transfer` | Bed transfer |
 | `admission:order-discharge` | Discharge ordered |
 | `admission:discharge` | Discharge completed |
+| `discharge:create` / `discharge:submit` / `discharge:clear-payment` / `discharge:finalize` / … | Discharge draft lifecycle |
 | `nursing-note:create` / `nursing-vital:create` / … | Nursing care documentation writes |
 | `supplier:create` / `supplier:update` | Supplier registered / edited |
 | `drug:create` / `drug:update` | Drug added to / edited in catalog |

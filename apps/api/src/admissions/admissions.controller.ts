@@ -216,11 +216,13 @@ export class AdmissionsController {
   /**
    * Method: PATCH
    * URL: /api/admissions/:id/complete-discharge
-   * Purpose: Complete discharge and free bed (CLEANING)
-   * Required permission: admission:update
+   * Purpose: DEPRECATED for direct use — finalize via /api/discharge-drafts/:id/finalize
+   * Required permission: discharge:finalize
+   * Request body: { reason? }
+   * Errors: 401, 403, 404, 409
    */
   @Patch(':id/complete-discharge')
-  @RequirePermissions(PERMISSIONS.ADMISSION_UPDATE)
+  @RequirePermissions(PERMISSIONS.DISCHARGE_FINALIZE)
   async completeDischarge(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CompleteDischargeDto,

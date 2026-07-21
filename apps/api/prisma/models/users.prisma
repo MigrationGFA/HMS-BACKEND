@@ -62,6 +62,7 @@ model Users {
   transfersRequested    PatientTransfers[] @relation("TransferRequestedBy")
   referralsRequested    ClinicalReferrals[] @relation("ReferralRequestedBy")
   referralsAsToDoctor   ClinicalReferrals[] @relation("ReferralToDoctor")
+  dischargeDraftsRequested DischargeDrafts[] @relation("DischargeDraftRequestedBy")
   notifications         Notifications[]
 
   @@index([ROLE_ID])

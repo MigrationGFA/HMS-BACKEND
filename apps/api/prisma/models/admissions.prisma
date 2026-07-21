@@ -102,6 +102,7 @@ model Admissions {
   admissionBills      AdmissionBills[]
   patientTransfers    PatientTransfers[]
   clinicalReferrals   ClinicalReferrals[]
+  dischargeDrafts     DischargeDrafts[]
 
   @@index([PERSON_ID])
   @@index([STATUS])

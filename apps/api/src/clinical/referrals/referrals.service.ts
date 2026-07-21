@@ -226,23 +226,27 @@ export class ReferralsService {
       personId?: number | null;
     },
   ) {
-    const users = await this.prisma.users.findMany({
-      where: { role: { ROLE_NAME: { in: roles } } },
-      select: { USER_ID: true, role: { select: { ROLE_NAME: true } } },
-      take: 100,
-    });
-    for (const u of users) {
-      await this.notifications.createForUser({
-        userId: u.USER_ID,
-        roleHint: u.role?.ROLE_NAME ?? null,
-        type: payload.type,
-        title: payload.title,
-        body: payload.body,
-        linkPath: payload.linkPath,
-        entity: 'clinical_referral',
-        entityId: payload.entityId,
-        personId: payload.personId ?? null,
+    try {
+      const users = await this.prisma.users.findMany({
+        where: { role: { ROLE_NAME: { in: roles } } },
+        select: { USER_ID: true, role: { select: { ROLE_NAME: true } } },
+        take: 100,
       });
+      for (const u of users) {
+        await this.notifications.createForUser({
+          userId: u.USER_ID,
+          roleHint: u.role?.ROLE_NAME ?? null,
+          type: payload.type,
+          title: payload.title,
+          body: payload.body,
+          linkPath: payload.linkPath,
+          entity: 'clinical_referral',
+          entityId: payload.entityId,
+          personId: payload.personId ?? null,
+        });
+      }
+    } catch {
+      /* notifications must not fail clinical mutations */
     }
   }
 
@@ -259,17 +263,21 @@ export class ReferralsService {
     },
   ) {
     if (!userId) return;
-    await this.notifications.createForUser({
-      userId,
-      roleHint: payload.roleHint ?? null,
-      type: payload.type,
-      title: payload.title,
-      body: payload.body,
-      linkPath: payload.linkPath,
-      entity: 'clinical_referral',
-      entityId: payload.entityId,
-      personId: payload.personId ?? null,
-    });
+    try {
+      await this.notifications.createForUser({
+        userId,
+        roleHint: payload.roleHint ?? null,
+        type: payload.type,
+        title: payload.title,
+        body: payload.body,
+        linkPath: payload.linkPath,
+        entity: 'clinical_referral',
+        entityId: payload.entityId,
+        personId: payload.personId ?? null,
+      });
+    } catch {
+      /* notifications must not fail clinical mutations */
+    }
   }
 
   async create(dto: CreateReferralDto, actor?: AuthUser) {
