@@ -71,6 +71,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Clinical | ✅ | `/api/encounters`, `/diagnoses`, etc. |
 | Nursing | ✅ | Phases 0–12 E2E (queues, admissions, care docs, orders/MAR/samples, shifts/ICU, comms/reports) — [NURSING_MODULE.md](./NURSING_MODULE.md) |
 | Admissions | ✅ | `/api/admissions/*` — wards (gender + free beds), beds, admit/transfer/discharge; admit auto-posts package bill |
+| Patient transfers (multi-role) | ✅ | `/api/transfers` — doctor request (no bed) → nurse prepare → Records/nurse allocate → receive → confirm; occupancy on confirm |
+| In-app notifications | ✅ | `/api/notifications` — inbox read/ack/stats |
 | Admission requests (doctor queue) | ✅ | `/api/admission-requests` — create/list mine\|all/update; statuses incl. Admitted |
 | Admission bills (package invoice) | ✅ | `/api/admission-bills` + cashier confirm; catalogue + Day-1 bed rate |
 | Diagnoses (ICD catalog + problem list) | ✅ | `/api/diagnoses` catalog/list/create/update/stats |
@@ -128,6 +130,11 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Doctor Admission Request Engine (API Mine/All; clinical only — no ward/bed/payment) | ✅ |
 | Standard ward/bed inventory (11 wards × 20 beds; AVAILABLE/OCCUPIED tracking) | ✅ |
 | Records Admission Requests live (approve/reject/allocate ward+bed/admit + Unpaid bill) | ✅ |
+| Doctor Patient Transfer Engine (API; no bed assign) | ✅ |
+| Nurse Transfer Queue (`/dashboard/nurse/transfers`) | ✅ |
+| Records Patient Transfers allocate/verify (`/records/transfers`) | ✅ |
+| Doctor Notifications Center (live `/api/notifications`) | ✅ |
+| Doctor Audit transfer logs (`GET /api/audit/logs?type=transfer:*`) | ✅ |
 | Imaging study catalog + doctor requests (pay-before-process) | ✅ |
 | Cashier Imaging Requests tab (`?tab=imaging`) | ✅ |
 | Radiology Request Center live (Accept locked until Paid) | ✅ |

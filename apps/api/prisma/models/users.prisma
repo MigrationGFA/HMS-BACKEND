@@ -59,6 +59,8 @@ model Users {
   clinicalNotesAuthored ClinicalNotes[] @relation("ClinicalNoteAuthor")
   labRequestsDoctor     LabRequests[]     @relation("LabRequestDoctor")
   imagingRequestsDoctor ImagingRequests[] @relation("ImagingRequestDoctor")
+  transfersRequested    PatientTransfers[] @relation("TransferRequestedBy")
+  notifications         Notifications[]
 
   @@index([ROLE_ID])
   @@index([PERSON_ID])

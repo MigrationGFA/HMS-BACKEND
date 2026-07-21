@@ -58,7 +58,13 @@ export class AuditService {
     const page = Math.max(params?.page ?? 1, 1);
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 200);
     const where = {
-      ...(params?.type ? { AUDIT_TYPE: params.type } : {}),
+      ...(params?.type
+        ? params.type.endsWith('*')
+          ? { AUDIT_TYPE: { startsWith: params.type.slice(0, -1) } }
+          : params.type.endsWith(':')
+            ? { AUDIT_TYPE: { startsWith: params.type } }
+            : { AUDIT_TYPE: params.type }
+        : {}),
       ...(params?.personId != null ? { PERSON_ID: params.personId } : {}),
       ...(params?.userId != null ? { USER_ID: params.userId } : {}),
     };

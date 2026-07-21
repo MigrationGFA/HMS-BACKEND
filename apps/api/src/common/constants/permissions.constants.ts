@@ -140,6 +140,16 @@ export const PERMISSIONS = {
   /** Cashier/billing confirm payment for imaging requests */
   IMAGING_PAY: 'imaging:pay',
 
+  // Patient transfers (doctor request → nurse/records allocate → receive)
+  TRANSFER_CREATE: 'transfer:create',
+  TRANSFER_READ: 'transfer:read',
+  TRANSFER_UPDATE: 'transfer:update',
+  TRANSFER_ALLOCATE: 'transfer:allocate',
+  TRANSFER_RECEIVE: 'transfer:receive',
+
+  // In-app notifications inbox
+  NOTIFICATION_READ: 'notification:read',
+
   // Audit
   AUDIT_READ: 'audit:read',
 
@@ -173,6 +183,10 @@ const RECORDS_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.ADMISSION_READ,
   PERMISSIONS.ADMISSION_CREATE,
   PERMISSIONS.ADMISSION_UPDATE,
+  PERMISSIONS.TRANSFER_READ,
+  PERMISSIONS.TRANSFER_UPDATE,
+  PERMISSIONS.TRANSFER_ALLOCATE,
+  PERMISSIONS.NOTIFICATION_READ,
   PERMISSIONS.AUDIT_READ,
   PERMISSIONS.USER_READ,
 ];
@@ -191,6 +205,7 @@ const CASHIER_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.IMAGING_PAY,
   PERMISSIONS.ADMISSION_READ,
   PERMISSIONS.ADMISSION_PAY,
+  PERMISSIONS.NOTIFICATION_READ,
   PERMISSIONS.AUDIT_READ,
 ];
 
@@ -254,6 +269,8 @@ const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.LAB_READ,
   /** Doctors need imaging catalog while building imaging requests. */
   PERMISSIONS.IMAGING_READ,
+  PERMISSIONS.TRANSFER_READ,
+  PERMISSIONS.NOTIFICATION_READ,
 ];
 
 // Full clinical permissions (read + write for nursing and encounters)
@@ -307,6 +324,13 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.LAB_COLLECT,
   PERMISSIONS.IMAGING_CREATE,
   PERMISSIONS.IMAGING_UPDATE,
+  PERMISSIONS.TRANSFER_CREATE,
+  PERMISSIONS.TRANSFER_READ,
+  PERMISSIONS.TRANSFER_UPDATE,
+  PERMISSIONS.TRANSFER_ALLOCATE,
+  PERMISSIONS.TRANSFER_RECEIVE,
+  PERMISSIONS.NOTIFICATION_READ,
+  PERMISSIONS.AUDIT_READ,
 ];
 
 /**
@@ -370,8 +394,12 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.IMAGING_UPDATE,
     PERMISSIONS.NURSING_ORDER_CREATE,
     PERMISSIONS.NURSING_ORDER_READ,
+    PERMISSIONS.NOTIFICATION_READ,
   ],
-  [ROLES.PHARMACIST]: PHARMACY_PERMISSIONS,
+  [ROLES.PHARMACIST]: [
+    ...PHARMACY_PERMISSIONS,
+    PERMISSIONS.NOTIFICATION_READ,
+  ],
 };
 
 export function permissionsForRoles(roles: string[]): Set<PermissionName> {
