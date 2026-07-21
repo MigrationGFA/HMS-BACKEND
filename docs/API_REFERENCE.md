@@ -2008,6 +2008,73 @@ Multi-role ward/unit transfer workflow. Doctor never selects a bed — only dest
 
 ---
 
+### Clinical referrals (`/referrals`)
+
+Multi-role clinical referral workflow. Doctor never selects a bed — only Internal/External destination, priority, and clinical reason. **Records** owns the operational queue. **Records or Nurse** allocate ward+AVAILABLE bed for inpatient internal referrals. Outpatient path: department/doctor Accept → Attend → Complete. External path: Records clear only (no bed occupy). Admit reuses `AdmissionsService.admit` and links `ADMISSION_ID`.
+
+**Permissions:** `referral:create` (Doctor), `referral:read`, `referral:update` (ack/route/request-bed/clear/return/reject/cancel), `referral:allocate` (Records/Nurse allocate+admit), `referral:receive` (accept/attend/complete). Admin/CMD: all.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| POST | `/referrals` | Doctor create/submit (no bed) | `referral:create` |
+| GET | `/referrals?scope=mine\|inbound\|all&status=&kind=&toDepartment=&careSetting=&personId=&q=&page=&limit=` | List referrals | `referral:read` |
+| GET | `/referrals/:id` | Detail + events | `referral:read` |
+| PATCH | `/referrals/:id/ack` | Records acknowledge → UnderReview `{ note? }` | `referral:update` |
+| PATCH | `/referrals/:id/route` | Route to dept → QueuedForDept `{ toDepartment?, toDoctorUserId?, toDoctorLabel?, note? }` | `referral:update` |
+| PATCH | `/referrals/:id/request-bed` | Mark inpatient need → AwaitingBed `{ note? }` | `referral:update` |
+| PATCH | `/referrals/:id/allocate` | Reserve bed `{ wardId, bedId, note? }` → BedAllocated | `referral:allocate` |
+| PATCH | `/referrals/:id/admit` | Confirm admit via admissions → Admitted `{ note? }` | `referral:allocate` |
+| PATCH | `/referrals/:id/accept` | Destination accept → Accepted `{ note? }` | `referral:receive` |
+| PATCH | `/referrals/:id/attend` | Start attendance → InAttendance `{ note? }` | `referral:receive` |
+| PATCH | `/referrals/:id/complete` | Complete `{ outcomeNote? }` | `referral:receive` |
+| PATCH | `/referrals/:id/clear-external` | External clearance → ClearedExternal `{ note? }` | `referral:update` |
+| PATCH | `/referrals/:id/return` | Return for info `{ reason }` | `referral:update` |
+| PATCH | `/referrals/:id/reject` | Reject `{ reason }` | `referral:update` |
+| PATCH | `/referrals/:id/cancel` | Cancel if not terminal `{ reason? }` | `referral:update` |
+
+**POST `/referrals` body:**
+```json
+{
+  "personId": 1,
+  "referralKind": "Internal",
+  "careSetting": "Outpatient",
+  "priority": "Routine",
+  "fromDepartment": "OPC",
+  "toDepartment": "Psychology",
+  "toDoctorLabel": "Dr. Example",
+  "reason": "Specialist review needed",
+  "provisionalDiagnosis": "…",
+  "clinicalSummary": "…",
+  "specificQuestion": "…"
+}
+```
+
+**Response example:**
+```json
+{
+  "data": {
+    "referralId": 1,
+    "referralNo": "REF-2026-0001",
+    "referralKind": "Internal",
+    "status": "Submitted",
+    "person": { "personId": 1, "firstName": "…", "hospitalNo": "…" },
+    "events": [{ "eventType": "referral:create", "newStatus": "Submitted" }]
+  }
+}
+```
+
+**Errors:** `400` missing destination/facility, external+bed, allocate mismatch; `401`; `403`; `404` person/referral/bed; `409` illegal status transition / bed not AVAILABLE.
+
+**Audit:** `referral:create|ack|route|request-bed|allocate|admit|accept|attend|complete|clear-external|return|reject|cancel` (+ `admission:create` on admit).
+
+**Notifications:** `ReferralRequested`, `ReferralRouted`, `ReferralAccepted`, `ReferralCompleted`, `ReferralRejected`.
+
+**Frontend:** Doctor `/dashboard/doctor/clinical/referrals` (+ consultation sheet); Records `/records/referrals` (+ arrivals deep-link `?id=`); Nurse `/dashboard/nurse/referrals`. Clear FE mock keys `fnph_doc_referral_*` when `VITE_USE_API` on.
+
+**Deploy:** migration `20260721190000_clinical_referrals` via `npx prisma migrate deploy`.
+
+---
+
 ### Notifications (`/notifications`)
 
 Shared in-app inbox (transfer events and future clinical alerts).

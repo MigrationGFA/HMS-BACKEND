@@ -133,6 +133,11 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Doctor Patient Transfer Engine (API; no bed assign) | ✅ |
 | Nurse Transfer Queue (`/dashboard/nurse/transfers`) | ✅ |
 | Records Patient Transfers allocate/verify (`/records/transfers`) | ✅ |
+| Doctor Clinical Referrals Engine (API; Internal/External; no bed) | ✅ |
+| Doctor inbound Accept → Attend → Complete | ✅ |
+| Records Clinical Referrals queue (`/records/referrals`) | ✅ |
+| Records Arrivals open-referral banner + deep-link | ✅ |
+| Nurse Referral Bed Queue (`/dashboard/nurse/referrals`) | ✅ |
 | Doctor Notifications Center (live `/api/notifications`) | ✅ |
 | Doctor Audit transfer logs (`GET /api/audit/logs?type=transfer:*`) | ✅ |
 | Imaging study catalog + doctor requests (pay-before-process) | ✅ |
