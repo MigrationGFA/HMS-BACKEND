@@ -76,6 +76,7 @@ model Persons {
   cards                PatientCards[]
   prescriptions        Prescriptions[]
   admissions           Admissions[]
+  admissionRequests    AdmissionRequests[]
   nursingNotes         NursingNotes[]
   nursingVitals        NursingVitals[]
   nursingCarePlans     NursingCarePlans[]
