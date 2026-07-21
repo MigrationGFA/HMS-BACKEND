@@ -125,8 +125,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Lab result amendment + immutable version history (`/laboratory/results/:id/amend`, `/versions`) | ✅ |
 | Lab dashboard pages live (requests/samples/results/validation/amendment/templates) | ✅ |
 | Doctor Lab Request Engine live queues (`listLabRequests`) + Results Viewer (`listLabResults` Validated/Submitted) | ✅ |
-| Doctor Admission Request Engine (API Mine/All, no payment UI) | ✅ |
-| Records Admission Requests live (approve/reject/admit + Unpaid bill toast) | ✅ |
+| Doctor Admission Request Engine (API Mine/All; clinical only — no ward/bed/payment) | ✅ |
+| Records Admission Requests live (approve/reject/allocate ward+bed/admit + Unpaid bill) | ✅ |
 | Imaging & ECG | 📋 |
 | Supplier management (`POST/GET/PATCH /pharmacy/suppliers`) | ✅ |
 | Drug catalog with supplier link (`/pharmacy/drugs`) | ✅ |
