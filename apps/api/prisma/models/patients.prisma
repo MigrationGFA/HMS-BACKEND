@@ -99,6 +99,7 @@ model Persons {
   imagingRequests      ImagingRequests[]
   patientDiagnoses     PatientDiagnoses[]
   patientTransfers     PatientTransfers[]
+  clinicalReferrals    ClinicalReferrals[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])

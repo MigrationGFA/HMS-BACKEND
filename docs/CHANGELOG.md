@@ -7,6 +7,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Clinical Referral Management:** multi-role workflow (doctor create Internal/External → Records ack/route/clear → Records/Nurse allocate bed for inpatient → admit via `AdmissionsService` **or** destination Accept→Attend→Complete). Prisma `CLINICAL_REFERRALS` / `CLINICAL_REFERRAL_EVENTS` (migration `20260721190000_clinical_referrals`). APIs `/api/referrals/*`. RBAC `referral:create|read|update|allocate|receive`. Notifications `ReferralRequested|Routed|Accepted|Completed|Rejected`. Frontend: Doctor referrals (patient select, clear `fnph_doc_referral_*` mocks), Records `/records/referrals` + arrivals banner/deep-link, Nurse `/dashboard/nurse/referrals`. Seed 3 demo referrals. **Deploy:** `npx prisma migrate deploy`.
 - **Patient Transfer Management:** multi-role workflow (doctor request → nurse prepare → Records/nurse allocate bed → receiving accept → depart → confirm arrival). Prisma `PATIENT_TRANSFERS` / `PATIENT_TRANSFER_EVENTS` / `NOTIFICATIONS` (migration `20260721180000_patient_transfers`). APIs `/api/transfers/*` and `/api/notifications/*`. RBAC `transfer:create|read|update|allocate|receive`, `notification:read`. On Completed, reuses `AdmissionsService.transfer` for occupancy. Frontend: Doctor Transfer Engine (no bed UI), Nurse `/dashboard/nurse/transfers`, Records `/records/transfers`, live notifications + transfer audit. Seed demo admissions/transfers. **Deploy:** `npx prisma migrate deploy`.
 
 ### Changed

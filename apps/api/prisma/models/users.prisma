@@ -60,6 +60,8 @@ model Users {
   labRequestsDoctor     LabRequests[]     @relation("LabRequestDoctor")
   imagingRequestsDoctor ImagingRequests[] @relation("ImagingRequestDoctor")
   transfersRequested    PatientTransfers[] @relation("TransferRequestedBy")
+  referralsRequested    ClinicalReferrals[] @relation("ReferralRequestedBy")
+  referralsAsToDoctor   ClinicalReferrals[] @relation("ReferralToDoctor")
   notifications         Notifications[]
 
   @@index([ROLE_ID])

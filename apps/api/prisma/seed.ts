@@ -506,6 +506,7 @@ async function seedWardsAndBeds() {
   console.log('Seeded wards/beds with gender + 20 beds each if missing.');
   await seedAdmissionRequestsDemo();
   await seedPatientTransfersDemo();
+  await seedClinicalReferralsDemo();
 }
 
 /** Demo Submitted admission requests for Records queue smoke tests. */
@@ -751,6 +752,105 @@ async function seedPatientTransfersDemo() {
       },
     });
     console.log(`Created transfer ${transferNo} (${s.status})`);
+  }
+}
+
+/** Demo clinical referrals for Records / doctor smoke tests. */
+async function seedClinicalReferralsDemo() {
+  const existing = await prisma.clinicalReferrals.count();
+  if (existing >= 3) {
+    console.log('Clinical referral demo skipped (referrals already present).');
+    return;
+  }
+
+  const persons = await prisma.persons.findMany({
+    orderBy: { PERSON_ID: 'asc' },
+    take: 4,
+  });
+  if (persons.length < 2) {
+    console.log('Clinical referral demo skipped (need ≥2 persons).');
+    return;
+  }
+
+  const year = new Date().getFullYear();
+  const now = new Date();
+  let seq = (await prisma.clinicalReferrals.count()) + 1;
+  const nextNo = () => {
+    const no = `REF-${year}-${String(seq).padStart(4, '0')}`;
+    seq += 1;
+    return no;
+  };
+
+  const samples: Array<{
+    personId: number;
+    kind: string;
+    care: string;
+    toDept: string;
+    status: string;
+    facility?: string;
+  }> = [
+    {
+      personId: persons[0].PERSON_ID,
+      kind: 'Internal',
+      care: 'Outpatient',
+      toDept: 'Psychology',
+      status: 'Submitted',
+    },
+    {
+      personId: persons[1].PERSON_ID,
+      kind: 'Internal',
+      care: 'Inpatient',
+      toDept: 'OPC',
+      status: 'Submitted',
+    },
+    {
+      personId: persons[Math.min(2, persons.length - 1)].PERSON_ID,
+      kind: 'External',
+      care: 'Outpatient',
+      toDept: '',
+      status: 'Submitted',
+      facility: 'LUTH',
+    },
+  ];
+
+  for (const s of samples) {
+    const referralNo = nextNo();
+    const clash = await prisma.clinicalReferrals.findUnique({
+      where: { REFERRAL_NO: referralNo },
+    });
+    if (clash) continue;
+
+    const created = await prisma.clinicalReferrals.create({
+      data: {
+        REFERRAL_NO: referralNo,
+        PERSON_ID: s.personId,
+        REFERRAL_KIND: s.kind,
+        CARE_SETTING: s.care,
+        PRIORITY: 'Routine',
+        FROM_DEPARTMENT: 'OPC',
+        TO_DEPARTMENT: s.toDept || null,
+        EXTERNAL_FACILITY: s.facility ?? null,
+        REASON: 'Seed demo clinical referral',
+        PROVISIONAL_DIAGNOSIS: 'Demo provisional diagnosis',
+        CLINICAL_SUMMARY: 'Seeded for Records / nurse / doctor smoke tests',
+        STATUS: s.status,
+        CREATED_BY: 'SYSTEM',
+        CREATED_DATE: now,
+        UPDATED_BY: 'SYSTEM',
+        UPDATED_DATE: now,
+      },
+    });
+    await prisma.clinicalReferralEvents.create({
+      data: {
+        REFERRAL_ID: created.REFERRAL_ID,
+        EVENT_TYPE: 'referral:create',
+        ACTOR_LABEL: 'SYSTEM',
+        NOTE: 'Seeded demo referral',
+        NEW_STATUS: s.status,
+        CREATED_DATE: now,
+      },
+    });
+    console.log(`Created referral ${referralNo} (${s.kind}/${s.status})`);
   }
 }
 
