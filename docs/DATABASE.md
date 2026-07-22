@@ -24,6 +24,7 @@ apps/api/prisma/
 │   ├── transfers.prisma      # PATIENT_TRANSFERS, PATIENT_TRANSFER_EVENTS, NOTIFICATIONS
 │   ├── referrals.prisma      # CLINICAL_REFERRALS, CLINICAL_REFERRAL_EVENTS
 │   ├── discharge.prisma      # DISCHARGE_DRAFTS, DISCHARGE_DRAFT_EVENTS
+│   ├── certificates.prisma   # CERTIFICATE_TEMPLATES, CLINICAL_CERTIFICATES, CLINICAL_CERTIFICATE_EVENTS
 │   ├── clinical-diagnoses.prisma # DIAGNOSIS_CODES, PATIENT_DIAGNOSES
 │   ├── nursing-care.prisma   # nursing notes/vitals/care plans/obs/incidents/forms
 │   ├── nursing-ops.prisma    # orders, tasks, MAR, shifts, handover, ICU, messages, reports
@@ -45,7 +46,7 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | Table | Model | Purpose |
 |-------|-------|---------|
 | `PERSONS` | `Persons` | Patient identity (single source of truth for demographics / NOK) |
-| `USERS` | `Users` | Staff accounts |
+| `USERS` | `Users` | Staff accounts; clinical profile fields `LICENSE_NUMBER`, `SPECIALTIES`, `SUB_SPECIALTY`, `QUALIFICATIONS`, `DEPARTMENT_NAME`, `CLINIC_NAME`, `CONSULTATION_HOURS`, `WARD_ASSIGNMENT` |
 | `ROLES` | `Roles` | RBAC roles (seeded) |
 | `REFRESH_TOKENS` | `RefreshToken` | JWT refresh sessions |
 | `TRIAGE` | `Triage` | Queue + vitals; stores `PERSON_ID` only (no duplicated demographics). Also backing store for Nursing Patient Queues (`/api/nursing/patient-queues*`) |
@@ -61,6 +62,9 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `CLINICAL_REFERRALS` | `ClinicalReferrals` | Clinical referrals (`REF-YYYY-####`); Internal/External; Outpatient/Inpatient; state machine Draft→Submitted→…→Completed/Admitted/ClearedExternal (+ Returned/Rejected/Cancelled); migration `20260721190000_clinical_referrals` |
 | `CLINICAL_REFERRAL_EVENTS` | `ClinicalReferralEvents` | Immutable step log per referral |
 | `DISCHARGE_DRAFTS` | `DischargeDrafts` | Doctor discharge drafts (`DSD-YYYY-####`); statuses Draft→AwaitingPayment→PaymentCleared→Discharged (+ Returned/Cancelled); migration `20260721200000_discharge_drafts` |
+| `CERTIFICATE_TEMPLATES` | `CertificateTemplates` | Certificate/report template store (16 DOC_TYPES seeded); `FIELD_SCHEMA` JSON; migration `20260722120000_doctor_profile_and_certificates` |
+| `CLINICAL_CERTIFICATES` | `ClinicalCertificates` | Issued docs (`DOC-YYYY-####`); Draft→PendingSignature→PendingApproval→Issued (+ Expired/Cancelled) |
+| `CLINICAL_CERTIFICATE_EVENTS` | `ClinicalCertificateEvents` | Immutable certificate lifecycle log |
 | `DISCHARGE_DRAFT_EVENTS` | `DischargeDraftEvents` | Immutable step log per discharge draft |
 | `NOTIFICATIONS` | `Notifications` | In-app inbox (transfer + referral + discharge + system); indexed by user + unread |
 | `ADMISSIONS` | `Admissions` | Inpatient stays linked to person + optional ward/bed |

@@ -40,6 +40,12 @@ model Users {
   PERSON_ID                Int?
   LICENSE_NUMBER           String?   @db.VarChar(100)
   SPECIALTIES              String?   @db.VarChar(255)
+  SUB_SPECIALTY            String?   @db.VarChar(150)
+  QUALIFICATIONS           String?   @db.VarChar(255)
+  DEPARTMENT_NAME          String?   @db.VarChar(150)
+  CLINIC_NAME              String?   @db.VarChar(150)
+  CONSULTATION_HOURS       String?   @db.VarChar(255)
+  WARD_ASSIGNMENT          String?   @db.VarChar(255)
   PASSWORD                 String?   @db.VarChar(255)
   EMAIL_ADDRESS            String?   @db.VarChar(255)
   PINCODE                  String?   @db.VarChar(50)
@@ -63,6 +69,7 @@ model Users {
   referralsRequested    ClinicalReferrals[] @relation("ReferralRequestedBy")
   referralsAsToDoctor   ClinicalReferrals[] @relation("ReferralToDoctor")
   dischargeDraftsRequested DischargeDrafts[] @relation("DischargeDraftRequestedBy")
+  clinicalCertificatesAuthored ClinicalCertificates[] @relation("CertificateAuthor")
   notifications         Notifications[]
 
   @@index([ROLE_ID])

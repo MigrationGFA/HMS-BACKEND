@@ -320,6 +320,316 @@ async function main() {
   await seedWardsAndBeds();
   await seedNursingOpsDemo();
   await seedDiagnosesDemo();
+  await seedCertificateTemplates();
+}
+
+/** All 16 DOC_TYPES from fnph-aro DoctorCertificatesReportsEngine. */
+async function seedCertificateTemplates() {
+  const FIELD_LABELS: Record<string, string> = {
+    reason: 'Reason for report',
+    diagnosis: 'Diagnosis',
+    findings: 'Clinical findings',
+    treatment: 'Treatment given',
+    recommendation: 'Recommendation',
+    purpose: 'Fitness purpose',
+    examFindings: 'Examination findings',
+    fitStatus: 'Fit / Unfit',
+    validity: 'Validity period',
+    days: 'Number of days',
+    startDate: 'Start date',
+    endDate: 'End date',
+    reviewDate: 'Review date',
+    receivingFacility: 'Receiving hospital/doctor',
+    clinicalSummary: 'Clinical summary',
+    medications: 'Current medication',
+    investigations: 'Investigation summary',
+    procedure: 'Procedure name',
+    indication: 'Indication',
+    outcome: 'Outcome',
+    complications: 'Complications',
+    postPlan: 'Post-procedure plan',
+    deathDateTime: 'Date/time of death',
+    causeOfDeath: 'Cause of death',
+    certifyingDoctor: 'Certifying doctor',
+    confirmation: 'Confirmation details',
+    nextOfKin: 'Next of kin notification',
+    motherDetails: 'Mother details',
+    babyDetails: 'Baby details',
+    birthDateTime: 'Date/time of birth',
+    deliveryDetails: 'Delivery details',
+    attendingStaff: 'Attending staff',
+    mse: 'Mental state examination',
+    riskAssessment: 'Risk assessment summary',
+    treatmentPlan: 'Treatment plan',
+    competencyComment: 'Fitness/competency comment',
+    insurer: 'Insurer',
+    policyNo: 'Policy/claim number',
+    treatmentSummary: 'Treatment summary',
+    costNotes: 'Cost/claim notes',
+    admissionDate: 'Admission date',
+    dischargeDate: 'Discharge date',
+    followUp: 'Follow-up plan',
+    treatmentGiven: 'Treatment given',
+    response: 'Response to treatment',
+    interpretation: 'Interpretation',
+    indications: 'Indications',
+    adherence: 'Adherence notes',
+    caseRef: 'Case reference',
+    requestingAuthority: 'Requesting authority',
+    opinion: 'Medical opinion',
+    competency: 'Competency assessment',
+    schoolName: 'School name',
+    fitForSchool: 'Fit for school',
+    restrictions: 'Restrictions',
+    employer: 'Employer',
+    fitDate: 'Fit to resume date',
+  };
+
+  type SeedTpl = {
+    name: string;
+    desc: string;
+    approval: boolean;
+    fields: string[];
+    category: 'Certificate' | 'Report';
+    layout: 'Standard' | 'Legal' | 'Insurance';
+  };
+
+  const DOC_TYPES: SeedTpl[] = [
+    {
+      name: 'Medical Report',
+      desc: 'General clinical report for third parties',
+      approval: false,
+      fields: ['reason', 'diagnosis', 'findings', 'treatment', 'recommendation'],
+      category: 'Report',
+      layout: 'Standard',
+    },
+    {
+      name: 'Fitness Certificate',
+      desc: 'Fitness for work, travel, or sport',
+      approval: false,
+      fields: ['purpose', 'examFindings', 'fitStatus', 'validity'],
+      category: 'Certificate',
+      layout: 'Standard',
+    },
+    {
+      name: 'Sick Leave',
+      desc: 'Certified sick leave period',
+      approval: false,
+      fields: ['diagnosis', 'days', 'startDate', 'endDate', 'reviewDate'],
+      category: 'Certificate',
+      layout: 'Standard',
+    },
+    {
+      name: 'Referral Letter',
+      desc: 'Referral to external facility',
+      approval: false,
+      fields: [
+        'receivingFacility',
+        'reason',
+        'clinicalSummary',
+        'medications',
+        'investigations',
+      ],
+      category: 'Report',
+      layout: 'Standard',
+    },
+    {
+      name: 'Procedure Report',
+      desc: 'Procedure documentation',
+      approval: false,
+      fields: [
+        'procedure',
+        'indication',
+        'findings',
+        'outcome',
+        'complications',
+        'postPlan',
+      ],
+      category: 'Report',
+      layout: 'Standard',
+    },
+    {
+      name: 'Death Certificate',
+      desc: 'Official death certification',
+      approval: true,
+      fields: [
+        'deathDateTime',
+        'causeOfDeath',
+        'certifyingDoctor',
+        'confirmation',
+        'nextOfKin',
+      ],
+      category: 'Certificate',
+      layout: 'Legal',
+    },
+    {
+      name: 'Birth Notification',
+      desc: 'Birth registration notification',
+      approval: true,
+      fields: [
+        'motherDetails',
+        'babyDetails',
+        'birthDateTime',
+        'deliveryDetails',
+        'attendingStaff',
+      ],
+      category: 'Certificate',
+      layout: 'Legal',
+    },
+    {
+      name: 'Psychiatric Report',
+      desc: 'Mental health assessment report',
+      approval: false,
+      fields: [
+        'diagnosis',
+        'mse',
+        'riskAssessment',
+        'treatmentPlan',
+        'competencyComment',
+      ],
+      category: 'Report',
+      layout: 'Standard',
+    },
+    {
+      name: 'Insurance Report',
+      desc: 'Insurance / HMO claim report',
+      approval: false,
+      fields: [
+        'insurer',
+        'policyNo',
+        'diagnosis',
+        'treatmentSummary',
+        'costNotes',
+      ],
+      category: 'Report',
+      layout: 'Insurance',
+    },
+    {
+      name: 'Discharge Summary',
+      desc: 'Hospital discharge summary',
+      approval: false,
+      fields: [
+        'admissionDate',
+        'dischargeDate',
+        'diagnosis',
+        'treatment',
+        'followUp',
+      ],
+      category: 'Report',
+      layout: 'Standard',
+    },
+    {
+      name: 'Treatment Summary',
+      desc: 'Summary of treatment course',
+      approval: false,
+      fields: ['diagnosis', 'treatmentGiven', 'response', 'recommendation'],
+      category: 'Report',
+      layout: 'Standard',
+    },
+    {
+      name: 'Investigation Summary',
+      desc: 'Lab and imaging summary',
+      approval: false,
+      fields: [
+        'investigations',
+        'findings',
+        'interpretation',
+        'recommendation',
+      ],
+      category: 'Report',
+      layout: 'Standard',
+    },
+    {
+      name: 'Medication Report',
+      desc: 'Current medication list report',
+      approval: false,
+      fields: ['medications', 'indications', 'adherence', 'recommendation'],
+      category: 'Report',
+      layout: 'Standard',
+    },
+    {
+      name: 'Court / Legal Medical Report',
+      desc: 'Medico-legal report for court',
+      approval: true,
+      fields: [
+        'caseRef',
+        'requestingAuthority',
+        'findings',
+        'opinion',
+        'competency',
+      ],
+      category: 'Report',
+      layout: 'Legal',
+    },
+    {
+      name: 'School Medical Report',
+      desc: 'School fitness / health report',
+      approval: false,
+      fields: ['schoolName', 'findings', 'fitForSchool', 'restrictions'],
+      category: 'Report',
+      layout: 'Standard',
+    },
+    {
+      name: 'Work Resumption Certificate',
+      desc: 'Return-to-work certification',
+      approval: false,
+      fields: [
+        'employer',
+        'diagnosis',
+        'fitDate',
+        'restrictions',
+        'reviewDate',
+      ],
+      category: 'Certificate',
+      layout: 'Standard',
+    },
+  ];
+
+  const toCode = (name: string) =>
+    name
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_|_$/g, '');
+
+  const now = new Date();
+  let upserted = 0;
+  for (const dt of DOC_TYPES) {
+    const code = toCode(dt.name);
+    const fieldSchema = dt.fields.map((key) => ({
+      key,
+      label: FIELD_LABELS[key] ?? key,
+    }));
+    await prisma.certificateTemplates.upsert({
+      where: { CODE: code },
+      create: {
+        CODE: code,
+        NAME: dt.name,
+        DESCRIPTION: dt.desc,
+        CATEGORY: dt.category,
+        FIELD_SCHEMA: fieldSchema,
+        APPROVAL_REQUIRED: dt.approval,
+        LAYOUT: dt.layout,
+        STATUS: 'Active',
+        CREATED_BY: 'SYSTEM',
+        CREATED_DATE: now,
+        UPDATED_BY: 'SYSTEM',
+        UPDATED_DATE: now,
+      },
+      update: {
+        NAME: dt.name,
+        DESCRIPTION: dt.desc,
+        CATEGORY: dt.category,
+        FIELD_SCHEMA: fieldSchema,
+        APPROVAL_REQUIRED: dt.approval,
+        LAYOUT: dt.layout,
+        STATUS: 'Active',
+        UPDATED_BY: 'SYSTEM',
+        UPDATED_DATE: now,
+      },
+    });
+    upserted += 1;
+  }
+  console.log(`Seeded ${upserted} certificate templates.`);
 }
 
 async function seedWardsAndBeds() {

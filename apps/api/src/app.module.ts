@@ -21,6 +21,7 @@ import { QueuesModule } from './queues/queues.module';
 
 // Clinical & care
 import { ClinicalModule } from './clinical/clinical.module';
+import { DoctorModule } from './doctor/doctor.module';
 import { NursingModule } from './nursing/nursing.module';
 import { AdmissionsModule } from './admissions/admissions.module';
 import { TransfersModule } from './transfers/transfers.module';
@@ -80,6 +81,7 @@ import { HrModule } from './hr/hr.module';
 
     // Clinical & care
     ClinicalModule,
+    DoctorModule,
     NursingModule,
     AdmissionsModule,
     TransfersModule,

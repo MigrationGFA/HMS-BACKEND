@@ -104,7 +104,8 @@ Returns a hello message from the default scaffold.
 | POST | `/auth/login` | Login with email/password | None |
 | POST | `/auth/refresh` | Rotate access token | None (refresh token body) |
 | POST | `/auth/logout` | Revoke refresh token (body only; access JWT optional) | None |
-| GET | `/auth/me` | Current user profile + roles | Bearer |
+| GET | `/auth/me` | Current user JWT identity + roles | Bearer |
+| POST | `/auth/change-password` | Change own password `{ currentPassword, newPassword }` | Bearer |
 
 #### `POST /auth/login`
 
@@ -567,15 +568,23 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 ---
 
-### Users identity search (`/users`)
+### Users identity + self profile (`/users`)
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
+| GET | `/users/me` | Own clinical/professional profile | authenticated JWT |
+| PATCH | `/users/me` | Update own profile fields | authenticated JWT |
 | GET | `/users` | Search staff users (`q`, `page`, `limit`) — no credentials exposed | `user:read` |
 
-**Response example:** `{ data: { items: [{ userId, userName, email, firstName, lastName, role, isAdmin, locked }], meta } }`
+**PATCH `/users/me` body:** `{ licenseNumber?, specialties?, subSpecialty?, qualifications?, departmentName?, clinicName?, consultationHours?, wardAssignment?, phoneNo?, firstName?, lastName? }`
 
-**Error cases:** `401`, `403` missing `user:read`.
+**Response example (me):** `{ data: { userId, email, licenseNumber, specialties, subSpecialty, clinicName, consultationHours, roles: ["DOCTOR"] } }`
+
+**Errors:** `400` validation; `401`; `403` (search); `404` user.
+
+**Audit:** `user:profile-update`. Password changes use `POST /auth/change-password` (`auth:change-password`).
+
+**Staff search response:** `{ data: { items: [{ userId, userName, email, firstName, lastName, role, isAdmin, locked }], meta } }`
 
 ---
 
@@ -2133,6 +2142,104 @@ Legacy empty `/api/discharge` returns **403** and points clients to `/api/discha
 **Frontend:** Doctor `/dashboard/doctor/clinical/discharge`; Cashier Clinical Payments `?tab=discharge`; Records `/records/discharge`. Clear FE mock keys `fnph_doc_discharge_*`, `fnph_doc_board_*` (except watchlist), `fnph_doc_wardround_*`, `fnph_doc_patient_dir_*` when `VITE_USE_API` on. Related boards: `/dashboard/doctor/clinical/{patients,active,ward-round}` use live patients/admissions/encounters/clinical-notes.
 
 **Deploy:** migration `20260721200000_discharge_drafts` via `npx prisma migrate deploy`.
+
+### Doctor analytics (`/doctor`)
+
+Doctor-scoped clinical aggregates for Reports & Analytics. Scoped to `@CurrentUser()` (encounters `DOCTOR_ID`, Rx `PRESCRIBED_BY_ID`, lab/imaging doctor/creator, referrals requested/received, discharge drafts requested, follow-ups, clinical notes author, diagnoses `CREATED_BY_ID`).
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/doctor/analytics?from=&to=&clinic=&timezoneOffsetMinutes=` | KPIs, charts, tables, patients, admission, referrals | `doctor-analytics:read` |
+
+**Response example:**
+```json
+{
+  "data": {
+    "from": "…",
+    "to": "…",
+    "kpis": {
+      "consultations": 12,
+      "patients": 10,
+      "diagnoses": 8,
+      "procedures": 0,
+      "admissions": 2,
+      "referrals": 3,
+      "prescriptions": 15,
+      "investigations": 9,
+      "discharges": 1,
+      "followUps": 4,
+      "telemedicine": 0,
+      "critical": 2,
+      "avgConsultMinutes": 38,
+      "pendingNotes": 3
+    },
+    "charts": {
+      "consultationTrend": [{ "date": "2026-07-01", "count": 2 }],
+      "patientsByClinic": [{ "clinic": "OPC", "count": 5 }],
+      "prescriptionVolume": [],
+      "referralTrend": []
+    },
+    "tables": {
+      "consultations": [],
+      "diagnoses": [],
+      "prescriptions": [],
+      "investigations": []
+    },
+    "patients": {
+      "newCount": 3,
+      "returningCount": 7,
+      "ageBands": [],
+      "paymentMix": []
+    },
+    "admission": {
+      "admissions": 2,
+      "discharges": 1,
+      "avgLosDays": 4.5,
+      "pendingDrafts": 1,
+      "wardDistribution": []
+    },
+    "referrals": {
+      "sent": 3,
+      "received": 1,
+      "completed": 1,
+      "pending": 2,
+      "external": 1
+    }
+  }
+}
+```
+
+**Errors:** `401`, `403`.
+
+**Notes:** `procedures` and `telemedicine` always `0` (not tracked). Admissions KPI counts `ADMISSION_REQUESTS` by requesting doctor (not bed admissions created by Records).
+
+### Clinical certificates (`/clinical-certificates`)
+
+Template store + issued clinical certificates/reports. Prisma: `CERTIFICATE_TEMPLATES`, `CLINICAL_CERTIFICATES`, `CLINICAL_CERTIFICATE_EVENTS` (migration `20260722120000_doctor_profile_and_certificates`). Statuses: `Draft` | `PendingSignature` | `PendingApproval` | `Issued` | `Expired` | `Cancelled`.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/clinical-certificates/templates` | Active template list | `certificate:read` |
+| GET | `/clinical-certificates/templates/:id` | Template + field schema | `certificate:read` |
+| GET | `/clinical-certificates/summary` | KPI counts (mine) | `certificate:read` |
+| GET | `/clinical-certificates?scope=mine&status=&personId=&q=&page=&limit=` | List | `certificate:read` |
+| GET | `/clinical-certificates/:id` | Detail + events | `certificate:read` |
+| POST | `/clinical-certificates` | Create draft `{ personId, templateId, fields?, layout?, validityUntil? }` | `certificate:create` |
+| PATCH | `/clinical-certificates/:id` | Update draft fields | `certificate:update` |
+| PATCH | `/clinical-certificates/:id/submit-sign` | Draft → `PendingSignature` | `certificate:update` or `certificate:sign` |
+| PATCH | `/clinical-certificates/:id/sign` | Sign → `Issued` or `PendingApproval` | `certificate:sign` |
+| PATCH | `/clinical-certificates/:id/approve` | Approve → `Issued` | `certificate:approve` |
+| PATCH | `/clinical-certificates/:id/cancel` | Cancel non-issued `{ reason? }` | `certificate:update` |
+
+**Errors:** `400` inactive template; `401`/`403`; `404` person/template/certificate; `409` illegal status transition.
+
+**Audit:** `certificate:create`, `certificate:update`, `certificate:submit-sign`, `certificate:sign`, `certificate:approve`, `certificate:cancel`.
+
+**RBAC:** Doctor `certificate:create|read|update|sign` + `doctor-analytics:read`; Admin/CMD/IT/Super Admin also `certificate:approve` via FULL_ACCESS.
+
+**Seed:** `seedCertificateTemplates()` upserts all 16 DOC_TYPES (`npm run prisma:seed`).
+
+**Deploy:** migration `20260722120000_doctor_profile_and_certificates` via `npx prisma migrate deploy`.
 
 ---
 

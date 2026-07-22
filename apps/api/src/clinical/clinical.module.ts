@@ -3,6 +3,7 @@ import { AuditModule } from '../audit/audit.module';
 import { PatientsModule } from '../patients/patients.module';
 import { AdmissionsModule } from '../admissions/admissions.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CertificatesModule } from './certificates/certificates.module';
 import { EncountersController } from './encounters/encounters.controller';
 import { DiagnosesController } from './diagnoses/diagnoses.controller';
 import { ClinicalNotesController } from './clinical-notes/clinical-notes.controller';
@@ -19,7 +20,13 @@ import { ObservationsService } from './observations/observations.service';
 import { CarePlansService } from './care-plans/care-plans.service';
 
 @Module({
-  imports: [AuditModule, PatientsModule, AdmissionsModule, NotificationsModule],
+  imports: [
+    AuditModule,
+    PatientsModule,
+    AdmissionsModule,
+    NotificationsModule,
+    CertificatesModule,
+  ],
   controllers: [
     EncountersController,
     DiagnosesController,
@@ -46,6 +53,7 @@ import { CarePlansService } from './care-plans/care-plans.service';
     ReferralsService,
     ObservationsService,
     CarePlansService,
+    CertificatesModule,
   ],
 })
 export class ClinicalModule {}
