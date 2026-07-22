@@ -1,0 +1,104 @@
+// Blood bank inventory + crossmatch request workflow (Laboratory module).
+// Soft status only — never hard-delete clinical transfusion records.
+
+model BloodUnits {
+  BLOOD_UNIT_ID Int       @id @default(autoincrement())
+  UNIT_NO       String    @unique @db.VarChar(50)
+  BLOOD_GROUP   String    @db.VarChar(10)
+  /// Whole Blood | Packed Cells | FFP | Platelets | Cryoprecipitate
+  COMPONENT     String    @db.VarChar(50)
+  EXPIRY_DATE   DateTime  @db.Date
+  /// Available | Reserved | Issued | Expired | Quarantine
+  STATUS        String    @default("Available") @db.VarChar(50)
+  DONOR_LABEL   String?   @db.VarChar(150)
+  NOTES         String?   @db.Text
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime?
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  crossmatches BloodCrossmatches[]
+
+  @@index([BLOOD_GROUP])
+  @@index([STATUS])
+  @@index([EXPIRY_DATE])
+  @@map("BLOOD_UNITS")
+}
+
+model BloodRequests {
+  BLOOD_REQUEST_ID Int       @id @default(autoincrement())
+  REQUEST_NO       String    @unique @db.VarChar(50)
+  PERSON_ID        Int
+  BLOOD_GROUP      String    @db.VarChar(10)
+  UNITS_REQUESTED  Int
+  DEPARTMENT       String    @db.VarChar(100)
+  DOCTOR_LABEL     String?   @db.VarChar(150)
+  /// Pending | Crossmatching | Issued | Rejected | Completed
+  STATUS           String    @default("Pending") @db.VarChar(50)
+  /// Compatible | Incompatible | Pending | null
+  CROSS_MATCH_RESULT String? @db.VarChar(50)
+  NOTES            String?   @db.Text
+  REJECT_REASON    String?   @db.VarChar(255)
+  ISSUED_AT        DateTime?
+  ISSUED_BY        String?   @db.VarChar(100)
+  COMPLETED_AT     DateTime?
+  COMPLETED_BY     String?   @db.VarChar(100)
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+
+  person       Persons               @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  events       BloodRequestEvents[]
+  crossmatches BloodCrossmatches[]
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([BLOOD_GROUP])
+  @@index([CREATED_DATE])
+  @@map("BLOOD_REQUESTS")
+}
+
+model BloodRequestEvents {
+  EVENT_ID         Int       @id @default(autoincrement())
+  BLOOD_REQUEST_ID Int
+  ACTION           String    @db.VarChar(100)
+  REASON           String?   @db.VarChar(255)
+  ACTOR_LABEL      String?   @db.VarChar(100)
+  ACTOR_ID         Int?
+  CREATED_DATE     DateTime  @default(now())
+
+  request BloodRequests @relation(fields: [BLOOD_REQUEST_ID], references: [BLOOD_REQUEST_ID])
+
+  @@index([BLOOD_REQUEST_ID])
+  @@index([CREATED_DATE])
+  @@map("BLOOD_REQUEST_EVENTS")
+}
+
+model BloodCrossmatches {
+  CROSSMATCH_ID    Int       @id @default(autoincrement())
+  CROSSMATCH_NO    String    @unique @db.VarChar(50)
+  BLOOD_REQUEST_ID Int?
+  BLOOD_UNIT_ID    Int?
+  PERSON_LABEL     String?   @db.VarChar(200)
+  BLOOD_GROUP      String    @db.VarChar(10)
+  /// Compatible | Incompatible | Pending
+  RESULT           String    @default("Pending") @db.VarChar(50)
+  NOTES            String?   @db.Text
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+
+  request BloodRequests? @relation(fields: [BLOOD_REQUEST_ID], references: [BLOOD_REQUEST_ID])
+  unit    BloodUnits?    @relation(fields: [BLOOD_UNIT_ID], references: [BLOOD_UNIT_ID])
+
+  @@index([BLOOD_REQUEST_ID])
+  @@index([BLOOD_UNIT_ID])
+  @@index([RESULT])
+  @@index([CREATED_DATE])
+  @@map("BLOOD_CROSSMATCHES")
+}

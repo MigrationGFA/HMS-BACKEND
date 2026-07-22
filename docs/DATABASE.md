@@ -34,6 +34,7 @@ apps/api/prisma/
 │   ├── pharmacy-settings.prisma
 │   ├── prescriptions.prisma  # PRESCRIPTIONS, PRESCRIPTION_ITEMS
 │   ├── laboratory.prisma     # LAB_TESTS, LAB_REQUESTS(+LAB_STATUS), LAB_REQUEST_ITEMS, LAB_RESULT_TEMPLATES, LAB_SAMPLES, LAB_RESULTS, LAB_RESULT_VERSIONS
+│   ├── blood-bank.prisma     # BLOOD_UNITS, BLOOD_REQUESTS, BLOOD_REQUEST_EVENTS, BLOOD_CROSSMATCHES
 │   └── audit.prisma          # AUDITS (with AUDIT_TYPE)
 ├── migrations/
 └── seed.ts
@@ -63,6 +64,7 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `CLINICAL_REFERRAL_EVENTS` | `ClinicalReferralEvents` | Immutable step log per referral |
 | `DISCHARGE_DRAFTS` | `DischargeDrafts` | Doctor discharge drafts (`DSD-YYYY-####`); statuses Draft→AwaitingPayment→PaymentCleared→Discharged (+ Returned/Cancelled); migration `20260721200000_discharge_drafts` |
 | `CERTIFICATE_TEMPLATES` | `CertificateTemplates` | Certificate/report template store (16 DOC_TYPES seeded); `FIELD_SCHEMA` JSON; migration `20260722120000_doctor_profile_and_certificates` |
+| Blood bank tables | see above | Migration `20260722140000_lab_blood_bank` |
 | `CLINICAL_CERTIFICATES` | `ClinicalCertificates` | Issued docs (`DOC-YYYY-####`); Draft→PendingSignature→PendingApproval→Issued (+ Expired/Cancelled) |
 | `CLINICAL_CERTIFICATE_EVENTS` | `ClinicalCertificateEvents` | Immutable certificate lifecycle log |
 | `DISCHARGE_DRAFT_EVENTS` | `DischargeDraftEvents` | Immutable step log per discharge draft |
@@ -109,6 +111,10 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `CLINICAL_NOTE_VERSIONS` | `ClinicalNoteVersions` | Immutable version snapshots for clinical notes |
 | `LAB_TESTS` | `LabTests` | Orderable lab catalog (`TEST_CODE`, category, specimen, TAT, `UNIT_PRICE`, Active/Inactive) |
 | `LAB_REQUESTS` | `LabRequests` | Lab requests (`LR-YYYY-####`); `SOURCE` Doctor\|WalkIn; `PAYMENT_STATUS` Unpaid/Paid/Waived; status Draft/Sent/Cancelled; `LAB_STATUS` LIS pipeline (AwaitingCollection → … → Validated) |
+| `BLOOD_UNITS` | `BloodUnits` | Blood inventory (`BU-…`); group/component/expiry; status Available\|Reserved\|Issued\|Expired\|Quarantine |
+| `BLOOD_REQUESTS` | `BloodRequests` | Transfusion requests (`BR-YYYY-####`); Pending→Crossmatching→Issued/Rejected→Completed |
+| `BLOOD_REQUEST_EVENTS` | `BloodRequestEvents` | Immutable audit trail for blood requests |
+| `BLOOD_CROSSMATCHES` | `BloodCrossmatches` | Crossmatch history (`CM-YYYY-####`); Compatible\|Incompatible\|Pending |
 | `LAB_REQUEST_ITEMS` | `LabRequestItems` | Line items with snapshotted test code/name/price |
 | `LAB_RESULT_TEMPLATES` | `LabResultTemplates` | Result entry templates (`CODE` unique, e.g. `tpl-fbc`); `FIELDS` JSONB array of field defs; Active/Inactive; 12 seeded |
 | `LAB_SAMPLES` | `LabSamples` | Collected specimens (`SMP-YYYY-####`) per request per specimen type; Collected/Rejected + reject reason |
@@ -148,6 +154,8 @@ WARDS ── nursing shifts / handovers / report snapshots
 PERSONS ── PHARMACY_SALES ── PHARMACY_SALE_ITEMS ── DRUGS
 PERSONS ── PHARMACY_RETURNS ── PHARMACY_RETURN_ITEMS ── DRUGS
 PERSONS ── LAB_REQUESTS ── LAB_REQUEST_ITEMS ── LAB_TESTS
+PERSONS ── BLOOD_REQUESTS ── BLOOD_REQUEST_EVENTS
+BLOOD_REQUESTS ── BLOOD_CROSSMATCHES ── BLOOD_UNITS (optional)
 ENCOUNTERS ── LAB_REQUESTS (optional)
 USERS ── LAB_REQUESTS (doctor)
 LAB_REQUESTS ── LAB_SAMPLES (1:N specimens)

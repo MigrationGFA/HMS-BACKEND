@@ -118,6 +118,10 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Lab test catalog (`GET/POST/PATCH /laboratory/tests`) | ✅ |
 | Doctor lab requests Unpaid → cashier pay (`/laboratory/requests`, `/cashier/payments/lab-requests`) | ✅ |
 | Lab walk-in create (`source=WalkIn`, Unpaid) + LAB `lab:create` | ✅ |
+| Lab sidebar unified on full `labCenterNav` for all `/dashboard/laboratory/*` pages | ✅ |
+| Result Templates Preview (form layout from backend `FIELDS` via `GET /templates/:id`) | ✅ |
+| Blood bank inventory + requests + crossmatch + issue/reject (`/laboratory/blood-bank/*`, RBAC `blood-bank:*`) | ✅ |
+| Patient lab history (`GET /laboratory/history?personId=`) live FE History Center | ✅ |
 | Lab Request Center shows Unpaid as Pending Payment (limited detail; Collect/Results locked) | ✅ |
 | Lab Request Center Paid/Waived unlocks full detail + processing | ✅ |
 | Cashier Pending/Paid bills = live aggregate (cards + pharmacy + Rx + lab + admission) | ✅ |

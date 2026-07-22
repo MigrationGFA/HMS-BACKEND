@@ -2293,6 +2293,20 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 | GET | `/laboratory/templates/:id` | Template detail | `lab:read` |
 | POST | `/laboratory/templates` | Create template `{ name, category, description?, fields[] }` | `lab:template-manage` |
 | PATCH | `/laboratory/templates/:id` | Update template (fields/name/status; deactivate = `status: Inactive`) | `lab:template-manage` |
+| GET | `/laboratory/history?personId=&from=&to=&q=&page=&limit=` | Patient longitudinal lab history (requests + items + latest result) | `lab:read` |
+| GET | `/laboratory/blood-bank/summary` | Blood bank KPI counts + stock by group | `blood-bank:read` |
+| GET | `/laboratory/blood-bank/units?status=&bloodGroup=&q=` | Inventory list | `blood-bank:read` |
+| POST | `/laboratory/blood-bank/units` | Add unit `{ unitNo, bloodGroup, component, expiryDate, … }` | `blood-bank:create` |
+| PATCH | `/laboratory/blood-bank/units/:id` | Update status / return / quarantine | `blood-bank:update` |
+| GET | `/laboratory/blood-bank/requests?status=&q=` | Transfusion request queue | `blood-bank:read` |
+| POST | `/laboratory/blood-bank/requests` | New request `{ personId, bloodGroup, unitsRequested, department, … }` | `blood-bank:create` |
+| GET | `/laboratory/blood-bank/requests/:id` | Detail + immutable events | `blood-bank:read` |
+| PATCH | `/laboratory/blood-bank/requests/:id/start-crossmatch` | → Crossmatching | `blood-bank:update` |
+| PATCH | `/laboratory/blood-bank/requests/:id/crossmatch` | Record `{ result, bloodUnitId?, notes? }` | `blood-bank:update` |
+| PATCH | `/laboratory/blood-bank/requests/:id/issue` | Issue units `{ bloodUnitId?, notes? }` | `blood-bank:issue` |
+| PATCH | `/laboratory/blood-bank/requests/:id/reject` | Reject `{ reason }` | `blood-bank:update` |
+| PATCH | `/laboratory/blood-bank/requests/:id/complete` | Mark Issued → Completed | `blood-bank:update` |
+| GET | `/laboratory/blood-bank/crossmatches` | Crossmatch history | `blood-bank:read` |
 | GET | `/cashier/payments/lab-requests?paymentStatus=Unpaid` | Cashier unpaid queue | `lab:pay` |
 | POST | `/cashier/payments/lab-requests/:id/confirm` | Confirm payment `{ paymentChannel, paymentRef? }` | `lab:pay` |
 | GET | `/cashier/payments/admission-bills?paymentStatus=Unpaid` | Cashier unpaid admission packages | `admission:pay` |
@@ -2306,11 +2320,15 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 
 **List rules:** `workQueue=true` forces `paymentStatus in (Paid,Waived)` and default `status=Sent` (ready-to-process subset). LAB role otherwise lists unpaid too. Responses include `paymentCleared`, `processingLocked` and `labStatus`. For LAB + unpaid, clinical indication/notes, prices, phone, and DOB are redacted.
 
-**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay|template-create|template-update|sample-collect|sample-reject|result-save|result-submit|result-validate|result-return|result-amend`.
+**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay|template-create|template-update|sample-collect|sample-reject|result-save|result-submit|result-validate|result-return|result-amend` · `blood-bank:unit-create|unit-update|request-create|crossmatch-start|crossmatch-record|issue|reject|complete`.
+
+**History response:** `{ data: { patient, items: [{ requestId, requestNo, testName, category, requestedAt, paymentStatus, labStatus, resultId, resultSummary, validatedAt }], meta } }` — requires `personId`.
+
+**Blood bank notes:** Unit statuses `Available|Reserved|Issued|Expired|Quarantine`. Request statuses `Pending|Crossmatching|Issued|Rejected|Completed`. Request numbers `BR-YYYY-####`. Events in `BLOOD_REQUEST_EVENTS` are append-only.
 
 **Response example:** `{ data: { labRequestId, requestNo: "LR-2026-0001", source: "WalkIn", paymentStatus: "Unpaid", paymentCleared: false, processingLocked: true, status: "Sent", labStatus: "AwaitingCollection", totalAmount, items, person } }`
 
-**Errors:** 400 invalid/inactive tests, encounter mismatch, already-paid cancel, unpaid collect/results, wrong LIS state (e.g. validate a Draft, amend a non-Validated result), duplicate field keys; 401; 403; 404 patient/request/sample/result/template.
+**Errors:** 400 invalid/inactive tests, encounter mismatch, already-paid cancel, unpaid collect/results, wrong LIS state (e.g. validate a Draft, amend a non-Validated result), duplicate field keys, missing blood stock / incompatible issue; 401; 403; 404 patient/request/sample/result/template/unit.
 
 ---
 
