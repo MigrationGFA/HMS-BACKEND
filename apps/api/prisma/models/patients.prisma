@@ -102,6 +102,7 @@ model Persons {
   clinicalReferrals    ClinicalReferrals[]
   dischargeDrafts      DischargeDrafts[]
   clinicalCertificates ClinicalCertificates[]
+  bloodRequests        BloodRequests[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])

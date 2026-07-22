@@ -133,6 +133,12 @@ export const PERMISSIONS = {
   /** Validate, return or amend lab results */
   LAB_VALIDATE: 'lab:validate',
 
+  // Blood bank (inventory + transfusion requests)
+  BLOOD_BANK_READ: 'blood-bank:read',
+  BLOOD_BANK_CREATE: 'blood-bank:create',
+  BLOOD_BANK_UPDATE: 'blood-bank:update',
+  BLOOD_BANK_ISSUE: 'blood-bank:issue',
+
   // Imaging / radiology (catalog + doctor requests; cashier confirms payment)
   IMAGING_READ: 'imaging:read',
   IMAGING_CREATE: 'imaging:create',
@@ -434,6 +440,10 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.LAB_COLLECT,
     PERMISSIONS.LAB_RESULT,
     PERMISSIONS.LAB_VALIDATE,
+    PERMISSIONS.BLOOD_BANK_READ,
+    PERMISSIONS.BLOOD_BANK_CREATE,
+    PERMISSIONS.BLOOD_BANK_UPDATE,
+    PERMISSIONS.BLOOD_BANK_ISSUE,
     PERMISSIONS.NURSING_ORDER_CREATE,
     PERMISSIONS.NURSING_ORDER_READ,
     PERMISSIONS.NURSING_SAMPLE_READ,

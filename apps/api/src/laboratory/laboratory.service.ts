@@ -1710,4 +1710,126 @@ export class LaboratoryService {
     });
     return response;
   }
+
+  /**
+   * Patient-scoped longitudinal lab history (requests + items + latest result).
+   */
+  async getPatientHistory(params: {
+    personId: number;
+    from?: string;
+    to?: string;
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    if (!params.personId || Number.isNaN(params.personId)) {
+      throw new BadRequestException('personId is required');
+    }
+    const person = await this.prisma.persons.findUnique({
+      where: { PERSON_ID: params.personId },
+      select: {
+        PERSON_ID: true,
+        HOSPITAL_NO: true,
+        FIRST_NAME: true,
+        LAST_NAME: true,
+        MIDDLE_NAME: true,
+        SEX: true,
+        DATE_OF_BIRTH: true,
+      },
+    });
+    if (!person) throw new NotFoundException('Patient not found');
+
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(200, Math.max(1, params.limit ?? 50));
+    const itemWhere: Prisma.LabRequestItemsWhereInput = {
+      request: {
+        PERSON_ID: params.personId,
+        STATUS: { not: 'Cancelled' },
+      },
+    };
+    if (params.from || params.to) {
+      const created: Prisma.DateTimeNullableFilter = {};
+      if (params.from) created.gte = new Date(params.from);
+      if (params.to) created.lte = new Date(params.to);
+      (itemWhere.request as Prisma.LabRequestsWhereInput).CREATED_DATE = created;
+    }
+    if (params.q?.trim()) {
+      const q = params.q.trim();
+      itemWhere.OR = [
+        { TEST_NAME: { contains: q, mode: 'insensitive' } },
+        { TEST_CODE: { contains: q, mode: 'insensitive' } },
+        { CATEGORY: { contains: q, mode: 'insensitive' } },
+        { request: { REQUEST_NO: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.labRequestItems.count({ where: itemWhere }),
+      this.prisma.labRequestItems.findMany({
+        where: itemWhere,
+        include: {
+          request: {
+            select: {
+              LAB_REQUEST_ID: true,
+              REQUEST_NO: true,
+              CREATED_DATE: true,
+              PAYMENT_STATUS: true,
+              LAB_STATUS: true,
+            },
+          },
+          result: {
+            select: {
+              LAB_RESULT_ID: true,
+              STATUS: true,
+              VALUES: true,
+              VALIDATED_AT: true,
+              COMMENT: true,
+            },
+          },
+        },
+        orderBy: [{ request: { CREATED_DATE: 'desc' } }, { ITEM_ID: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const summarize = (values: unknown): string | null => {
+      if (!values || typeof values !== 'object') return null;
+      const entries = Object.entries(values as Record<string, unknown>).slice(0, 4);
+      if (!entries.length) return null;
+      return entries
+        .map(([k, v]) => `${k}: ${v == null ? '—' : String(v)}`)
+        .join('; ');
+    };
+
+    return {
+      patient: {
+        personId: person.PERSON_ID,
+        hospitalNo: person.HOSPITAL_NO,
+        firstName: person.FIRST_NAME,
+        lastName: person.LAST_NAME,
+        middleName: person.MIDDLE_NAME,
+        sex: person.SEX,
+        dateOfBirth: person.DATE_OF_BIRTH?.toISOString().slice(0, 10) ?? null,
+        name: [person.FIRST_NAME, person.MIDDLE_NAME, person.LAST_NAME]
+          .filter(Boolean)
+          .join(' '),
+      },
+      items: rows.map((row) => ({
+        requestId: row.request.LAB_REQUEST_ID,
+        requestNo: row.request.REQUEST_NO,
+        testName: row.TEST_NAME,
+        testCode: row.TEST_CODE,
+        category: row.CATEGORY,
+        requestedAt: row.request.CREATED_DATE?.toISOString() ?? null,
+        paymentStatus: row.request.PAYMENT_STATUS,
+        labStatus: row.request.LAB_STATUS,
+        resultId: row.result?.LAB_RESULT_ID ?? null,
+        resultStatus: row.result?.STATUS ?? null,
+        resultSummary: summarize(row.result?.VALUES) ?? row.result?.COMMENT ?? null,
+        validatedAt: row.result?.VALIDATED_AT?.toISOString() ?? null,
+      })),
+      meta: { page, limit, total },
+    };
+  }
 }

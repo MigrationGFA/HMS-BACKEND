@@ -321,6 +321,91 @@ async function main() {
   await seedNursingOpsDemo();
   await seedDiagnosesDemo();
   await seedCertificateTemplates();
+  await seedBloodBankDemo();
+}
+
+async function seedBloodBankDemo() {
+  const existing = await prisma.bloodUnits.count();
+  if (existing > 0) {
+    console.log('Blood bank units already present — skip seed.');
+    return;
+  }
+  const now = new Date();
+  const units = [
+    { UNIT_NO: 'BU-2410', BLOOD_GROUP: 'O+', COMPONENT: 'Whole Blood', EXPIRY_DATE: new Date('2026-06-12'), STATUS: 'Available', DONOR_LABEL: 'Donor A' },
+    { UNIT_NO: 'BU-2411', BLOOD_GROUP: 'A+', COMPONENT: 'Packed Cells', EXPIRY_DATE: new Date('2026-07-08'), STATUS: 'Available', DONOR_LABEL: 'Donor B' },
+    { UNIT_NO: 'BU-2412', BLOOD_GROUP: 'B-', COMPONENT: 'FFP', EXPIRY_DATE: new Date('2026-05-30'), STATUS: 'Available', DONOR_LABEL: 'Donor C' },
+    { UNIT_NO: 'BU-2413', BLOOD_GROUP: 'AB+', COMPONENT: 'Platelets', EXPIRY_DATE: new Date('2026-07-15'), STATUS: 'Available', DONOR_LABEL: 'Donor D' },
+    { UNIT_NO: 'BU-2414', BLOOD_GROUP: 'O-', COMPONENT: 'Whole Blood', EXPIRY_DATE: new Date('2026-04-20'), STATUS: 'Expired', DONOR_LABEL: 'Donor E' },
+    { UNIT_NO: 'BU-2415', BLOOD_GROUP: 'A-', COMPONENT: 'Packed Cells', EXPIRY_DATE: new Date('2026-08-10'), STATUS: 'Available', DONOR_LABEL: 'Donor F' },
+  ];
+  for (const u of units) {
+    await prisma.bloodUnits.create({
+      data: {
+        ...u,
+        CREATED_BY: 'seed',
+        CREATED_DATE: now,
+      },
+    });
+  }
+
+  const person = await prisma.persons.findFirst({ orderBy: { PERSON_ID: 'asc' } });
+  if (person) {
+    const pending = await prisma.bloodRequests.create({
+      data: {
+        REQUEST_NO: `TMP-BR-${Date.now()}`,
+        PERSON_ID: person.PERSON_ID,
+        BLOOD_GROUP: 'A+',
+        UNITS_REQUESTED: 2,
+        DEPARTMENT: 'Female Ward',
+        DOCTOR_LABEL: 'Dr. Adeyemi',
+        STATUS: 'Pending',
+        CROSS_MATCH_RESULT: 'Pending',
+        NOTES: 'Seed pending request',
+        CREATED_BY: 'seed',
+        CREATED_DATE: now,
+      },
+    });
+    await prisma.bloodRequests.update({
+      where: { BLOOD_REQUEST_ID: pending.BLOOD_REQUEST_ID },
+      data: { REQUEST_NO: `BR-${now.getFullYear()}-${String(pending.BLOOD_REQUEST_ID).padStart(4, '0')}` },
+    });
+    await prisma.bloodRequestEvents.create({
+      data: {
+        BLOOD_REQUEST_ID: pending.BLOOD_REQUEST_ID,
+        ACTION: 'Created',
+        ACTOR_LABEL: 'seed',
+      },
+    });
+
+    const xm = await prisma.bloodRequests.create({
+      data: {
+        REQUEST_NO: `TMP-BR2-${Date.now()}`,
+        PERSON_ID: person.PERSON_ID,
+        BLOOD_GROUP: 'O-',
+        UNITS_REQUESTED: 1,
+        DEPARTMENT: 'ICU',
+        DOCTOR_LABEL: 'Dr. Ojo',
+        STATUS: 'Crossmatching',
+        CROSS_MATCH_RESULT: 'Pending',
+        NOTES: 'Seed crossmatching request',
+        CREATED_BY: 'seed',
+        CREATED_DATE: now,
+      },
+    });
+    await prisma.bloodRequests.update({
+      where: { BLOOD_REQUEST_ID: xm.BLOOD_REQUEST_ID },
+      data: { REQUEST_NO: `BR-${now.getFullYear()}-${String(xm.BLOOD_REQUEST_ID).padStart(4, '0')}` },
+    });
+    await prisma.bloodRequestEvents.create({
+      data: {
+        BLOOD_REQUEST_ID: xm.BLOOD_REQUEST_ID,
+        ACTION: 'Crossmatch started',
+        ACTOR_LABEL: 'seed',
+      },
+    });
+  }
+  console.log('Seeded blood bank demo units and requests.');
 }
 
 /** All 16 DOC_TYPES from fnph-aro DoctorCertificatesReportsEngine. */
