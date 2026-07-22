@@ -78,6 +78,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Admission bills (package invoice) | ✅ | `/api/admission-bills` + cashier confirm; catalogue + Day-1 bed rate |
 | Diagnoses (ICD catalog + problem list) | ✅ | `/api/diagnoses` catalog/list/create/update/stats |
 | Discharge drafts (doctor → cashier → Records) | ✅ | `/api/discharge-drafts` — draft/submit/`order-discharge` → payment clear → finalize/`complete-discharge`; empty `/api/discharge` retired (403) |
+| Doctor analytics | ✅ | `GET /api/doctor/analytics` — doctor-scoped KPIs/charts/tables (`doctor-analytics:read`) |
+| Clinical certificates & reports | ✅ | `/api/clinical-certificates` templates + draft/sign/approve; 16 templates seeded; RBAC `certificate:*` |
 | Doctor clinical boards | ✅ | Patient Directory, Active Board, Ward Round (admissions + clinical notes) live when `VITE_USE_API` |
 | Psychiatry | ✅ | `/api/psychiatry/*` |
 | Allied Health | ✅ | `/api/allied-health/*` |
@@ -191,7 +193,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Module | Status | Route |
 |--------|--------|-------|
 | Reports | ✅ | `/api/reports` |
-| Analytics | ✅ | `/api/analytics` |
+| Platform analytics scaffold | 📋 | `/api/analytics` empty stub — use doctor/nursing/pharmacy domain analytics |
+| Doctor self profile | ✅ | `GET/PATCH /api/users/me` + `POST /api/auth/change-password` |
 | Notifications | ✅ | `/api/notifications` |
 | Files | ✅ | `/api/files` |
 | Realtime | ✅ | WebSocket `/events` |

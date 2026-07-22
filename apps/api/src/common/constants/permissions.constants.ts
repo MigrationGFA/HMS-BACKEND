@@ -164,6 +164,17 @@ export const PERMISSIONS = {
   DISCHARGE_CLEAR_PAYMENT: 'discharge:clear-payment',
   DISCHARGE_FINALIZE: 'discharge:finalize',
 
+  // Clinical certificates & reports
+  CERTIFICATE_CREATE: 'certificate:create',
+  CERTIFICATE_READ: 'certificate:read',
+  CERTIFICATE_UPDATE: 'certificate:update',
+  CERTIFICATE_SIGN: 'certificate:sign',
+  /** Admin/CMD only via FULL_ACCESS — approval-required document types */
+  CERTIFICATE_APPROVE: 'certificate:approve',
+
+  // Doctor-scoped clinical analytics
+  DOCTOR_ANALYTICS_READ: 'doctor-analytics:read',
+
   // Audit
   AUDIT_READ: 'audit:read',
 
@@ -295,6 +306,9 @@ const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.NOTIFICATION_READ,
   PERMISSIONS.REFERRAL_READ,
   PERMISSIONS.REFERRAL_RECEIVE,
+  PERMISSIONS.DISCHARGE_READ,
+  PERMISSIONS.CERTIFICATE_READ,
+  PERMISSIONS.DOCTOR_ANALYTICS_READ,
 ];
 
 // Full clinical permissions (read + write for nursing and encounters)
@@ -362,6 +376,11 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.DISCHARGE_CREATE,
   PERMISSIONS.DISCHARGE_READ,
   PERMISSIONS.DISCHARGE_UPDATE,
+  PERMISSIONS.CERTIFICATE_CREATE,
+  PERMISSIONS.CERTIFICATE_READ,
+  PERMISSIONS.CERTIFICATE_UPDATE,
+  PERMISSIONS.CERTIFICATE_SIGN,
+  PERMISSIONS.DOCTOR_ANALYTICS_READ,
   PERMISSIONS.AUDIT_READ,
 ];
 
