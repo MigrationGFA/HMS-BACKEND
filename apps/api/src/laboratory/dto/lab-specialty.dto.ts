@@ -195,3 +195,84 @@ export class GenerateLabReportDto {
   @MaxLength(255)
   title?: string;
 }
+
+export class CreateSfaDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  personId!: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  labRequestId?: number;
+
+  @IsOptional() @IsString() @MaxLength(40) volumeMl?: string;
+  @IsOptional() @IsString() @MaxLength(80) colour?: string;
+  @IsOptional() @IsString() @MaxLength(80) viscosity?: string;
+  @IsOptional() @IsString() @MaxLength(40) liquefactionMin?: string;
+  @IsOptional() @IsString() @MaxLength(40) ph?: string;
+  @IsOptional() @IsString() @MaxLength(40) countMMl?: string;
+  @IsOptional() @IsString() @MaxLength(40) motilityPct?: string;
+  @IsOptional() @IsString() @MaxLength(40) morphologyPct?: string;
+  @IsOptional() @IsString() @MaxLength(40) pusCells?: string;
+  @IsOptional() @IsString() @MaxLength(40) rbc?: string;
+  @IsOptional() @IsString() @MaxLength(40) epithelial?: string;
+  @IsOptional() @IsString() interpretation?: string;
+}
+
+export class PatchSfaDto {
+  @IsOptional() @IsString() @MaxLength(40) volumeMl?: string;
+  @IsOptional() @IsString() @MaxLength(80) colour?: string;
+  @IsOptional() @IsString() @MaxLength(80) viscosity?: string;
+  @IsOptional() @IsString() @MaxLength(40) liquefactionMin?: string;
+  @IsOptional() @IsString() @MaxLength(40) ph?: string;
+  @IsOptional() @IsString() @MaxLength(40) countMMl?: string;
+  @IsOptional() @IsString() @MaxLength(40) motilityPct?: string;
+  @IsOptional() @IsString() @MaxLength(40) morphologyPct?: string;
+  @IsOptional() @IsString() @MaxLength(40) pusCells?: string;
+  @IsOptional() @IsString() @MaxLength(40) rbc?: string;
+  @IsOptional() @IsString() @MaxLength(40) epithelial?: string;
+  @IsOptional() @IsString() interpretation?: string;
+}
+
+export class RejectSfaDto {
+  @IsString()
+  @MinLength(2)
+  reason!: string;
+}
+
+export class CreateSpecimenDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  personId!: number;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(150)
+  testLabel!: string;
+
+  @IsOptional() @IsString() @MaxLength(100) collectedBy?: string;
+  @IsOptional() @IsString() @MaxLength(150) location?: string;
+  @IsOptional() @Type(() => Number) @IsInt() labRequestId?: number;
+  @IsOptional() @Type(() => Number) @IsInt() labSampleId?: number;
+}
+
+export class TransferSpecimenDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(150)
+  toLocation!: string;
+
+  @IsOptional() @IsString() @MaxLength(255) reason?: string;
+  @IsOptional() @IsString() @MaxLength(100) staffLabel?: string;
+}
+
+export class SpecimenStatusDto {
+  @IsIn(['Received', 'Rejected', 'Lost', 'Delayed', 'Completed', 'In Transit'])
+  status!: string;
+
+  @IsOptional() @IsString() @MaxLength(255) reason?: string;
+  @IsOptional() @IsString() @MaxLength(150) location?: string;
+}

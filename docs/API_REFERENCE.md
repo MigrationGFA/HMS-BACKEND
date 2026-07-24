@@ -2385,6 +2385,24 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 | GET | `/laboratory/reports` | List report snapshots | `lab:read` |
 | POST | `/laboratory/reports/generate` | Aggregate + persist snapshot `{ reportType, from, to, title? }` | `lab:read` |
 | GET | `/laboratory/reports/:id` | Snapshot detail + payload | `lab:read` |
+| GET | `/laboratory/sfa?status=&personId=&q=` | List seminal fluid analyses + KPIs | `lab:read` |
+| GET | `/laboratory/sfa/:id` | SFA detail | `lab:read` |
+| POST | `/laboratory/sfa` | Create draft SFA `{ personId, …fields? }` | `lab:create` |
+| PATCH | `/laboratory/sfa/:id` | Update SFA fields | `lab:result` |
+| POST | `/laboratory/sfa/:id/submit` | Submit for validation | `lab:result` |
+| POST | `/laboratory/sfa/:id/validate` | Validate SFA | `lab:validate` |
+| POST | `/laboratory/sfa/:id/reject` | Reject `{ reason }` | `lab:validate` |
+| GET | `/laboratory/analytics/summary?from=&to=&timezoneOffsetMinutes=` | Live analytics (revenue, tests, avg TAT, top tests, workload) | `lab:read` |
+| GET | `/laboratory/specimens?status=&personId=&q=` | Specimen tracking list + KPIs | `lab:read` |
+| GET | `/laboratory/specimens/:id` | Specimen detail + chain-of-custody events | `lab:read` |
+| POST | `/laboratory/specimens` | Register specimen `{ personId, testLabel, … }` | `lab:create` |
+| PATCH | `/laboratory/specimens/:id/transfer` | Transfer `{ toLocation, reason?, staffLabel? }` | `lab:update` |
+| PATCH | `/laboratory/specimens/:id/status` | Status update `{ status, reason?, location? }` | `lab:update` |
+| GET | `/laboratory/microbiology?status=&q=` | Micro worklist over cultures + micro KPIs | `lab:read` |
+| GET | `/laboratory/microbiology/:id` | Culture detail for micro | `lab:read` |
+| POST | `/laboratory/microbiology` | Create culture (delegate) | `lab:create` |
+| PATCH | `/laboratory/microbiology/:id` | Update culture | `lab:update` |
+| POST | `/laboratory/microbiology/:id/validate` | Mark culture Final | `lab:validate` |
 | GET | `/laboratory/tests?q=&category=&status=` | Lab test catalog | `lab:read` |
 | GET | `/laboratory/tests/:id` | Test detail | `lab:read` |
 | POST | `/laboratory/tests` | Create catalog entry | `lab:update` |
@@ -2440,7 +2458,7 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 
 **List rules:** `workQueue=true` forces `paymentStatus in (Paid,Waived)` and default `status=Sent` (ready-to-process subset). LAB role otherwise lists unpaid too. Responses include `paymentCleared`, `processingLocked` and `labStatus`. For LAB + unpaid, clinical indication/notes, prices, phone, and DOB are redacted.
 
-**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay|template-create|template-update|sample-collect|sample-reject|result-save|result-submit|result-validate|result-return|result-amend` · `lab-drug-screen:*` · `lab-culture:*` · `lab-report:generate` · `blood-bank:unit-create|unit-update|request-create|crossmatch-start|crossmatch-record|issue|reject|complete|donor-create|donor-update`.
+**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay|template-create|template-update|sample-collect|sample-reject|result-save|result-submit|result-validate|result-return|result-amend` · `lab-drug-screen:*` · `lab-culture:*` · `lab-report:generate` · `lab-sfa:*` · `lab-specimen:*` · `blood-bank:unit-create|unit-update|request-create|crossmatch-start|crossmatch-record|issue|reject|complete|donor-create|donor-update`.
 
 **History response:** `{ data: { patient, items: [{ requestId, requestNo, testName, category, requestedAt, paymentStatus, labStatus, resultId, resultSummary, validatedAt }], meta } }` — requires `personId`.
 
@@ -2449,6 +2467,42 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 **Response example:** `{ data: { labRequestId, requestNo: "LR-2026-0001", source: "WalkIn", paymentStatus: "Unpaid", paymentCleared: false, processingLocked: true, status: "Sent", labStatus: "AwaitingCollection", totalAmount, items, person } }`
 
 **Errors:** 400 invalid/inactive tests, encounter mismatch, already-paid cancel, unpaid collect/results, wrong LIS state (e.g. validate a Draft, amend a non-Validated result), duplicate field keys, missing blood stock / incompatible issue; 401; 403; 404 patient/request/sample/result/template/unit.
+
+#### Laboratory specialty extensions (SFA / Analytics / Specimens / Microbiology)
+
+**Drug-screen list KPIs:** `GET /laboratory/drug-screens` also returns `kpis: { draft, inProgress, validated, rejected, total }` (counts over soft-deleted-filtered rows matching filters).
+
+**SFA — `POST /laboratory/sfa`**
+- **Purpose:** Create draft seminal fluid analysis (patient-centric; optional `labRequestId`; no cashier gate).
+- **Permission:** `lab:create`
+- **Body:** `{ personId, labRequestId?, volumeMl?, colour?, viscosity?, liquefactionMin?, ph?, countMMl?, motilityPct?, morphologyPct?, pusCells?, rbc?, epithelial?, interpretation? }`
+- **Response:** `{ data: { sfaId, sfaNo: "SFA-YYYY-####", status: "Draft", person, …fields } }`
+- **Errors:** 400 invalid fields; 404 person; 401; 403
+
+**SFA lifecycle:** `PATCH /:id` (`lab:result`) while Draft/Submitted → `POST /:id/submit` → `POST /:id/validate` or `POST /:id/reject` `{ reason }` (`lab:validate`). Statuses: `Draft|Submitted|Validated|Rejected`. Audit: `lab-sfa:*`. Soft delete only.
+
+**Analytics — `GET /laboratory/analytics/summary`**
+- **Purpose:** Live aggregates (not persisted) for date range.
+- **Permission:** `lab:read`
+- **Query:** `from`, `to` (ISO dates), optional `timezoneOffsetMinutes`
+- **Response:** `{ data: { revenue, testsCompleted, avgTatHours, criticalOrStatCount, topTests: [{ name, count }], workloadByCategory: [{ category, count }] } }`
+- **Errors:** 400 bad date range; 401; 403
+
+**Specimens — `POST /laboratory/specimens`**
+- **Purpose:** Register tracking specimen (chain-of-custody domain; distinct from `LAB_SAMPLES`).
+- **Permission:** `lab:create`
+- **Body:** `{ personId, testLabel, collectedBy?, location?, labRequestId?, labSampleId? }`
+- **Response:** `{ data: { specimenId, specimenNo: "SPC-YYYY-####", status: "In Transit"|…, events: […] } }`
+- **Transfer:** `PATCH /:id/transfer` `{ toLocation, reason?, staffLabel? }` → status In Transit + immutable event (`lab:update`)
+- **Status:** `PATCH /:id/status` `{ status: "Received"|"Rejected"|"Lost"|"Delayed"|"Completed", reason?, location? }` + event (`lab:update`)
+- **Errors:** 400 invalid status transition; 404 specimen/person; 401; 403. Never hard-delete. Audit: `lab-specimen:*`.
+
+**Microbiology — wraps `LAB_CULTURES`**
+- **Purpose:** Workbench KPIs (Pending / Positive / Negative / Awaiting Validation / Completed) over existing cultures; create/patch/validate delegate to culture service.
+- **Permission:** list/detail `lab:read`; create `lab:create`; patch `lab:update`; validate `lab:validate`
+- **Validate:** `POST /laboratory/microbiology/:id/validate` → culture status Final
+- **Response (list):** `{ data: { items: […cultures with microStatus], kpis: { pending, positive, negative, awaitingValidation, completed, total }, meta } }`
+- **Errors:** same as cultures (400/404/401/403). Culture & Sensitivity page remains on `/laboratory/cultures`.
 
 ---
 

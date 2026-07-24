@@ -34,7 +34,7 @@ apps/api/prisma/
 │   ├── pharmacy-settings.prisma
 │   ├── prescriptions.prisma  # PRESCRIPTIONS, PRESCRIPTION_ITEMS
 │   ├── laboratory.prisma     # LAB_TESTS, LAB_REQUESTS(+LAB_STATUS), LAB_REQUEST_ITEMS, LAB_RESULT_TEMPLATES, LAB_SAMPLES, LAB_RESULTS, LAB_RESULT_VERSIONS
-│   ├── lab-specialty.prisma  # LAB_DRUG_SCREENS(+RESULTS), LAB_CULTURES(+SENSITIVITIES), LAB_REPORT_SNAPSHOTS
+│   ├── lab-specialty.prisma  # LAB_DRUG_SCREENS(+RESULTS), LAB_CULTURES(+SENSITIVITIES), LAB_REPORT_SNAPSHOTS, LAB_SFA_ANALYSES, LAB_SPECIMEN_TRACKING(+EVENTS)
 │   ├── blood-bank.prisma     # BLOOD_DONORS, BLOOD_UNITS, BLOOD_REQUESTS, BLOOD_REQUEST_EVENTS, BLOOD_CROSSMATCHES
 │   └── audit.prisma          # AUDITS (with AUDIT_TYPE)
 ├── migrations/
@@ -66,7 +66,10 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `DISCHARGE_DRAFTS` | `DischargeDrafts` | Doctor discharge drafts (`DSD-YYYY-####`); statuses Draft→AwaitingPayment→PaymentCleared→Discharged (+ Returned/Cancelled); migration `20260721200000_discharge_drafts` |
 | `CERTIFICATE_TEMPLATES` | `CertificateTemplates` | Certificate/report template store (16 DOC_TYPES seeded); `FIELD_SCHEMA` JSON; migration `20260722120000_doctor_profile_and_certificates` |
 | Blood bank tables | see above | Migration `20260722140000_lab_blood_bank`; donors + doctor/donor FKs in `20260724160000_lab_specialty_blood_donors` |
-| Lab specialty tables | see `lab-specialty.prisma` | Urine drug screens, cultures/sensitivities, report snapshots (`20260724160000_lab_specialty_blood_donors`) |
+| Lab specialty tables | see `lab-specialty.prisma` | Urine drug screens, cultures/sensitivities, report snapshots (`20260724160000`); SFA + specimen tracking (`20260724180000_lab_sfa_specimens`) |
+| `LAB_SFA_ANALYSES` | `LabSfaAnalyses` | Seminal fluid analyses (`SFA-YYYY-####`); macro/micro fields; statuses Draft\|Submitted\|Validated\|Rejected; soft delete |
+| `LAB_SPECIMEN_TRACKING` | `LabSpecimenTracking` | Specimen tracking (`SPC-YYYY-####`); location + TAT; statuses In Transit\|Received\|Rejected\|Lost\|Delayed\|Completed |
+| `LAB_SPECIMEN_EVENTS` | `LabSpecimenEvents` | Immutable chain-of-custody events (Registered\|Transferred\|Received\|Rejected\|Lost\|Delayed\|Completed) |
 | `CLINICAL_CERTIFICATES` | `ClinicalCertificates` | Issued docs (`DOC-YYYY-####`); Draft→PendingSignature→PendingApproval→Issued (+ Expired/Cancelled) |
 | `CLINICAL_CERTIFICATE_EVENTS` | `ClinicalCertificateEvents` | Immutable certificate lifecycle log |
 | `DISCHARGE_DRAFT_EVENTS` | `DischargeDraftEvents` | Immutable step log per discharge draft |
