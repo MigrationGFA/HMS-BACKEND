@@ -25,6 +25,7 @@ import { DoctorModule } from './doctor/doctor.module';
 import { NursingModule } from './nursing/nursing.module';
 import { AdmissionsModule } from './admissions/admissions.module';
 import { TransfersModule } from './transfers/transfers.module';
+import { EmergencyOverrideModule } from './emergency-override/emergency-override.module';
 import { DischargeModule } from './discharge/discharge.module';
 import { PsychiatryModule } from './psychiatry/psychiatry.module';
 import { AlliedHealthModule } from './allied-health/allied-health.module';
@@ -85,6 +86,7 @@ import { HrModule } from './hr/hr.module';
     NursingModule,
     AdmissionsModule,
     TransfersModule,
+    EmergencyOverrideModule,
     DischargeModule,
     PsychiatryModule,
     AlliedHealthModule,
