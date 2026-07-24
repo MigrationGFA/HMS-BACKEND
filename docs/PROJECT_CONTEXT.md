@@ -16,9 +16,9 @@ Modules are organized by **hospital function** (patients, laboratory, billing), 
 
 ## Goals
 
-1. **Reliable clinical operations** — queues, appointments, emergency intake, ICU workflows
+1. **Reliable clinical operations** — queues, appointments, emergency intake, ICU workflows, doctor emergency override, research analytics
 2. **Secure access** — RBAC with 27 system roles mapped to hospital functions
-3. **Auditability** — immutable audit trail for compliance
+3. **Auditability** — immutable audit trail for compliance (`/api/audit/logs` + `/api/audit/stats`)
 4. **Scalable foundation** — PostgreSQL, Redis, RabbitMQ, read replicas when needed
 5. **Realtime awareness** — Socket.IO for queues, notifications, emergency broadcasts
 6. **Enterprise coverage** — psychiatry, allied health, insurance (NHIA/HMO), governance, HR

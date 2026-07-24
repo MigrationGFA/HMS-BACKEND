@@ -1,0 +1,57 @@
+// Doctor emergency override (break-glass) sessions and critical alerts.
+// Soft status transitions only — never hard-delete clinical override records.
+
+model EmergencyOverrideSessions {
+  SESSION_ID          Int       @id @default(autoincrement())
+  OVERRIDE_NO         String    @unique @db.VarChar(50)
+  PERSON_ID           Int
+  ADMISSION_ID        Int?
+  REASON              String    @db.VarChar(120)
+  JUSTIFICATION       String    @db.Text
+  SEVERITY            Int       @default(3)
+  DURATION_MINUTES    Int       @default(60)
+  LOCATION            String?   @db.VarChar(150)
+  CONSULTANT          String?   @db.VarChar(150)
+  /// Active | Ended | Expired
+  STATUS              String    @default("Active") @db.VarChar(30)
+  ACTIONS_JSON        String?   @db.Text
+  STARTED_AT          DateTime
+  ENDS_AT             DateTime?
+  ENDED_AT            DateTime?
+  CREATED_BY_ID       Int?
+  CREATED_BY          String?   @db.VarChar(100)
+  CREATED_DATE        DateTime?
+  UPDATED_BY_ID       Int?
+  UPDATED_BY          String?   @db.VarChar(100)
+  UPDATED_DATE        DateTime?
+  /// Soft delete flag (Y/N)
+  DELETED_FLAG        String?   @default("N") @db.VarChar(1)
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([STARTED_AT])
+  @@index([CREATED_BY_ID])
+  @@map("EMERGENCY_OVERRIDE_SESSIONS")
+}
+
+model EmergencyCriticalAlerts {
+  ALERT_ID            Int       @id @default(autoincrement())
+  PERSON_ID           Int?
+  ALERT_TYPE          String    @db.VarChar(80)
+  MESSAGE             String    @db.Text
+  /// Critical | High | Medium
+  SEVERITY            String    @default("High") @db.VarChar(30)
+  ACKNOWLEDGED_AT     DateTime?
+  ACKNOWLEDGED_BY_ID  Int?
+  ACKNOWLEDGED_BY     String?   @db.VarChar(100)
+  CREATED_BY_ID       Int?
+  CREATED_BY          String?   @db.VarChar(100)
+  CREATED_DATE        DateTime?
+  DELETED_FLAG        String?   @default("N") @db.VarChar(1)
+
+  @@index([PERSON_ID])
+  @@index([SEVERITY])
+  @@index([CREATED_DATE])
+  @@index([ACKNOWLEDGED_AT])
+  @@map("EMERGENCY_CRITICAL_ALERTS")
+}

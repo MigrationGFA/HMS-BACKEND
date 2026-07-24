@@ -153,6 +153,11 @@ export const PERMISSIONS = {
   TRANSFER_ALLOCATE: 'transfer:allocate',
   TRANSFER_RECEIVE: 'transfer:receive',
 
+  // Doctor emergency override (break-glass)
+  EMERGENCY_OVERRIDE_CREATE: 'emergency-override:create',
+  EMERGENCY_OVERRIDE_READ: 'emergency-override:read',
+  EMERGENCY_OVERRIDE_UPDATE: 'emergency-override:update',
+
   // In-app notifications inbox
   NOTIFICATION_READ: 'notification:read',
 
@@ -178,8 +183,9 @@ export const PERMISSIONS = {
   /** Admin/CMD only via FULL_ACCESS — approval-required document types */
   CERTIFICATE_APPROVE: 'certificate:approve',
 
-  // Doctor-scoped clinical analytics
+  // Doctor-scoped clinical analytics / research
   DOCTOR_ANALYTICS_READ: 'doctor-analytics:read',
+  DOCTOR_RESEARCH_WRITE: 'doctor-research:write',
 
   // Audit
   AUDIT_READ: 'audit:read',
@@ -373,6 +379,9 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.TRANSFER_UPDATE,
   PERMISSIONS.TRANSFER_ALLOCATE,
   PERMISSIONS.TRANSFER_RECEIVE,
+  PERMISSIONS.EMERGENCY_OVERRIDE_CREATE,
+  PERMISSIONS.EMERGENCY_OVERRIDE_READ,
+  PERMISSIONS.EMERGENCY_OVERRIDE_UPDATE,
   PERMISSIONS.NOTIFICATION_READ,
   PERMISSIONS.REFERRAL_CREATE,
   PERMISSIONS.REFERRAL_READ,
@@ -387,6 +396,7 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.CERTIFICATE_UPDATE,
   PERMISSIONS.CERTIFICATE_SIGN,
   PERMISSIONS.DOCTOR_ANALYTICS_READ,
+  PERMISSIONS.DOCTOR_RESEARCH_WRITE,
   PERMISSIONS.AUDIT_READ,
 ];
 
