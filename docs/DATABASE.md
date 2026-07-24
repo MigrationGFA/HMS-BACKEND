@@ -224,8 +224,10 @@ Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tabl
 
 ### Production (Render)
 
-`render.yaml` runs `npx prisma migrate deploy` on every start. If `/api/encounters/*` returns **500** after a deploy, check Render logs for `relation "ENCOUNTERS" does not exist` (or missing column) — then either redeploy so migrate runs, or from the service shell / a machine with `DATABASE_URL`:
+`npm run start:prod` (and `render.yaml` startCommand) run `npx prisma migrate deploy` before serving traffic. If `/api/emergency-override/*`, `/api/encounters/*`, or other new APIs return **500** after a deploy, check Render logs for `relation "…" does not exist` (e.g. `EMERGENCY_OVERRIDE_SESSIONS`) — then either **Manual Deploy** so migrate runs, or from the Render Shell:
 
 ```bash
 npx prisma migrate deploy
 ```
+
+Confirm logs show applying `20260724120000_emergency_override` / `20260724130000_doctor_research` when those features ship.
