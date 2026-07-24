@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
@@ -26,9 +26,24 @@ export class CreateBloodUnitDto {
   status?: (typeof UNIT_STATUSES)[number];
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  donorId?: number;
+
+  @IsOptional()
   @IsString()
   @MaxLength(150)
   donorLabel?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  doctorId?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  doctorLabel?: string;
 
   @IsOptional()
   @IsString()
@@ -79,6 +94,11 @@ export class CreateBloodRequestDto {
   doctorLabel?: string;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  doctorId?: number;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 }
@@ -111,6 +131,68 @@ export class IssueBloodRequestDto {
   bloodUnitId?: number;
 
   @IsOptional()
+  @IsArray()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  bloodUnitIds?: number[];
+
+  @IsOptional()
   @IsString()
   notes?: string;
+}
+
+export class CreateBloodDonorDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  fullName!: string;
+
+  @IsString()
+  @MinLength(7)
+  @MaxLength(40)
+  phone!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  address?: string;
+
+  @IsOptional()
+  @IsIn(BLOOD_GROUPS)
+  bloodGroup?: (typeof BLOOD_GROUPS)[number];
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class UpdateBloodDonorDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  fullName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(7)
+  @MaxLength(40)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  address?: string;
+
+  @IsOptional()
+  @IsIn(BLOOD_GROUPS)
+  bloodGroup?: (typeof BLOOD_GROUPS)[number];
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsIn(['Active', 'Inactive'])
+  status?: 'Active' | 'Inactive';
 }

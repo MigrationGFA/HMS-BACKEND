@@ -8,13 +8,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import {
+  CreateBloodDonorDto,
   CreateBloodRequestDto,
   CreateBloodUnitDto,
   IssueBloodRequestDto,
   RecordCrossmatchDto,
   RejectBloodRequestDto,
+  UpdateBloodDonorDto,
   UpdateBloodUnitDto,
 } from './dto/blood-bank.dto';
+import { ROLES } from '../common/constants/roles.constants';
 
 function actorLabel(actor?: AuthUser): string {
   if (!actor) return 'SYSTEM';
@@ -61,7 +64,10 @@ export class BloodBankService {
       component: row.COMPONENT,
       expiryDate: row.EXPIRY_DATE.toISOString().slice(0, 10),
       status: row.STATUS,
+      donorId: row.DONOR_ID,
       donorLabel: row.DONOR_LABEL,
+      doctorId: row.DOCTOR_ID,
+      doctorLabel: row.DOCTOR_LABEL,
       notes: row.NOTES,
       createdAt: row.CREATED_DATE?.toISOString() ?? null,
       updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
@@ -78,6 +84,7 @@ export class BloodBankService {
       bloodGroup: row.BLOOD_GROUP,
       unitsRequested: row.UNITS_REQUESTED,
       department: row.DEPARTMENT,
+      doctorId: row.DOCTOR_ID,
       doctorLabel: row.DOCTOR_LABEL,
       status: row.STATUS,
       crossMatchResult: row.CROSS_MATCH_RESULT,
@@ -192,6 +199,23 @@ export class BloodBankService {
     if (existing) throw new BadRequestException('Unit number already exists');
     const now = new Date();
     const label = actorLabel(actor);
+    let donorLabel = dto.donorLabel?.trim() || null;
+    if (dto.donorId) {
+      const donor = await this.prisma.bloodDonors.findFirst({
+        where: { DONOR_ID: dto.donorId, NOT: { DELETED_FLAG: 'Y' } },
+      });
+      if (!donor) throw new NotFoundException('Donor not found');
+      donorLabel = donor.FULL_NAME;
+    }
+    let doctorLabel = dto.doctorLabel?.trim() || null;
+    if (dto.doctorId) {
+      const doc = await this.prisma.users.findUnique({ where: { USER_ID: dto.doctorId } });
+      if (!doc) throw new NotFoundException('Doctor not found');
+      doctorLabel =
+        [doc.FIRST_NAME, doc.LAST_NAME].filter(Boolean).join(' ') ||
+        doc.USER_NAME ||
+        doctorLabel;
+    }
     const status =
       dto.status ??
       (expiry < new Date(now.toISOString().slice(0, 10)) ? 'Expired' : 'Available');
@@ -202,7 +226,10 @@ export class BloodBankService {
         COMPONENT: dto.component,
         EXPIRY_DATE: expiry,
         STATUS: status,
-        DONOR_LABEL: dto.donorLabel?.trim() || null,
+        DONOR_ID: dto.donorId ?? null,
+        DONOR_LABEL: donorLabel,
+        DOCTOR_ID: dto.doctorId ?? null,
+        DOCTOR_LABEL: doctorLabel,
         NOTES: dto.notes?.trim() || null,
         CREATED_BY_ID: actor?.id ?? null,
         CREATED_BY: label,
@@ -225,6 +252,15 @@ export class BloodBankService {
   async updateUnit(id: number, dto: UpdateBloodUnitDto, actor?: AuthUser) {
     const existing = await this.prisma.bloodUnits.findUnique({ where: { BLOOD_UNIT_ID: id } });
     if (!existing) throw new NotFoundException('Blood unit not found');
+    if (
+      existing.STATUS === 'Issued' &&
+      dto.status &&
+      dto.status === 'Available'
+    ) {
+      throw new BadRequestException(
+        'Cannot return an Issued unit to Available. Assignment history is preserved.',
+      );
+    }
     const now = new Date();
     const label = actorLabel(actor);
     const row = await this.prisma.bloodUnits.update({
@@ -300,6 +336,15 @@ export class BloodBankService {
     if (!person) throw new NotFoundException('Patient not found');
     const now = new Date();
     const label = actorLabel(actor);
+    let doctorLabel = dto.doctorLabel?.trim() || null;
+    if (dto.doctorId) {
+      const doc = await this.prisma.users.findUnique({ where: { USER_ID: dto.doctorId } });
+      if (!doc) throw new NotFoundException('Doctor not found');
+      doctorLabel =
+        [doc.FIRST_NAME, doc.LAST_NAME].filter(Boolean).join(' ') ||
+        doc.USER_NAME ||
+        doctorLabel;
+    }
     const created = await this.prisma.$transaction(async (tx) => {
       const draft = await tx.bloodRequests.create({
         data: {
@@ -308,7 +353,8 @@ export class BloodBankService {
           BLOOD_GROUP: dto.bloodGroup,
           UNITS_REQUESTED: dto.unitsRequested,
           DEPARTMENT: dto.department.trim(),
-          DOCTOR_LABEL: dto.doctorLabel?.trim() || null,
+          DOCTOR_ID: dto.doctorId ?? null,
+          DOCTOR_LABEL: doctorLabel,
           STATUS: 'Pending',
           CROSS_MATCH_RESULT: 'Pending',
           NOTES: dto.notes?.trim() || null,
@@ -442,34 +488,76 @@ export class BloodBankService {
     }
     const now = new Date();
     const label = actorLabel(actor);
+    const needed = Math.max(1, existing.UNITS_REQUESTED);
     await this.prisma.$transaction(async (tx) => {
-      let unitId = dto.bloodUnitId ?? null;
-      if (!unitId) {
-        const unit = await tx.bloodUnits.findFirst({
+      const selectedIds: number[] = [];
+      if (dto.bloodUnitIds?.length) {
+        selectedIds.push(...dto.bloodUnitIds);
+      } else if (dto.bloodUnitId) {
+        selectedIds.push(dto.bloodUnitId);
+      }
+      let units: Array<{ BLOOD_UNIT_ID: number; STATUS: string }> = [];
+      if (selectedIds.length) {
+        units = await tx.bloodUnits.findMany({
+          where: { BLOOD_UNIT_ID: { in: selectedIds } },
+        });
+        if (units.length !== selectedIds.length) {
+          throw new NotFoundException('One or more blood units not found');
+        }
+        for (const u of units) {
+          if (!['Available', 'Reserved'].includes(u.STATUS)) {
+            throw new BadRequestException(`Unit ${u.BLOOD_UNIT_ID} is not available to issue`);
+          }
+        }
+      } else {
+        units = await tx.bloodUnits.findMany({
           where: {
             BLOOD_GROUP: existing.BLOOD_GROUP,
             STATUS: { in: ['Available', 'Reserved'] },
           },
           orderBy: { EXPIRY_DATE: 'asc' },
+          take: needed,
         });
-        if (!unit) throw new BadRequestException('No available unit for this blood group');
-        unitId = unit.BLOOD_UNIT_ID;
-      } else {
-        const unit = await tx.bloodUnits.findUnique({ where: { BLOOD_UNIT_ID: unitId } });
-        if (!unit) throw new NotFoundException('Blood unit not found');
-        if (!['Available', 'Reserved'].includes(unit.STATUS)) {
-          throw new BadRequestException('Unit is not available to issue');
+        if (units.length < needed) {
+          throw new BadRequestException(
+            `Need ${needed} unit(s) for this blood group; only ${units.length} available`,
+          );
         }
       }
-      await tx.bloodUnits.update({
-        where: { BLOOD_UNIT_ID: unitId },
-        data: { STATUS: 'Issued', UPDATED_BY: label, UPDATED_BY_ID: actor?.id ?? null, UPDATED_DATE: now },
-      });
+      for (const unit of units) {
+        await tx.bloodUnits.update({
+          where: { BLOOD_UNIT_ID: unit.BLOOD_UNIT_ID },
+          data: {
+            STATUS: 'Issued',
+            UPDATED_BY: label,
+            UPDATED_BY_ID: actor?.id ?? null,
+            UPDATED_DATE: now,
+          },
+        });
+        const cm = await tx.bloodCrossmatches.create({
+          data: {
+            CROSSMATCH_NO: `TMP-CM-${Date.now()}-${unit.BLOOD_UNIT_ID}`,
+            BLOOD_REQUEST_ID: id,
+            BLOOD_UNIT_ID: unit.BLOOD_UNIT_ID,
+            PERSON_LABEL: this.personName(existing.person),
+            BLOOD_GROUP: existing.BLOOD_GROUP,
+            RESULT: 'Compatible',
+            NOTES: dto.notes?.trim() || 'Issued',
+            CREATED_BY_ID: actor?.id ?? null,
+            CREATED_BY: label,
+            CREATED_DATE: now,
+          },
+        });
+        await tx.bloodCrossmatches.update({
+          where: { CROSSMATCH_ID: cm.CROSSMATCH_ID },
+          data: { CROSSMATCH_NO: `CM-${now.getFullYear()}-${pad(cm.CROSSMATCH_ID)}` },
+        });
+      }
       await tx.bloodRequests.update({
         where: { BLOOD_REQUEST_ID: id },
         data: {
           STATUS: 'Issued',
-          CROSS_MATCH_RESULT: existing.CROSS_MATCH_RESULT === 'Compatible' ? 'Compatible' : 'Compatible',
+          CROSS_MATCH_RESULT: 'Compatible',
           ISSUED_AT: now,
           ISSUED_BY: label,
           UPDATED_BY_ID: actor?.id ?? null,
@@ -477,25 +565,13 @@ export class BloodBankService {
           UPDATED_DATE: now,
         },
       });
-      const cm = await tx.bloodCrossmatches.create({
-        data: {
-          CROSSMATCH_NO: `TMP-CM-${Date.now()}`,
-          BLOOD_REQUEST_ID: id,
-          BLOOD_UNIT_ID: unitId,
-          PERSON_LABEL: this.personName(existing.person),
-          BLOOD_GROUP: existing.BLOOD_GROUP,
-          RESULT: 'Compatible',
-          NOTES: dto.notes?.trim() || 'Issued',
-          CREATED_BY_ID: actor?.id ?? null,
-          CREATED_BY: label,
-          CREATED_DATE: now,
-        },
-      });
-      await tx.bloodCrossmatches.update({
-        where: { CROSSMATCH_ID: cm.CROSSMATCH_ID },
-        data: { CROSSMATCH_NO: `CM-${now.getFullYear()}-${pad(cm.CROSSMATCH_ID)}` },
-      });
-      await this.appendEvent(tx, id, 'Blood Issued', actor, dto.notes);
+      await this.appendEvent(
+        tx,
+        id,
+        'Blood Issued',
+        actor,
+        dto.notes || `Issued ${units.length} unit(s)`,
+      );
     });
     const response = await this.getRequest(id);
     await this.audit.log({
@@ -604,6 +680,252 @@ export class BloodBankService {
         notes: r.NOTES,
         createdAt: r.CREATED_DATE?.toISOString() ?? null,
         createdBy: r.CREATED_BY,
+      })),
+      meta: { page, limit, total },
+    };
+  }
+
+  private toDonor(row: Prisma.BloodDonorsGetPayload<object>) {
+    return {
+      donorId: row.DONOR_ID,
+      donorNo: row.DONOR_NO,
+      fullName: row.FULL_NAME,
+      phone: row.PHONE,
+      address: row.ADDRESS,
+      bloodGroup: row.BLOOD_GROUP,
+      notes: row.NOTES,
+      status: row.STATUS,
+      createdAt: row.CREATED_DATE?.toISOString() ?? null,
+      createdBy: row.CREATED_BY,
+    };
+  }
+
+  async listDonors(params?: { q?: string; status?: string; page?: number; limit?: number }) {
+    const page = Math.max(1, params?.page ?? 1);
+    const limit = Math.min(100, Math.max(1, params?.limit ?? 50));
+    const where: Prisma.BloodDonorsWhereInput = {
+      NOT: { DELETED_FLAG: 'Y' },
+    };
+    if (params?.status) where.STATUS = params.status;
+    if (params?.q?.trim()) {
+      const q = params.q.trim();
+      where.OR = [
+        { FULL_NAME: { contains: q, mode: 'insensitive' } },
+        { PHONE: { contains: q, mode: 'insensitive' } },
+        { DONOR_NO: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    const [total, rows] = await Promise.all([
+      this.prisma.bloodDonors.count({ where }),
+      this.prisma.bloodDonors.findMany({
+        where,
+        orderBy: { DONOR_ID: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    return { items: rows.map((r) => this.toDonor(r)), meta: { page, limit, total } };
+  }
+
+  async getDonor(id: number) {
+    const row = await this.prisma.bloodDonors.findFirst({
+      where: { DONOR_ID: id, NOT: { DELETED_FLAG: 'Y' } },
+    });
+    if (!row) throw new NotFoundException('Donor not found');
+    return this.toDonor(row);
+  }
+
+  async createDonor(dto: CreateBloodDonorDto, actor?: AuthUser) {
+    const now = new Date();
+    const label = actorLabel(actor);
+    const created = await this.prisma.$transaction(async (tx) => {
+      const draft = await tx.bloodDonors.create({
+        data: {
+          DONOR_NO: `TMP-${Date.now()}`,
+          FULL_NAME: dto.fullName.trim(),
+          PHONE: dto.phone.trim(),
+          ADDRESS: dto.address?.trim() || null,
+          BLOOD_GROUP: dto.bloodGroup ?? null,
+          NOTES: dto.notes?.trim() || null,
+          STATUS: 'Active',
+          CREATED_BY_ID: actor?.id ?? null,
+          CREATED_BY: label,
+          CREATED_DATE: now,
+        },
+      });
+      const donorNo = `DN-${now.getFullYear()}-${pad(draft.DONOR_ID)}`;
+      return tx.bloodDonors.update({
+        where: { DONOR_ID: draft.DONOR_ID },
+        data: { DONOR_NO: donorNo },
+      });
+    });
+    const response = this.toDonor(created);
+    await this.audit.log({
+      type: 'blood-bank:donor-create',
+      entity: 'BloodDonor',
+      entityId: created.DONOR_ID,
+      userId: actor?.id,
+      createdBy: label,
+      item: response.donorNo,
+    });
+    return response;
+  }
+
+  async updateDonor(id: number, dto: UpdateBloodDonorDto, actor?: AuthUser) {
+    const existing = await this.prisma.bloodDonors.findFirst({
+      where: { DONOR_ID: id, NOT: { DELETED_FLAG: 'Y' } },
+    });
+    if (!existing) throw new NotFoundException('Donor not found');
+    const now = new Date();
+    const label = actorLabel(actor);
+    const row = await this.prisma.bloodDonors.update({
+      where: { DONOR_ID: id },
+      data: {
+        FULL_NAME: dto.fullName?.trim(),
+        PHONE: dto.phone?.trim(),
+        ADDRESS: dto.address !== undefined ? dto.address.trim() || null : undefined,
+        BLOOD_GROUP: dto.bloodGroup,
+        NOTES: dto.notes !== undefined ? dto.notes.trim() || null : undefined,
+        STATUS: dto.status,
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: label,
+        UPDATED_DATE: now,
+      },
+    });
+    const response = this.toDonor(row);
+    await this.audit.log({
+      type: 'blood-bank:donor-update',
+      entity: 'BloodDonor',
+      entityId: id,
+      userId: actor?.id,
+      createdBy: label,
+      item: response.donorNo,
+    });
+    return response;
+  }
+
+  async searchDoctors(q?: string, limit = 20) {
+    const take = Math.min(50, Math.max(1, limit));
+    const doctorRoles = [
+      ROLES.DOCTOR,
+      ROLES.CMD,
+      ROLES.PSYCHIATRIC_OPC,
+      ROLES.ICU,
+    ];
+    const where: Prisma.UsersWhereInput = {
+      OR: [{ LOCK_ACCOUNT: null }, { LOCK_ACCOUNT: { not: 'Y' } }],
+      role: { ROLE_NAME: { in: doctorRoles } },
+    };
+    if (q?.trim()) {
+      const term = q.trim();
+      where.AND = [
+        {
+          OR: [
+            { FIRST_NAME: { contains: term, mode: 'insensitive' } },
+            { LAST_NAME: { contains: term, mode: 'insensitive' } },
+            { USER_NAME: { contains: term, mode: 'insensitive' } },
+            { EMAIL_ADDRESS: { contains: term, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+    const rows = await this.prisma.users.findMany({
+      where,
+      take,
+      orderBy: [{ LAST_NAME: 'asc' }, { FIRST_NAME: 'asc' }],
+      select: {
+        USER_ID: true,
+        FIRST_NAME: true,
+        LAST_NAME: true,
+        USER_NAME: true,
+        EMAIL_ADDRESS: true,
+        role: { select: { ROLE_NAME: true } },
+      },
+    });
+    return {
+      items: rows.map((u) => ({
+        userId: u.USER_ID,
+        name:
+          [u.FIRST_NAME, u.LAST_NAME].filter(Boolean).join(' ') ||
+          u.USER_NAME ||
+          u.EMAIL_ADDRESS ||
+          `#${u.USER_ID}`,
+        email: u.EMAIL_ADDRESS,
+        role: u.role?.ROLE_NAME ?? null,
+      })),
+    };
+  }
+
+  async issueHistory(params?: { page?: number; limit?: number; q?: string }) {
+    const page = Math.max(1, params?.page ?? 1);
+    const limit = Math.min(100, Math.max(1, params?.limit ?? 50));
+    const where: Prisma.BloodCrossmatchesWhereInput = {
+      RESULT: 'Compatible',
+      BLOOD_UNIT_ID: { not: null },
+      request: {
+        ISSUED_AT: { not: null },
+        STATUS: { in: ['Issued', 'Completed'] },
+      },
+    };
+    if (params?.q?.trim()) {
+      const q = params.q.trim();
+      where.AND = [
+        {
+          OR: [
+            { PERSON_LABEL: { contains: q, mode: 'insensitive' } },
+            { CROSSMATCH_NO: { contains: q, mode: 'insensitive' } },
+            { request: { REQUEST_NO: { contains: q, mode: 'insensitive' } } },
+            { unit: { UNIT_NO: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+      ];
+    }
+    const [total, rows] = await Promise.all([
+      this.prisma.bloodCrossmatches.count({ where }),
+      this.prisma.bloodCrossmatches.findMany({
+        where,
+        include: {
+          request: {
+            select: {
+              REQUEST_NO: true,
+              PERSON_ID: true,
+              DEPARTMENT: true,
+              ISSUED_AT: true,
+              ISSUED_BY: true,
+              STATUS: true,
+            },
+          },
+          unit: {
+            select: {
+              UNIT_NO: true,
+              BLOOD_GROUP: true,
+              COMPONENT: true,
+              STATUS: true,
+              DONOR_LABEL: true,
+            },
+          },
+        },
+        orderBy: { CROSSMATCH_ID: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    return {
+      items: rows.map((r) => ({
+        crossmatchId: r.CROSSMATCH_ID,
+        crossmatchNo: r.CROSSMATCH_NO,
+        requestNo: r.request?.REQUEST_NO ?? null,
+        personId: r.request?.PERSON_ID ?? null,
+        patientName: r.PERSON_LABEL,
+        unitNo: r.unit?.UNIT_NO ?? null,
+        bloodGroup: r.BLOOD_GROUP,
+        component: r.unit?.COMPONENT ?? null,
+        unitStatus: r.unit?.STATUS ?? null,
+        donorLabel: r.unit?.DONOR_LABEL ?? null,
+        department: r.request?.DEPARTMENT ?? null,
+        issuedAt: r.request?.ISSUED_AT?.toISOString() ?? r.CREATED_DATE?.toISOString() ?? null,
+        issuedBy: r.request?.ISSUED_BY ?? r.CREATED_BY,
+        requestStatus: r.request?.STATUS ?? null,
       })),
       meta: { page, limit, total },
     };

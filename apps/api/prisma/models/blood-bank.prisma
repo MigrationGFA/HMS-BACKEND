@@ -1,6 +1,32 @@
 // Blood bank inventory + crossmatch request workflow (Laboratory module).
 // Soft status only — never hard-delete clinical transfusion records.
 
+model BloodDonors {
+  DONOR_ID      Int       @id @default(autoincrement())
+  DONOR_NO      String    @unique @db.VarChar(50)
+  FULL_NAME     String    @db.VarChar(200)
+  PHONE         String    @db.VarChar(40)
+  ADDRESS       String?   @db.VarChar(255)
+  BLOOD_GROUP   String?   @db.VarChar(10)
+  NOTES         String?   @db.Text
+  /// Active | Inactive
+  STATUS        String    @default("Active") @db.VarChar(30)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime?
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+  DELETED_FLAG  String?   @default("N") @db.VarChar(1)
+
+  units BloodUnits[]
+
+  @@index([PHONE])
+  @@index([STATUS])
+  @@index([FULL_NAME])
+  @@map("BLOOD_DONORS")
+}
+
 model BloodUnits {
   BLOOD_UNIT_ID Int       @id @default(autoincrement())
   UNIT_NO       String    @unique @db.VarChar(50)
@@ -10,7 +36,10 @@ model BloodUnits {
   EXPIRY_DATE   DateTime  @db.Date
   /// Available | Reserved | Issued | Expired | Quarantine
   STATUS        String    @default("Available") @db.VarChar(50)
+  DONOR_ID      Int?
   DONOR_LABEL   String?   @db.VarChar(150)
+  DOCTOR_ID     Int?
+  DOCTOR_LABEL  String?   @db.VarChar(150)
   NOTES         String?   @db.Text
   CREATED_BY_ID Int?
   CREATED_BY    String?   @db.VarChar(100)
@@ -19,11 +48,14 @@ model BloodUnits {
   UPDATED_BY    String?   @db.VarChar(100)
   UPDATED_DATE  DateTime?
 
+  donor        BloodDonors?        @relation(fields: [DONOR_ID], references: [DONOR_ID])
   crossmatches BloodCrossmatches[]
 
   @@index([BLOOD_GROUP])
   @@index([STATUS])
   @@index([EXPIRY_DATE])
+  @@index([DONOR_ID])
+  @@index([DOCTOR_ID])
   @@map("BLOOD_UNITS")
 }
 
@@ -34,6 +66,7 @@ model BloodRequests {
   BLOOD_GROUP      String    @db.VarChar(10)
   UNITS_REQUESTED  Int
   DEPARTMENT       String    @db.VarChar(100)
+  DOCTOR_ID        Int?
   DOCTOR_LABEL     String?   @db.VarChar(150)
   /// Pending | Crossmatching | Issued | Rejected | Completed
   STATUS           String    @default("Pending") @db.VarChar(50)
@@ -60,6 +93,7 @@ model BloodRequests {
   @@index([STATUS])
   @@index([BLOOD_GROUP])
   @@index([CREATED_DATE])
+  @@index([DOCTOR_ID])
   @@map("BLOOD_REQUESTS")
 }
 

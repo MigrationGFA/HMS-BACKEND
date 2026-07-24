@@ -1832,4 +1832,243 @@ export class LaboratoryService {
       meta: { page, limit, total },
     };
   }
+
+  /**
+   * Laboratory dashboard overview — today's operational KPIs + recent activity.
+   * Maps LIS statuses to the FE laboratory home cards.
+   */
+  async overview(params?: {
+    timezoneOffsetMinutes?: number;
+    recentLimit?: number;
+  }) {
+    const offsetMin = params?.timezoneOffsetMinutes ?? 60;
+    const recentLimit = Math.min(Math.max(params?.recentLimit ?? 8, 1), 50);
+    const { startOfDay, endOfDay } = dayBoundsLocal(offsetMin);
+
+    const notCancelled = { STATUS: { not: 'Cancelled' as const } };
+    const paymentCleared = { PAYMENT_STATUS: { in: ['Paid', 'Waived'] } };
+
+    const [
+      requestsToday,
+      pendingRequests,
+      awaitingCollection,
+      samplesCollectedToday,
+      awaitingValidation,
+      releasedToday,
+      emergency,
+      revenueAgg,
+      resultsToEnter,
+      recentRows,
+      statOpenRows,
+    ] = await Promise.all([
+      this.prisma.labRequests.count({
+        where: {
+          ...notCancelled,
+          CREATED_DATE: { gte: startOfDay, lt: endOfDay },
+        },
+      }),
+      this.prisma.labRequests.count({
+        where: {
+          ...notCancelled,
+          PAYMENT_STATUS: 'Unpaid',
+        },
+      }),
+      this.prisma.labRequests.count({
+        where: {
+          ...notCancelled,
+          ...paymentCleared,
+          LAB_STATUS: 'AwaitingCollection',
+        },
+      }),
+      this.prisma.labSamples.count({
+        where: {
+          STATUS: 'Collected',
+          COLLECTED_AT: { gte: startOfDay, lt: endOfDay },
+        },
+      }),
+      this.prisma.labRequests.count({
+        where: {
+          ...notCancelled,
+          LAB_STATUS: 'AwaitingValidation',
+        },
+      }),
+      this.prisma.labRequests.count({
+        where: {
+          ...notCancelled,
+          LAB_STATUS: 'Validated',
+          UPDATED_DATE: { gte: startOfDay, lt: endOfDay },
+        },
+      }),
+      this.prisma.labRequests.count({
+        where: {
+          ...notCancelled,
+          PRIORITY: 'Stat',
+          LAB_STATUS: { not: 'Validated' },
+        },
+      }),
+      this.prisma.labRequests.aggregate({
+        where: {
+          PAYMENT_STATUS: 'Paid',
+          PAID_AT: { gte: startOfDay, lt: endOfDay },
+        },
+        _sum: { TOTAL_AMOUNT: true },
+      }),
+      this.prisma.labRequests.count({
+        where: {
+          ...notCancelled,
+          ...paymentCleared,
+          LAB_STATUS: { in: ['Collected', 'ResultDraft'] },
+        },
+      }),
+      this.prisma.labRequests.findMany({
+        where: notCancelled,
+        orderBy: { CREATED_DATE: 'desc' },
+        take: recentLimit,
+        include: {
+          items: { select: { TEST_NAME: true } },
+          person: {
+            select: {
+              FIRST_NAME: true,
+              MIDDLE_NAME: true,
+              LAST_NAME: true,
+              HOSPITAL_NO: true,
+              PERSON_ID: true,
+            },
+          },
+        },
+      }),
+      this.prisma.labRequests.findMany({
+        where: {
+          ...notCancelled,
+          PRIORITY: { in: ['Stat', 'Urgent'] },
+          LAB_STATUS: { notIn: ['Validated'] },
+        },
+        orderBy: [{ PRIORITY: 'asc' }, { CREATED_DATE: 'desc' }],
+        take: 8,
+        include: {
+          items: { select: { TEST_NAME: true }, take: 3 },
+          person: {
+            select: {
+              FIRST_NAME: true,
+              MIDDLE_NAME: true,
+              LAST_NAME: true,
+              HOSPITAL_NO: true,
+              PERSON_ID: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const personLabel = (p: {
+      FIRST_NAME: string | null;
+      MIDDLE_NAME: string | null;
+      LAST_NAME: string | null;
+      HOSPITAL_NO: string | null;
+      PERSON_ID: number;
+    }) =>
+      [p.FIRST_NAME, p.MIDDLE_NAME, p.LAST_NAME].filter(Boolean).join(' ') ||
+      p.HOSPITAL_NO ||
+      `#${p.PERSON_ID}`;
+
+    const recentActivity = recentRows.map((r) => {
+      const { label, tone } = mapLabDisplayStatus(
+        r.LAB_STATUS,
+        r.PAYMENT_STATUS,
+        r.PRIORITY,
+      );
+      return {
+        labRequestId: r.LAB_REQUEST_ID,
+        requestNo: r.REQUEST_NO,
+        patientName: personLabel(r.person),
+        hospitalNo: r.person.HOSPITAL_NO,
+        testSummary: r.items.map((i) => i.TEST_NAME).join(', ') || '—',
+        charge: Number(r.TOTAL_AMOUNT),
+        status: label,
+        statusTone: tone,
+        priority: r.PRIORITY,
+        labStatus: r.LAB_STATUS,
+        paymentStatus: r.PAYMENT_STATUS,
+        createdAt: r.CREATED_DATE?.toISOString() ?? null,
+      };
+    });
+
+    const criticalAlerts = statOpenRows.map((r) => {
+      const name = personLabel(r.person);
+      const tests = r.items.map((i) => i.TEST_NAME).join(', ') || 'Lab request';
+      const severity =
+        r.PRIORITY === 'Stat' ? ('critical' as const) : ('stat' as const);
+      return {
+        id: `lab-${r.LAB_REQUEST_ID}`,
+        message: `${name} — ${tests} (${r.PRIORITY})`,
+        severity,
+        labRequestId: r.LAB_REQUEST_ID,
+        personId: r.person.PERSON_ID,
+        requestNo: r.REQUEST_NO,
+      };
+    });
+
+    return {
+      asOf: new Date().toISOString(),
+      kpis: {
+        requestsToday,
+        pendingRequests,
+        awaitingCollection,
+        samplesCollected: samplesCollectedToday,
+        awaitingValidation,
+        released: releasedToday,
+        emergency,
+        revenueToday: Number(revenueAgg._sum.TOTAL_AMOUNT ?? 0),
+      },
+      recentActivity,
+      criticalAlerts,
+      pendingTasks: {
+        samplesToCollect: awaitingCollection,
+        resultsToEnter,
+        awaitingValidation,
+        emrSyncQueue: 0,
+      },
+    };
+  }
+}
+
+function dayBoundsLocal(offsetMin: number) {
+  const now = new Date();
+  const localMs = now.getTime() + offsetMin * 60_000;
+  const local = new Date(localMs);
+  const startLocal = new Date(
+    Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()),
+  );
+  const startOfDay = new Date(startLocal.getTime() - offsetMin * 60_000);
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+  return { startOfDay, endOfDay };
+}
+
+function mapLabDisplayStatus(
+  labStatus: string,
+  paymentStatus: string,
+  priority: string,
+): { label: string; tone: string } {
+  if (priority === 'Stat' && labStatus !== 'Validated') {
+    return { label: 'STAT', tone: 'rose' };
+  }
+  if (paymentStatus === 'Unpaid') {
+    return { label: 'Awaiting Payment', tone: 'amber' };
+  }
+  switch (labStatus) {
+    case 'AwaitingCollection':
+      return { label: 'Awaiting Collection', tone: 'sky' };
+    case 'Collected':
+      return { label: 'Samples Collected', tone: 'blue' };
+    case 'ResultDraft':
+      return { label: 'Result Draft', tone: 'purple' };
+    case 'AwaitingValidation':
+      return { label: 'Awaiting Validation', tone: 'orange' };
+    case 'Validated':
+      return { label: 'Released', tone: 'green' };
+    case 'PendingRevalidation':
+      return { label: 'Pending Revalidation', tone: 'amber' };
+    default:
+      return { label: labStatus || paymentStatus, tone: 'blue' };
+  }
 }

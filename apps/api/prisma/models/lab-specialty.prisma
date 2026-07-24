@@ -1,0 +1,113 @@
+// Specialized laboratory workstations: urine drug screen, culture & sensitivity, report snapshots.
+// Patient-centric (PERSON_ID). Soft status / soft-delete only — never hard-delete clinical rows.
+
+model LabDrugScreens {
+  SCREEN_ID       Int       @id @default(autoincrement())
+  SCREEN_NO       String    @unique @db.VarChar(50)
+  PERSON_ID       Int
+  LAB_REQUEST_ID  Int?
+  SAMPLE_NO       String?   @db.VarChar(50)
+  SAMPLE_TYPE     String    @default("Urine") @db.VarChar(50)
+  COLLECTED_AT    DateTime?
+  COLLECTED_BY    String?   @db.VarChar(100)
+  /// Draft | Collected | ResultsEntered | Submitted | Validated | Rejected
+  STATUS          String    @default("Draft") @db.VarChar(40)
+  REJECT_REASON   String?   @db.Text
+  VALIDATED_AT    DateTime?
+  VALIDATED_BY    String?   @db.VarChar(100)
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime?
+  UPDATED_BY_ID   Int?
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+  DELETED_FLAG    String?   @default("N") @db.VarChar(1)
+
+  person  Persons                 @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  results LabDrugScreenResults[]
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([CREATED_DATE])
+  @@index([LAB_REQUEST_ID])
+  @@map("LAB_DRUG_SCREENS")
+}
+
+model LabDrugScreenResults {
+  RESULT_ID  Int     @id @default(autoincrement())
+  SCREEN_ID  Int
+  DRUG_CODE  String  @db.VarChar(40)
+  DRUG_NAME  String  @db.VarChar(100)
+  /// Negative | Positive | Pending
+  RESULT     String  @default("Pending") @db.VarChar(20)
+  REMARKS    String? @db.VarChar(255)
+
+  screen LabDrugScreens @relation(fields: [SCREEN_ID], references: [SCREEN_ID])
+
+  @@unique([SCREEN_ID, DRUG_CODE])
+  @@index([SCREEN_ID])
+  @@map("LAB_DRUG_SCREEN_RESULTS")
+}
+
+model LabCultures {
+  CULTURE_ID      Int       @id @default(autoincrement())
+  CULTURE_NO      String    @unique @db.VarChar(50)
+  PERSON_ID       Int
+  LAB_REQUEST_ID  Int?
+  CULTURE_TYPE    String    @db.VarChar(80)
+  ORGANISM        String?   @db.VarChar(150)
+  COLONY_COUNT    String?   @db.VarChar(100)
+  GRAM_STAIN      String?   @db.VarChar(100)
+  /// Provisional | Final | Cancelled
+  STATUS          String    @default("Provisional") @db.VarChar(40)
+  SCIENTIST       String?   @db.VarChar(150)
+  REPORTED_AT     DateTime?
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime?
+  UPDATED_BY_ID   Int?
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+  DELETED_FLAG    String?   @default("N") @db.VarChar(1)
+
+  person         Persons                    @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  sensitivities  LabCultureSensitivities[]
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([CULTURE_TYPE])
+  @@index([CREATED_DATE])
+  @@map("LAB_CULTURES")
+}
+
+model LabCultureSensitivities {
+  SENSITIVITY_ID Int    @id @default(autoincrement())
+  CULTURE_ID     Int
+  ANTIBIOTIC     String @db.VarChar(100)
+  /// S | I | R
+  RESULT         String @db.VarChar(1)
+
+  culture LabCultures @relation(fields: [CULTURE_ID], references: [CULTURE_ID])
+
+  @@unique([CULTURE_ID, ANTIBIOTIC])
+  @@index([CULTURE_ID])
+  @@map("LAB_CULTURE_SENSITIVITIES")
+}
+
+model LabReportSnapshots {
+  REPORT_ID       Int       @id @default(autoincrement())
+  /// Daily Report | Weekly Report | Monthly Report | Revenue Report | Drug Screen Report | Culture Report
+  REPORT_TYPE     String    @db.VarChar(60)
+  FROM_DATE       DateTime  @db.Date
+  TO_DATE         DateTime  @db.Date
+  TITLE           String    @db.VarChar(255)
+  PAYLOAD         Json      @default("{}")
+  FILE_SIZE_LABEL String?   @db.VarChar(40)
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime  @default(now())
+
+  @@index([REPORT_TYPE])
+  @@index([CREATED_DATE])
+  @@map("LAB_REPORT_SNAPSHOTS")
+}
