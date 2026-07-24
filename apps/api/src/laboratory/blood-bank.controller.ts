@@ -17,11 +17,13 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { BloodBankService } from './blood-bank.service';
 import {
+  CreateBloodDonorDto,
   CreateBloodRequestDto,
   CreateBloodUnitDto,
   IssueBloodRequestDto,
   RecordCrossmatchDto,
   RejectBloodRequestDto,
+  UpdateBloodDonorDto,
   UpdateBloodUnitDto,
 } from './dto/blood-bank.dto';
 
@@ -43,6 +45,123 @@ export class BloodBankController {
   @RequirePermissions(PERMISSIONS.BLOOD_BANK_READ)
   async summary() {
     return { data: await this.bloodBank.summary() };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/laboratory/blood-bank/donors?q=&status=&page=&limit=
+   * Purpose: List blood donors
+   * Required permission: blood-bank:read
+   * Request body: none
+   * Response example: { data: { items: [{ donorId, donorNo, fullName, phone, bloodGroup, status }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('donors')
+  @RequirePermissions(PERMISSIONS.BLOOD_BANK_READ)
+  async listDonors(
+    @Query('q') q?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return {
+      data: await this.bloodBank.listDonors({
+        q,
+        status,
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 50,
+      }),
+    };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/laboratory/blood-bank/donors
+   * Purpose: Register a blood donor
+   * Required permission: blood-bank:create
+   * Request body: { fullName, phone, address?, bloodGroup?, notes? }
+   * Response example: { data: { donorId, donorNo, fullName, phone, status } }
+   * Error cases: 400, 401, 403
+   * Audit: blood-bank:donor-create
+   */
+  @Post('donors')
+  @RequirePermissions(PERMISSIONS.BLOOD_BANK_CREATE)
+  async createDonor(@Body() dto: CreateBloodDonorDto, @CurrentUser() user: AuthUser) {
+    return { data: await this.bloodBank.createDonor(dto, user) };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/laboratory/blood-bank/donors/:id
+   * Purpose: Donor detail
+   * Required permission: blood-bank:read
+   * Error cases: 401, 403, 404
+   */
+  @Get('donors/:id')
+  @RequirePermissions(PERMISSIONS.BLOOD_BANK_READ)
+  async getDonor(@Param('id', ParseIntPipe) id: number) {
+    return { data: await this.bloodBank.getDonor(id) };
+  }
+
+  /**
+   * Method: PATCH
+   * URL: /api/laboratory/blood-bank/donors/:id
+   * Purpose: Update donor / soft deactivate (status Inactive)
+   * Required permission: blood-bank:update
+   * Request body: { fullName?, phone?, address?, bloodGroup?, notes?, status? }
+   * Error cases: 400, 401, 403, 404
+   * Audit: blood-bank:donor-update
+   */
+  @Patch('donors/:id')
+  @RequirePermissions(PERMISSIONS.BLOOD_BANK_UPDATE)
+  async updateDonor(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateBloodDonorDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.bloodBank.updateDonor(id, dto, user) };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/laboratory/blood-bank/doctors?q=&limit=
+   * Purpose: Search doctors/clinical staff for issue/request assignment (no full user:read)
+   * Required permission: blood-bank:read
+   * Request body: none
+   * Response example: { data: { items: [{ userId, name, email, role }] } }
+   * Error cases: 401, 403
+   */
+  @Get('doctors')
+  @RequirePermissions(PERMISSIONS.BLOOD_BANK_READ)
+  async searchDoctors(@Query('q') q?: string, @Query('limit') limit?: string) {
+    return {
+      data: await this.bloodBank.searchDoctors(q, limit ? Number(limit) : 20),
+    };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/laboratory/blood-bank/issue-history?q=&page=&limit=
+   * Purpose: Issued unit assignments + patient/request history
+   * Required permission: blood-bank:read
+   * Request body: none
+   * Response example: { data: { items: [{ requestNo, patientName, unitNo, bloodGroup, issuedAt }], meta } }
+   * Error cases: 401, 403
+   */
+  @Get('issue-history')
+  @RequirePermissions(PERMISSIONS.BLOOD_BANK_READ)
+  async issueHistory(
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return {
+      data: await this.bloodBank.issueHistory({
+        q,
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 50,
+      }),
+    };
   }
 
   /**
@@ -184,9 +303,10 @@ export class BloodBankController {
   /**
    * Method: PATCH
    * URL: /api/laboratory/blood-bank/requests/:id/issue
-   * Purpose: Issue units (reserve→issued) after compatible crossmatch
+   * Purpose: Issue up to UNITS_REQUESTED (FEFO or bloodUnitIds[]); removes from Available
    * Required permission: blood-bank:issue
-   * Request body: { bloodUnitId?, notes? }
+   * Request body: { bloodUnitId?, bloodUnitIds?, notes? }
+   * Error cases: 400 (insufficient stock / incompatible), 401, 403, 404
    */
   @Patch('requests/:id/issue')
   @RequirePermissions(PERMISSIONS.BLOOD_BANK_ISSUE)

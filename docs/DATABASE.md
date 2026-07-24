@@ -34,7 +34,8 @@ apps/api/prisma/
 │   ├── pharmacy-settings.prisma
 │   ├── prescriptions.prisma  # PRESCRIPTIONS, PRESCRIPTION_ITEMS
 │   ├── laboratory.prisma     # LAB_TESTS, LAB_REQUESTS(+LAB_STATUS), LAB_REQUEST_ITEMS, LAB_RESULT_TEMPLATES, LAB_SAMPLES, LAB_RESULTS, LAB_RESULT_VERSIONS
-│   ├── blood-bank.prisma     # BLOOD_UNITS, BLOOD_REQUESTS, BLOOD_REQUEST_EVENTS, BLOOD_CROSSMATCHES
+│   ├── lab-specialty.prisma  # LAB_DRUG_SCREENS(+RESULTS), LAB_CULTURES(+SENSITIVITIES), LAB_REPORT_SNAPSHOTS
+│   ├── blood-bank.prisma     # BLOOD_DONORS, BLOOD_UNITS, BLOOD_REQUESTS, BLOOD_REQUEST_EVENTS, BLOOD_CROSSMATCHES
 │   └── audit.prisma          # AUDITS (with AUDIT_TYPE)
 ├── migrations/
 └── seed.ts
@@ -64,7 +65,8 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `CLINICAL_REFERRAL_EVENTS` | `ClinicalReferralEvents` | Immutable step log per referral |
 | `DISCHARGE_DRAFTS` | `DischargeDrafts` | Doctor discharge drafts (`DSD-YYYY-####`); statuses Draft→AwaitingPayment→PaymentCleared→Discharged (+ Returned/Cancelled); migration `20260721200000_discharge_drafts` |
 | `CERTIFICATE_TEMPLATES` | `CertificateTemplates` | Certificate/report template store (16 DOC_TYPES seeded); `FIELD_SCHEMA` JSON; migration `20260722120000_doctor_profile_and_certificates` |
-| Blood bank tables | see above | Migration `20260722140000_lab_blood_bank` |
+| Blood bank tables | see above | Migration `20260722140000_lab_blood_bank`; donors + doctor/donor FKs in `20260724160000_lab_specialty_blood_donors` |
+| Lab specialty tables | see `lab-specialty.prisma` | Urine drug screens, cultures/sensitivities, report snapshots (`20260724160000_lab_specialty_blood_donors`) |
 | `CLINICAL_CERTIFICATES` | `ClinicalCertificates` | Issued docs (`DOC-YYYY-####`); Draft→PendingSignature→PendingApproval→Issued (+ Expired/Cancelled) |
 | `CLINICAL_CERTIFICATE_EVENTS` | `ClinicalCertificateEvents` | Immutable certificate lifecycle log |
 | `DISCHARGE_DRAFT_EVENTS` | `DischargeDraftEvents` | Immutable step log per discharge draft |

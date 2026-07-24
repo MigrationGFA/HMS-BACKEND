@@ -123,6 +123,10 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Lab sidebar unified on full `labCenterNav` for all `/dashboard/laboratory/*` pages | ✅ |
 | Result Templates Preview (form layout from backend `FIELDS` via `GET /templates/:id`) | ✅ |
 | Blood bank inventory + requests + crossmatch + issue/reject (`/laboratory/blood-bank/*`, RBAC `blood-bank:*`) | ✅ |
+| Blood donors CRUD + doctor search + issue history; Issued units cannot return to Available | ✅ |
+| Urine drug screens (`/laboratory/drug-screens/*`) live FE workstation | ✅ |
+| Culture & sensitivity (`/laboratory/cultures/*`) live FE MCS workspace | ✅ |
+| Lab report snapshots list/generate (`/laboratory/reports`) | ✅ |
 | Patient lab history (`GET /laboratory/history?personId=`) live FE History Center | ✅ |
 | Lab Request Center shows Unpaid as Pending Payment (limited detail; Collect/Results locked) | ✅ |
 | Lab Request Center Paid/Waived unlocks full detail + processing | ✅ |
@@ -153,6 +157,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Doctor Audit & Compliance board (`GET /api/audit/logs` + `/api/audit/stats`, no FE seeds) | ✅ |
 | Doctor Emergency Override board (`/api/emergency-override/*`) | ✅ |
 | Doctor Research & Audit board (`/api/doctor/research/*`) | ✅ |
+| Doctor Clinical Workstation Overview (`GET /api/doctor/overview`) | ✅ |
+| Laboratory Dashboard Overview (`GET /api/laboratory/overview`) | ✅ |
 | Imaging study catalog + doctor requests (pay-before-process) | ✅ |
 | Cashier Imaging Requests tab (`?tab=imaging`) | ✅ |
 | Radiology Request Center live (Accept locked until Paid) | ✅ |

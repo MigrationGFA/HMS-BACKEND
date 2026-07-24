@@ -2180,6 +2180,67 @@ Legacy empty `/api/discharge` returns **403** and points clients to `/api/discha
 
 **Deploy:** migration `20260721200000_discharge_drafts` via `npx prisma migrate deploy`.
 
+### Doctor clinical overview (`/doctor`)
+
+Operational workstation snapshot for `/dashboard/doctor/clinical` (today’s queue + open work counts). Distinct from historical `/doctor/analytics`.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/doctor/overview?timezoneOffsetMinutes=&queueLimit=` | KPIs, consultation queue preview, tab hints | `encounter:read` |
+
+**Response example:**
+```json
+{
+  "data": {
+    "asOf": "2026-07-24T12:00:00.000Z",
+    "doctorUserId": 1,
+    "kpis": {
+      "patientsWaiting": 14,
+      "patientsWaitingSubtitle": "8 GMPC + 6 OPC",
+      "activeConsultations": 3,
+      "pendingLabResults": 9,
+      "pendingImaging": 4,
+      "admissionRequests": 5,
+      "urgentAdmissionRequests": 2,
+      "wardRoundPatients": 38,
+      "wardCount": 4,
+      "referralsReceived": 6,
+      "referralsReceivedPending": 2,
+      "referralsSent": 4,
+      "referralsSentAccepted": 1,
+      "dischargesPending": 3,
+      "emergencyCases": 2,
+      "criticalAlerts": 0
+    },
+    "queue": [
+      {
+        "triageId": 1,
+        "personId": 10,
+        "name": "Tope Adeyemi (M, 34)",
+        "status": "Ready",
+        "statusTone": "green",
+        "mode": "OPC",
+        "canStart": true
+      }
+    ],
+    "tabHints": {
+      "activeCount": 3,
+      "followUpCount": 7,
+      "admittedCount": 38,
+      "referralsReceived": 6,
+      "referralsSent": 4,
+      "pendingLab": 9,
+      "pendingImaging": 4,
+      "dischargesPending": 3
+    }
+  }
+}
+```
+
+**Error cases:** `401` Unauthorized, `403` Forbidden.
+
+**Frontend:** `DocOverview` at `/dashboard/doctor/clinical` via `src/lib/api/doctorOverview.ts` (shows 0 / empty when no data).
+
 ### Doctor analytics (`/doctor`)
 
 Doctor-scoped clinical aggregates for Reports & Analytics. Scoped to `@CurrentUser()` (encounters `DOCTOR_ID`, Rx `PRESCRIBED_BY_ID`, lab/imaging doctor/creator, referrals requested/received, discharge drafts requested, follow-ups, clinical notes author, diagnoses `CREATED_BY_ID`).
@@ -2308,6 +2369,22 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
+| GET | `/laboratory/overview?timezoneOffsetMinutes=&recentLimit=` | Dashboard KPIs, recent activity, STAT alerts, pending tasks | `lab:read` |
+| GET | `/laboratory/drug-screens?status=&personId=&q=` | List urine drug screens (+ drug catalog) | `lab:read` |
+| GET | `/laboratory/drug-screens/:id` | Drug screen detail + result lines | `lab:read` |
+| POST | `/laboratory/drug-screens` | Create draft `{ personId, drugCodes[], labRequestId? }` | `lab:create` |
+| POST | `/laboratory/drug-screens/:id/collect` | Sample collect `{ sampleNo?, sampleType?, collectedAt? }` | `lab:collect` |
+| PATCH | `/laboratory/drug-screens/:id/results` | Upsert drug results `{ results: [{ drugCode, result, remarks? }] }` | `lab:result` |
+| POST | `/laboratory/drug-screens/:id/submit` | Submit for validation | `lab:result` |
+| POST | `/laboratory/drug-screens/:id/validate` | Validate screen | `lab:validate` |
+| POST | `/laboratory/drug-screens/:id/reject` | Reject `{ reason }` | `lab:validate` |
+| GET | `/laboratory/cultures?status=&personId=&q=` | List cultures + KPI counts | `lab:read` |
+| GET | `/laboratory/cultures/:id` | Culture detail + sensitivities | `lab:read` |
+| POST | `/laboratory/cultures` | Create culture + sensitivity matrix | `lab:create` |
+| PATCH | `/laboratory/cultures/:id` | Update organism / status / matrix | `lab:update` |
+| GET | `/laboratory/reports` | List report snapshots | `lab:read` |
+| POST | `/laboratory/reports/generate` | Aggregate + persist snapshot `{ reportType, from, to, title? }` | `lab:read` |
+| GET | `/laboratory/reports/:id` | Snapshot detail + payload | `lab:read` |
 | GET | `/laboratory/tests?q=&category=&status=` | Lab test catalog | `lab:read` |
 | GET | `/laboratory/tests/:id` | Test detail | `lab:read` |
 | POST | `/laboratory/tests` | Create catalog entry | `lab:update` |
@@ -2332,15 +2409,21 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 | PATCH | `/laboratory/templates/:id` | Update template (fields/name/status; deactivate = `status: Inactive`) | `lab:template-manage` |
 | GET | `/laboratory/history?personId=&from=&to=&q=&page=&limit=` | Patient longitudinal lab history (requests + items + latest result) | `lab:read` |
 | GET | `/laboratory/blood-bank/summary` | Blood bank KPI counts + stock by group | `blood-bank:read` |
+| GET | `/laboratory/blood-bank/donors?q=&status=` | List blood donors | `blood-bank:read` |
+| POST | `/laboratory/blood-bank/donors` | Create donor `{ fullName, phone, address?, bloodGroup?, notes? }` | `blood-bank:create` |
+| GET | `/laboratory/blood-bank/donors/:id` | Donor detail | `blood-bank:read` |
+| PATCH | `/laboratory/blood-bank/donors/:id` | Update / soft deactivate `{ status: Inactive }` | `blood-bank:update` |
+| GET | `/laboratory/blood-bank/doctors?q=` | Search doctors/clinical staff for assignment (no `user:read`) | `blood-bank:read` |
+| GET | `/laboratory/blood-bank/issue-history?q=` | Issued unit ↔ patient assignment history | `blood-bank:read` |
 | GET | `/laboratory/blood-bank/units?status=&bloodGroup=&q=` | Inventory list | `blood-bank:read` |
-| POST | `/laboratory/blood-bank/units` | Add unit `{ unitNo, bloodGroup, component, expiryDate, … }` | `blood-bank:create` |
-| PATCH | `/laboratory/blood-bank/units/:id` | Update status / return / quarantine | `blood-bank:update` |
+| POST | `/laboratory/blood-bank/units` | Add unit `{ unitNo, bloodGroup, component, expiryDate, donorId?, doctorId?, … }` | `blood-bank:create` |
+| PATCH | `/laboratory/blood-bank/units/:id` | Update status / quarantine (Issued→Available **blocked**) | `blood-bank:update` |
 | GET | `/laboratory/blood-bank/requests?status=&q=` | Transfusion request queue | `blood-bank:read` |
-| POST | `/laboratory/blood-bank/requests` | New request `{ personId, bloodGroup, unitsRequested, department, … }` | `blood-bank:create` |
+| POST | `/laboratory/blood-bank/requests` | New request `{ personId, bloodGroup, unitsRequested, department, doctorId?, … }` | `blood-bank:create` |
 | GET | `/laboratory/blood-bank/requests/:id` | Detail + immutable events | `blood-bank:read` |
 | PATCH | `/laboratory/blood-bank/requests/:id/start-crossmatch` | → Crossmatching | `blood-bank:update` |
 | PATCH | `/laboratory/blood-bank/requests/:id/crossmatch` | Record `{ result, bloodUnitId?, notes? }` | `blood-bank:update` |
-| PATCH | `/laboratory/blood-bank/requests/:id/issue` | Issue units `{ bloodUnitId?, notes? }` | `blood-bank:issue` |
+| PATCH | `/laboratory/blood-bank/requests/:id/issue` | Issue up to `UNITS_REQUESTED` `{ bloodUnitId?, bloodUnitIds?, notes? }` (FEFO if omitted) | `blood-bank:issue` |
 | PATCH | `/laboratory/blood-bank/requests/:id/reject` | Reject `{ reason }` | `blood-bank:update` |
 | PATCH | `/laboratory/blood-bank/requests/:id/complete` | Mark Issued → Completed | `blood-bank:update` |
 | GET | `/laboratory/blood-bank/crossmatches` | Crossmatch history | `blood-bank:read` |
@@ -2357,7 +2440,7 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 
 **List rules:** `workQueue=true` forces `paymentStatus in (Paid,Waived)` and default `status=Sent` (ready-to-process subset). LAB role otherwise lists unpaid too. Responses include `paymentCleared`, `processingLocked` and `labStatus`. For LAB + unpaid, clinical indication/notes, prices, phone, and DOB are redacted.
 
-**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay|template-create|template-update|sample-collect|sample-reject|result-save|result-submit|result-validate|result-return|result-amend` · `blood-bank:unit-create|unit-update|request-create|crossmatch-start|crossmatch-record|issue|reject|complete`.
+**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay|template-create|template-update|sample-collect|sample-reject|result-save|result-submit|result-validate|result-return|result-amend` · `lab-drug-screen:*` · `lab-culture:*` · `lab-report:generate` · `blood-bank:unit-create|unit-update|request-create|crossmatch-start|crossmatch-record|issue|reject|complete|donor-create|donor-update`.
 
 **History response:** `{ data: { patient, items: [{ requestId, requestNo, testName, category, requestedAt, paymentStatus, labStatus, resultId, resultSummary, validatedAt }], meta } }` — requires `personId`.
 
