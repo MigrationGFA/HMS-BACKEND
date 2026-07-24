@@ -111,3 +111,91 @@ model LabReportSnapshots {
   @@index([CREATED_DATE])
   @@map("LAB_REPORT_SNAPSHOTS")
 }
+
+/// Seminal fluid analysis (WHO-aligned macroscopy / microscopy)
+model LabSfaAnalyses {
+  SFA_ID           Int       @id @default(autoincrement())
+  SFA_NO           String    @unique @db.VarChar(50)
+  PERSON_ID        Int
+  LAB_REQUEST_ID   Int?
+  VOLUME_ML        String?   @db.VarChar(40)
+  COLOUR           String?   @db.VarChar(80)
+  VISCOSITY        String?   @db.VarChar(80)
+  LIQUEFACTION_MIN String?   @db.VarChar(40)
+  PH               String?   @db.VarChar(40)
+  COUNT_M_ML       String?   @db.VarChar(40)
+  MOTILITY_PCT     String?   @db.VarChar(40)
+  MORPHOLOGY_PCT   String?   @db.VarChar(40)
+  PUS_CELLS        String?   @db.VarChar(40)
+  RBC              String?   @db.VarChar(40)
+  EPITHELIAL       String?   @db.VarChar(40)
+  INTERPRETATION   String?   @db.Text
+  /// Draft | Submitted | Validated | Rejected
+  STATUS           String    @default("Draft") @db.VarChar(40)
+  REJECT_REASON    String?   @db.Text
+  VALIDATED_AT     DateTime?
+  VALIDATED_BY     String?   @db.VarChar(100)
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+  DELETED_FLAG     String?   @default("N") @db.VarChar(1)
+
+  person Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([CREATED_DATE])
+  @@map("LAB_SFA_ANALYSES")
+}
+
+/// Specimen chain-of-custody tracking (broader than LAB_SAMPLES LIS collect)
+model LabSpecimenTracking {
+  SPECIMEN_ID    Int       @id @default(autoincrement())
+  SPECIMEN_NO    String    @unique @db.VarChar(50)
+  PERSON_ID      Int
+  LAB_REQUEST_ID Int?
+  LAB_SAMPLE_ID  Int?
+  TEST_LABEL     String    @db.VarChar(150)
+  COLLECTED_BY   String?   @db.VarChar(100)
+  LOCATION       String    @default("Reception") @db.VarChar(150)
+  /// In Transit | Received | Rejected | Lost | Delayed | Completed
+  STATUS         String    @default("Received") @db.VarChar(40)
+  COLLECTED_AT   DateTime?
+  TAT_LABEL      String?   @db.VarChar(40)
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+  DELETED_FLAG   String?   @default("N") @db.VarChar(1)
+
+  person Persons                @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  events LabSpecimenEvents[]
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([CREATED_DATE])
+  @@map("LAB_SPECIMEN_TRACKING")
+}
+
+model LabSpecimenEvents {
+  EVENT_ID       Int       @id @default(autoincrement())
+  SPECIMEN_ID    Int
+  /// Registered | Transferred | Received | Rejected | Lost | Delayed | Completed
+  ACTION         String    @db.VarChar(40)
+  FROM_LOCATION  String?   @db.VarChar(150)
+  TO_LOCATION    String?   @db.VarChar(150)
+  REASON         String?   @db.VarChar(255)
+  ACTOR_LABEL    String?   @db.VarChar(100)
+  CREATED_DATE   DateTime  @default(now())
+
+  specimen LabSpecimenTracking @relation(fields: [SPECIMEN_ID], references: [SPECIMEN_ID])
+
+  @@index([SPECIMEN_ID])
+  @@index([CREATED_DATE])
+  @@map("LAB_SPECIMEN_EVENTS")
+}

@@ -124,8 +124,12 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Result Templates Preview (form layout from backend `FIELDS` via `GET /templates/:id`) | ✅ |
 | Blood bank inventory + requests + crossmatch + issue/reject (`/laboratory/blood-bank/*`, RBAC `blood-bank:*`) | ✅ |
 | Blood donors CRUD + doctor search + issue history; Issued units cannot return to Available | ✅ |
-| Urine drug screens (`/laboratory/drug-screens/*`) live FE workstation | ✅ |
+| Urine drug screens (`/laboratory/drug-screens/*`) live FE workstation + worklist KPIs | ✅ |
 | Culture & sensitivity (`/laboratory/cultures/*`) live FE MCS workspace | ✅ |
+| Seminal fluid analysis (`/laboratory/sfa/*`) live FE | ✅ |
+| Lab analytics summary (`GET /laboratory/analytics/summary`) live FE | ✅ |
+| Specimen tracking + chain-of-custody (`/laboratory/specimens/*`) | ✅ |
+| Microbiology workbench (`/laboratory/microbiology/*`, cultures-backed) | ✅ |
 | Lab report snapshots list/generate (`/laboratory/reports`) | ✅ |
 | Patient lab history (`GET /laboratory/history?personId=`) live FE History Center | ✅ |
 | Lab Request Center shows Unpaid as Pending Payment (limited detail; Collect/Results locked) | ✅ |

@@ -118,7 +118,8 @@ export class LabSpecialtyService {
         { person: { LAST_NAME: { contains: q, mode: 'insensitive' } } },
       ];
     }
-    const [total, rows] = await Promise.all([
+    const baseWhere: Prisma.LabDrugScreensWhereInput = { NOT: { DELETED_FLAG: 'Y' } };
+    const [total, rows, draft, validated, rejected, inProgress] = await Promise.all([
       this.prisma.labDrugScreens.count({ where }),
       this.prisma.labDrugScreens.findMany({
         where,
@@ -127,11 +128,27 @@ export class LabSpecialtyService {
         skip: (page - 1) * limit,
         take: limit,
       }),
+      this.prisma.labDrugScreens.count({ where: { ...baseWhere, STATUS: 'Draft' } }),
+      this.prisma.labDrugScreens.count({ where: { ...baseWhere, STATUS: 'Validated' } }),
+      this.prisma.labDrugScreens.count({ where: { ...baseWhere, STATUS: 'Rejected' } }),
+      this.prisma.labDrugScreens.count({
+        where: {
+          ...baseWhere,
+          STATUS: { in: ['Collected', 'ResultsEntered', 'Submitted'] },
+        },
+      }),
     ]);
     return {
       items: rows.map((r) => this.mapDrugScreen(r)),
       meta: { page, limit, total },
       drugCatalog: DRUG_CATALOG,
+      kpis: {
+        draft,
+        inProgress,
+        validated,
+        rejected,
+        total: draft + inProgress + validated + rejected,
+      },
     };
   }
 
