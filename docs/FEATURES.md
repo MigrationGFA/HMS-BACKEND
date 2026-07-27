@@ -141,8 +141,9 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Patient lab history (`GET /laboratory/history?personId=`) live FE History Center | ✅ |
 | Lab Request Center shows Unpaid as Pending Payment (limited detail; Collect/Results locked) | ✅ |
 | Lab Request Center Paid/Waived unlocks full detail + processing | ✅ |
-| Cashier Pending/Paid bills = live aggregate (cards + pharmacy + Rx + lab + admission) | ✅ |
-| Cashier Part Payments empty (no partial for domain bills) | ✅ |
+| Cashier Pending/Paid bills = live aggregate (cards + pharmacy + Rx + lab + admission) | ✅ | Hub `/dashboard/cashier/bills` tabs Pending/Paid |
+| Cashier Part Payments empty (no partial for domain bills) | ✅ | Hub tab Part |
+| Cashier Invoice + clinical bills workspace | ✅ | `/dashboard/cashier/bills` (Invoice \| Pending \| Paid \| Part); legacy `/pay|/pending|/paid|/part` redirect |
 | Cashier clinical payments `?tab=walkin|rx|lab|admission` deep-link | ✅ |
 | Active Consultation previous history + lab request dialog | ✅ |
 | Lab result templates in DB (12 seeded; create/edit/duplicate/deactivate, `/laboratory/templates`) | ✅ |
@@ -201,7 +202,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Module | Status | Route |
 |--------|--------|-------|
 | Billing | ✅ | `/api/billing/*` |
-| Cashier | ✅ | `/api/cashier/*` |
+| Cashier | ✅ | `/api/cashier/*` — receipts, refunds, discounts, shifts, reports, verify, audit, settings; FE desk `/dashboard/cashier` (+ profile); `/billing/*` visits/gate kept |
 | Finance | ✅ | `/api/finance/*` |
 | Insurance | ✅ | `/api/insurance/*` |
 | Inventory | ✅ | `/api/inventory/*` |

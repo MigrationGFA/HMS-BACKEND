@@ -38,6 +38,7 @@ apps/api/prisma/
 │   ├── blood-bank.prisma     # BLOOD_DONORS, BLOOD_UNITS, BLOOD_REQUESTS, BLOOD_REQUEST_EVENTS, BLOOD_CROSSMATCHES
 │   ├── support.prisma        # SUPPORT_REQUESTS
 │   ├── records-ops.prisma    # RECORD_FILE_REQUESTS(+EVENTS), RECORD_ARCHIVES, RECORD_REPORT_SNAPSHOTS
+│   ├── cashier-ops.prisma    # CASHIER_PAYMENT_RECEIPTS, CASHIER_REFUND_REQUESTS, CASHIER_DISCOUNT_REQUESTS, CASHIER_SHIFTS, CASHIER_SETTINGS
 │   ├── clinical-pharmacy.prisma # PATIENT_ALLERGIES, DRUG_INTERACTION_RULES, CLINICAL_PHARMACY_ALERTS
 │   └── audit.prisma          # AUDITS (with AUDIT_TYPE)
 ├── migrations/
@@ -80,6 +81,11 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `RECORD_FILE_REQUEST_EVENTS` | `RecordFileRequestEvents` | Immutable retrieval status events |
 | `RECORD_ARCHIVES` | `RecordArchives` | Archive catalog (`RA-YYYY-####`); categories Inactive\|Deceased\|Long-Stay\|Restricted\|Legal Hold |
 | `RECORD_REPORT_SNAPSHOTS` | `RecordReportSnapshots` | Generated Records report metrics JSON |
+| `CASHIER_PAYMENT_RECEIPTS` | `CashierPaymentReceipts` | Refundable payment ledger (`CPR-YYYY-####`); Captured\|PartiallyRefunded\|Refunded; unique SOURCE_TYPE+SOURCE_ID; migration `20260727180000_cashier_ops` |
+| `CASHIER_REFUND_REQUESTS` | `CashierRefundRequests` | Partial/full refund requests (`CRF-YYYY-####`); Pending→Approved/Paid\|Rejected |
+| `CASHIER_DISCOUNT_REQUESTS` | `CashierDiscountRequests` | Discount/waiver on unpaid bills (`CDC-YYYY-####`); PERCENT\|FIXED\|WAIVER |
+| `CASHIER_SHIFTS` | `CashierShifts` | Cashier open/close shifts (`CSH-YYYY-####`); Open\|Closed\|Approved; TOTALS_JSON on close |
+| `CASHIER_SETTINGS` | `CashierSettings` | Singleton desk settings (enabled channels, require-open-shift, variance tolerance, reprint watermark); migration `20260727190000_cashier_reports_settings` |
 | `PATIENT_ALLERGIES` | `PatientAllergies` | Structured patient allergies (substance/severity); soft delete; migration `20260727140000_clinical_pharmacy` |
 | `DRUG_INTERACTION_RULES` | `DrugInteractionRules` | Hospital-configurable DDI/duplicate/allergy/controlled/psych rules |
 | `CLINICAL_PHARMACY_ALERTS` | `ClinicalPharmacyAlerts` | Pharmacist safety alerts (`CPA-YYYY-####`); Open\|Overridden\|Notified\|Closed |
