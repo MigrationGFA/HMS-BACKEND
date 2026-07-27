@@ -50,7 +50,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Patient registration & MRN (`POST /patients` → PERSONS, optional email) | ✅ |
 | Registration card auto-opened (`PATIENT_CARDS`, payment Pending) | ✅ |
 | Patient Entry dashboard stats (`GET /records/dashboard-stats`) | ✅ |
-| Records Officer Overview uses same dashboard-stats endpoint | ✅ |
+| Records Officer Overview (`GET /records/overview` → `/dashboard/records`) | ✅ |
 | Patient Directory (`GET /records/directory` + `/directory-stats`) | ✅ |
 | Records Audit Trail (`GET /records/audit` + `/audit-stats`) | ✅ |
 | Patient Arrival / Check-In (`GET /records/arrivals`, `POST /records/arrivals/route`) | ✅ |

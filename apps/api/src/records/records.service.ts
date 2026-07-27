@@ -121,6 +121,266 @@ export class RecordsService {
     };
   }
 
+  private async safeCount(fn: () => Promise<number>): Promise<number> {
+    try {
+      return await fn();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        /(does not exist|Unknown column|column .* does not exist)/i.test(
+          message,
+        )
+      ) {
+        return 0;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Composite Records Officer Overview (/dashboard/records).
+   * Bundles today KPIs, operational queues, recent audit, and derived alerts.
+   */
+  async overview(params?: {
+    timezoneOffsetMinutes?: number;
+    recentLimit?: number;
+  }) {
+    const offsetMin = params?.timezoneOffsetMinutes ?? 60;
+    const recentLimit = Math.min(Math.max(params?.recentLimit ?? 8, 1), 30);
+    const now = new Date();
+
+    const [kpis, directory, audit, pendingTasks, recentArrivals] =
+      await Promise.all([
+        this.dashboardStats({ timezoneOffsetMinutes: offsetMin }),
+        this.directoryStats({ timezoneOffsetMinutes: offsetMin }),
+        this.auditTrail({ page: 1, limit: recentLimit }),
+        this.overviewPendingTasks(),
+        this.overviewArrivalPreview(offsetMin),
+      ]);
+
+    const alerts: {
+      type: 'info' | 'warning' | 'danger' | 'success';
+      message: string;
+      href?: string;
+    }[] = [];
+
+    if (kpis.pendingRegistration > 0) {
+      alerts.push({
+        type: 'warning',
+        message: `${kpis.pendingRegistration} registration card(s) awaiting payment`,
+        href: '/hms/identity',
+      });
+    }
+    if (kpis.awaitingTriage > 0) {
+      alerts.push({
+        type: 'warning',
+        message: `${kpis.awaitingTriage} patient(s) awaiting triage`,
+        href: '/records/triage',
+      });
+    }
+    if (pendingTasks.overdueFileRequests > 0) {
+      alerts.push({
+        type: 'danger',
+        message: `${pendingTasks.overdueFileRequests} medical file request(s) overdue`,
+        href: '/records/retrieval',
+      });
+    }
+    if (pendingTasks.openAdmissionRequests > 0) {
+      alerts.push({
+        type: 'info',
+        message: `${pendingTasks.openAdmissionRequests} admission request(s) need Records action`,
+        href: '/records/admissions',
+      });
+    }
+    if (pendingTasks.openTransfers > 0) {
+      alerts.push({
+        type: 'info',
+        message: `${pendingTasks.openTransfers} transfer(s) awaiting bed allocate / verify`,
+        href: '/records/transfers',
+      });
+    }
+    if (pendingTasks.openReferrals > 0) {
+      alerts.push({
+        type: 'info',
+        message: `${pendingTasks.openReferrals} referral(s) in Records queue`,
+        href: '/records/referrals',
+      });
+    }
+    if (directory.duplicatesFlagged > 0) {
+      alerts.push({
+        type: 'warning',
+        message: `${directory.duplicatesFlagged} possible duplicate phone group(s)`,
+        href: '/records/duplicates',
+      });
+    }
+    if (directory.incompleteProfiles > 0) {
+      alerts.push({
+        type: 'info',
+        message: `${directory.incompleteProfiles} incomplete patient profile(s)`,
+        href: '/records/directory',
+      });
+    }
+    if (alerts.length === 0) {
+      alerts.push({
+        type: 'success',
+        message: 'No outstanding Records queues right now',
+      });
+    }
+
+    return {
+      asOf: now.toISOString(),
+      timezoneOffsetMinutes: offsetMin,
+      kpis: {
+        totalToday: kpis.totalToday,
+        newToday: kpis.newToday,
+        returningToday: kpis.returningToday,
+        walkInToday: kpis.walkInToday,
+        emergencyToday: kpis.emergencyToday,
+        pendingRegistration: kpis.pendingRegistration,
+        awaitingTriage: kpis.awaitingTriage,
+        awaitingConsultation: kpis.awaitingConsultation,
+        totalPatients: directory.totalPatients,
+        incompleteProfiles: directory.incompleteProfiles,
+        duplicatesFlagged: directory.duplicatesFlagged,
+        openFileRequests: pendingTasks.openFileRequests,
+        openAdmissionRequests: pendingTasks.openAdmissionRequests,
+        openTransfers: pendingTasks.openTransfers,
+        openReferrals: pendingTasks.openReferrals,
+        dischargesPending: pendingTasks.dischargesPending,
+      },
+      pendingTasks,
+      recentActivity: audit.items.map((a) => ({
+        id: String(a.auditId),
+        actor: a.officer,
+        action: `${a.action}${a.patient && a.patient !== '-' ? ` — ${a.patient}` : ''}`,
+        timestamp: a.time,
+        module: a.module,
+        href: a.personId
+          ? `/records/patient-directory/${a.personId}/profile`
+          : '/records/audit',
+      })),
+      recentArrivals,
+      alerts,
+    };
+  }
+
+  private async overviewPendingTasks() {
+    const [
+      openFileRequests,
+      overdueFileRequests,
+      openAdmissionRequests,
+      openTransfers,
+      openReferrals,
+      dischargesPending,
+      archivesDueReview,
+    ] = await Promise.all([
+      this.safeCount(() =>
+        this.prisma.recordFileRequests.count({
+          where: {
+            NOT: { DELETED_FLAG: 'Y' },
+            STATUS: {
+              in: ['Requested', 'Released', 'In Transit', 'Overdue'],
+            },
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.recordFileRequests.count({
+          where: {
+            NOT: { DELETED_FLAG: 'Y' },
+            STATUS: 'Overdue',
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.admissionRequests.count({
+          where: {
+            STATUS: { in: ['Submitted', 'UnderReview', 'Approved'] },
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.patientTransfers.count({
+          where: {
+            STATUS: {
+              in: ['AwaitingBed', 'BedReserved', 'ReceivingAccepted', 'InTransit'],
+            },
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.clinicalReferrals.count({
+          where: {
+            STATUS: {
+              in: [
+                'Submitted',
+                'UnderReview',
+                'QueuedForDept',
+                'AwaitingBed',
+                'BedAllocated',
+              ],
+            },
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.dischargeDrafts.count({
+          where: {
+            STATUS: {
+              in: [
+                'Submitted',
+                'AwaitingPayment',
+                'PaymentCleared',
+                'Returned',
+              ],
+            },
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.recordArchives.count({
+          where: {
+            NOT: { DELETED_FLAG: 'Y' },
+            STATUS: 'Archived',
+            DUE_REVIEW_AT: { lte: new Date() },
+          },
+        }),
+      ),
+    ]);
+
+    return {
+      openFileRequests,
+      overdueFileRequests,
+      openAdmissionRequests,
+      openTransfers,
+      openReferrals,
+      dischargesPending,
+      archivesDueReview,
+    };
+  }
+
+  private async overviewArrivalPreview(offsetMin: number) {
+    try {
+      const arrivals = await this.arrivals({
+        page: 1,
+        limit: 6,
+        timezoneOffsetMinutes: offsetMin,
+      });
+      return arrivals.items.map((row) => ({
+        arrivalNo: row.arrivalNo,
+        personId: row.personId,
+        name: row.name,
+        hospitalId: row.hospitalId,
+        type: row.type,
+        routing: row.routing,
+        arrival: row.arrival,
+        href: '/records/arrivals',
+      }));
+    } catch {
+      return [];
+    }
+  }
+
   /**
    * Queue for Patient Entry Engine:
    * - Pending: awaiting Accounts/Cashier payment

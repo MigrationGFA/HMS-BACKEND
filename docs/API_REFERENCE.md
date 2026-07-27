@@ -316,7 +316,8 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/records/dashboard-stats` | Live summary cards for Patient Entry Engine **and** Records dashboard (`/dashboard/records`) — same metrics | `patient:read` |
+| GET | `/records/overview` | Composite Records Officer Overview (`/dashboard/records`) — KPIs, pending tasks, activity, arrivals, alerts | `patient:read` |
+| GET | `/records/dashboard-stats` | Live summary cards for Patient Entry Engine (`/hms/identity`) | `patient:read` |
 | GET | `/records/directory-stats` | Patient Directory summary cards | `patient:read` |
 | GET | `/records/directory` | Patient Directory list (`q`, `sex`, `insurance`, `page`, `limit`) | `patient:read` |
 | GET | `/records/audit-stats` | Records Audit Trail summary cards | `audit:read` |
@@ -330,9 +331,82 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 | GET | `/records/persons/:personId/payment-status` | Check latest card payment for a person | `card:read` |
 | PATCH | `/records/registrations/:personId/complete` | Complete registration after payment | `patient:update` |
 
+#### `GET /api/records/overview`
+
+**Method:** GET  
+**URL:** `/api/records/overview?timezoneOffsetMinutes=&recentLimit=`  
+**Purpose:** Power Records Officer Overview (`/dashboard/records`) — today KPIs, directory signals, open queues, recent audit, today’s arrivals preview, and derived alerts.  
+**Required permission:** `patient:read`  
+**Request body:** none  
+
+**Query:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `timezoneOffsetMinutes` | number | `60` (WAT) | Client offset from UTC for “today” boundary |
+| `recentLimit` | number | `8` (max 30) | Size of recent activity / arrivals preview |
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "asOf": "2026-07-27T10:00:00.000Z",
+    "timezoneOffsetMinutes": 60,
+    "kpis": {
+      "totalToday": 42,
+      "newToday": 12,
+      "returningToday": 30,
+      "walkInToday": 10,
+      "emergencyToday": 2,
+      "pendingRegistration": 5,
+      "awaitingTriage": 8,
+      "awaitingConsultation": 11,
+      "totalPatients": 1200,
+      "incompleteProfiles": 3,
+      "duplicatesFlagged": 1,
+      "openFileRequests": 4,
+      "openAdmissionRequests": 2,
+      "openTransfers": 1,
+      "openReferrals": 0,
+      "dischargesPending": 1
+    },
+    "pendingTasks": {
+      "openFileRequests": 4,
+      "overdueFileRequests": 1,
+      "openAdmissionRequests": 2,
+      "openTransfers": 1,
+      "openReferrals": 0,
+      "dischargesPending": 1,
+      "archivesDueReview": 0
+    },
+    "recentActivity": [
+      {
+        "id": "42",
+        "actor": "Health Records",
+        "action": "Patient Created",
+        "timestamp": "2026-07-27T09:55:00.000Z",
+        "module": "Records",
+        "href": "/records/audit"
+      }
+    ],
+    "recentArrivals": [],
+    "alerts": [
+      {
+        "type": "warning",
+        "message": "5 registration card(s) awaiting payment",
+        "href": "/hms/identity"
+      }
+    ]
+  }
+}
+```
+
+**Error cases:** `401` Unauthorized, `403` Forbidden.
+
 #### `GET /api/records/dashboard-stats`
 
-**Purpose:** Power the 8 live statistic cards on Patient Entry Engine (`/hms/identity`) and Records Officer Overview (`/dashboard/records`). Same endpoint — cards are equivalent.
+**Purpose:** Power the 8 live statistic cards on Patient Entry Engine (`/hms/identity`). Records Officer Overview uses `GET /api/records/overview` instead.
 
 **Query:**
 
