@@ -56,6 +56,7 @@ import { SuperAdminModule } from './super-admin/super-admin.module';
 import { GovernanceModule } from './governance/governance.module';
 import { AdministrationModule } from './administration/administration.module';
 import { HrModule } from './hr/hr.module';
+import { SupportRequestsModule } from './support-requests/support-requests.module';
 
 @Module({
   imports: [
@@ -116,6 +117,7 @@ import { HrModule } from './hr/hr.module';
     GovernanceModule,
     AdministrationModule,
     HrModule,
+    SupportRequestsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

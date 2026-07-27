@@ -192,6 +192,11 @@ export const PERMISSIONS = {
 
   // Identity (staff user lookup — no password/credential access)
   USER_READ: 'user:read',
+
+  // Staff support tickets (shared header Support button + HR queue)
+  SUPPORT_CREATE: 'support:create',
+  SUPPORT_READ: 'support:read',
+  SUPPORT_UPDATE: 'support:update',
 } as const;
 
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -207,6 +212,11 @@ const FULL_ACCESS: PermissionName[] = Object.values(PERMISSIONS);
  * - read audit trail of registration activity
  * - look up staff users (identity search) — no role/credential management
  */
+const SUPPORT_SELF_PERMISSIONS: PermissionName[] = [
+  PERMISSIONS.SUPPORT_CREATE,
+  PERMISSIONS.SUPPORT_READ,
+];
+
 const RECORDS_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_CREATE,
   PERMISSIONS.PATIENT_READ,
@@ -232,6 +242,7 @@ const RECORDS_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.DISCHARGE_FINALIZE,
   PERMISSIONS.AUDIT_READ,
   PERMISSIONS.USER_READ,
+  ...SUPPORT_SELF_PERMISSIONS,
 ];
 
 const CASHIER_PERMISSIONS: PermissionName[] = [
@@ -252,6 +263,7 @@ const CASHIER_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.DISCHARGE_CLEAR_PAYMENT,
   PERMISSIONS.NOTIFICATION_READ,
   PERMISSIONS.AUDIT_READ,
+  ...SUPPORT_SELF_PERMISSIONS,
 ];
 
 /**
@@ -279,6 +291,7 @@ const PHARMACY_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PHARMACY_RETURN_READ,
   PERMISSIONS.PHARMACY_SETTINGS_UPDATE,
   PERMISSIONS.AUDIT_READ,
+  ...SUPPORT_SELF_PERMISSIONS,
 ];
 
 // Combined read permissions for clinical roles (both nursing and encounters)
@@ -321,6 +334,7 @@ const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.DISCHARGE_READ,
   PERMISSIONS.CERTIFICATE_READ,
   PERMISSIONS.DOCTOR_ANALYTICS_READ,
+  ...SUPPORT_SELF_PERMISSIONS,
 ];
 
 // Full clinical permissions (read + write for nursing and encounters)
@@ -410,6 +424,12 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
   [ROLES.CMD]: FULL_ACCESS,
   [ROLES.IT]: FULL_ACCESS,
 
+  /** HR queue: list all tickets + update status; may also submit own tickets */
+  [ROLES.HR]: [
+    ...SUPPORT_SELF_PERMISSIONS,
+    PERMISSIONS.SUPPORT_UPDATE,
+  ],
+
   [ROLES.RECORDS]: RECORDS_PERMISSIONS,
   [ROLES.CASHIER]: CASHIER_PERMISSIONS,
   [ROLES.FINANCE]: [
@@ -458,6 +478,7 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.NURSING_ORDER_READ,
     PERMISSIONS.NURSING_SAMPLE_READ,
     PERMISSIONS.NURSING_SAMPLE_UPDATE,
+    ...SUPPORT_SELF_PERMISSIONS,
   ],
   [ROLES.RADIOLOGY]: [
     PERMISSIONS.PATIENT_READ,
@@ -466,6 +487,7 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.NURSING_ORDER_CREATE,
     PERMISSIONS.NURSING_ORDER_READ,
     PERMISSIONS.NOTIFICATION_READ,
+    ...SUPPORT_SELF_PERMISSIONS,
   ],
   [ROLES.PHARMACIST]: [
     ...PHARMACY_PERMISSIONS,

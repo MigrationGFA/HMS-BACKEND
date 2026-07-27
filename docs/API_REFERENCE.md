@@ -1930,6 +1930,42 @@ Query params for stats: `timezoneOffsetMinutes`
 
 ---
 
+### Support requests (`/support-requests`)
+
+Shared staff support tickets (Pharmacy, Doctor, Cashier, Records, Laboratory header Support button → HR queue).
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| POST | `/support-requests` | Create ticket `{ issueType, description, module? }` | `support:create` |
+| GET | `/support-requests` | List (`mine=true` forces own; HR/admin with `support:update` see all by default; filters `status`, `q`, `page`, `limit`) | `support:read` |
+| GET | `/support-requests/:id` | Detail (owner or HR/admin) | `support:read` |
+| PATCH | `/support-requests/:id` | Update status / resolve note `{ status, resolvedNote? }` | `support:update` |
+
+**Issue types:** `Profile Change` \| `Complaint` \| `Technical Issue`  
+**Statuses:** `Open` \| `In Progress` \| `Resolved` \| `Closed`  
+**Modules (optional):** `pharmacy` \| `doctor` \| `cashier` \| `records` \| `laboratory` \| `other`  
+**Request numbers:** `SR-YYYY-####`  
+**Audit:** `support:create`, `support:update`
+
+**Create response example:**
+```json
+{
+  "data": {
+    "requestId": 1,
+    "requestNo": "SR-2026-0001",
+    "staffName": "Ada Pharmacist",
+    "issueType": "Technical Issue",
+    "description": "Cannot open dispense queue",
+    "module": "pharmacy",
+    "status": "Open"
+  }
+}
+```
+
+**Error cases:** 400 validation / closed reopen; 401; 403 (missing permission or non-owner detail); 404
+
+---
+
 ### Doctor Research (`/doctor/research`)
 
 | Method | Path | Description | Permission |
