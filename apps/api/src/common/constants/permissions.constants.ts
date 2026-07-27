@@ -197,6 +197,11 @@ export const PERMISSIONS = {
   SUPPORT_CREATE: 'support:create',
   SUPPORT_READ: 'support:read',
   SUPPORT_UPDATE: 'support:update',
+
+  // Clinical pharmacy (DDI / allergy / safety worklist)
+  CLINICAL_PHARMACY_READ: 'clinical-pharmacy:read',
+  CLINICAL_PHARMACY_UPDATE: 'clinical-pharmacy:update',
+  CLINICAL_PHARMACY_MANAGE_RULES: 'clinical-pharmacy:manage-rules',
 } as const;
 
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -292,6 +297,9 @@ const PHARMACY_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PHARMACY_SETTINGS_UPDATE,
   PERMISSIONS.AUDIT_READ,
   ...SUPPORT_SELF_PERMISSIONS,
+  PERMISSIONS.CLINICAL_PHARMACY_READ,
+  PERMISSIONS.CLINICAL_PHARMACY_UPDATE,
+  PERMISSIONS.CLINICAL_PHARMACY_MANAGE_RULES,
 ];
 
 // Combined read permissions for clinical roles (both nursing and encounters)

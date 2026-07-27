@@ -1966,6 +1966,29 @@ Shared staff support tickets (Pharmacy, Doctor, Cashier, Records, Laboratory hea
 
 ---
 
+### Clinical Pharmacy (`/clinical-pharmacy`)
+
+Pharmacist safety worklist: configurable interaction rules, structured allergies, check engine, override / notify doctor.
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/clinical-pharmacy/alerts` | Worklist + KPIs (`status`, `severity`, `type`, `q`, page) | `clinical-pharmacy:read` |
+| GET | `/clinical-pharmacy/alerts/:id` | Alert detail | `clinical-pharmacy:read` |
+| POST | `/clinical-pharmacy/check` | `{ personId, drugIds?, prescriptionId? }` run engine + upsert Open alerts | `clinical-pharmacy:read` |
+| POST | `/clinical-pharmacy/alerts/:id/override` | `{ reason }` | `clinical-pharmacy:update` |
+| POST | `/clinical-pharmacy/alerts/:id/notify` | `{ note? }` → in-app notify prescribing doctor | `clinical-pharmacy:update` |
+| PATCH | `/clinical-pharmacy/alerts/:id/close` | Close alert | `clinical-pharmacy:update` |
+| GET/POST | `/clinical-pharmacy/rules` | List / create rules | `clinical-pharmacy:manage-rules` |
+| PATCH | `/clinical-pharmacy/rules/:id` | Update rule | `clinical-pharmacy:manage-rules` |
+| GET | `/clinical-pharmacy/allergies?personId=` | Patient allergies | `clinical-pharmacy:read` |
+| POST | `/clinical-pharmacy/allergies` | Create allergy | `clinical-pharmacy:update` |
+| PATCH | `/clinical-pharmacy/allergies/:id` | Update allergy | `clinical-pharmacy:update` |
+
+**Alert numbers:** `CPA-YYYY-####`  
+**Audit:** `clinical-pharmacy:check|override|notify|close`
+
+---
+
 ### Doctor Research (`/doctor/research`)
 
 | Method | Path | Description | Permission |
