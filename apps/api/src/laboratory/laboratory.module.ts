@@ -7,8 +7,10 @@ import { LabCultureController } from './lab-culture.controller';
 import { LabDrugScreenController } from './lab-drug-screen.controller';
 import { LabExtendedService } from './lab-extended.service';
 import { LabHistoryController } from './lab-history.controller';
+import { LabHistopathologyController } from './lab-histopathology.controller';
 import { LabMicrobiologyController } from './lab-microbiology.controller';
 import { LabOverviewController } from './lab-overview.controller';
+import { LabQcController } from './lab-qc.controller';
 import { LabReportsController } from './lab-reports.controller';
 import { LabRequestsController } from './lab-requests.controller';
 import { LabResultsController } from './lab-results.controller';
@@ -31,6 +33,8 @@ import { LaboratoryService } from './laboratory.service';
     LabAnalyticsController,
     LabSpecimensController,
     LabMicrobiologyController,
+    LabHistopathologyController,
+    LabQcController,
     LabTestsController,
     LabRequestsController,
     LabResultsController,

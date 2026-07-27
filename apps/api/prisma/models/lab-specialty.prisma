@@ -199,3 +199,70 @@ model LabSpecimenEvents {
   @@index([CREATED_DATE])
   @@map("LAB_SPECIMEN_EVENTS")
 }
+
+/// Histopathology case workbench (gross → micro → release)
+model LabHistopathologyCases {
+  CASE_ID        Int       @id @default(autoincrement())
+  CASE_NO        String    @unique @db.VarChar(50)
+  PERSON_ID      Int
+  LAB_REQUEST_ID Int?
+  /// Biopsy | Surgical Specimens | Cytology | Special Stains
+  SPECIMEN_TYPE  String    @db.VarChar(80)
+  /// Received | Grossing | Microscopy | Awaiting Approval | Released
+  STAGE          String    @default("Received") @db.VarChar(40)
+  SITE           String?   @db.VarChar(255)
+  GROSS          String?   @db.Text
+  MICRO          String?   @db.Text
+  DIAGNOSIS      String?   @db.Text
+  GRADE          String?   @db.VarChar(80)
+  RECEIVED_AT    DateTime?
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+  DELETED_FLAG   String?   @default("N") @db.VarChar(1)
+
+  person Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([STAGE])
+  @@index([CREATED_DATE])
+  @@map("LAB_HISTOPATHOLOGY_CASES")
+}
+
+/// Laboratory quality-control runs + CAPA
+model LabQcRuns {
+  QC_RUN_ID    Int       @id @default(autoincrement())
+  RUN_NO       String    @unique @db.VarChar(50)
+  ANALYTE      String    @db.VarChar(150)
+  INSTRUMENT   String    @db.VarChar(150)
+  /// L1 | L2 | L3
+  LEVEL        String    @db.VarChar(10)
+  EXPECTED     String    @db.VarChar(80)
+  OBSERVED     String    @db.VarChar(80)
+  /// Passed | Failed
+  RESULT       String    @db.VarChar(20)
+  /// Daily | Weekly | Monthly | Calibration
+  FREQ         String    @db.VarChar(40)
+  RUN_DATE     DateTime  @db.Date
+  CORRECTIVE   String?   @db.Text
+  PREVENTIVE   String?   @db.Text
+  ASSIGNED_TO  String?   @db.VarChar(100)
+  TARGET_DATE  DateTime? @db.Date
+  /// None | Open | Closed
+  CAPA_STATUS  String    @default("None") @db.VarChar(20)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?  @db.VarChar(100)
+  CREATED_DATE  DateTime?
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?  @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+  DELETED_FLAG  String?  @default("N") @db.VarChar(1)
+
+  @@index([FREQ])
+  @@index([RESULT])
+  @@index([RUN_DATE])
+  @@map("LAB_QC_RUNS")
+}

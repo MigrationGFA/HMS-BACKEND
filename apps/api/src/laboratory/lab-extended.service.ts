@@ -8,9 +8,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import {
+  AdvanceHistopathologyDto,
+  CreateHistopathologyDto,
+  CreateQcRunDto,
   CreateSfaDto,
   CreateSpecimenDto,
+  PatchHistopathologyDto,
+  PatchQcRunDto,
   PatchSfaDto,
+  QcCapaDto,
   RejectSfaDto,
   SpecimenStatusDto,
   TransferSpecimenDto,
@@ -806,5 +812,506 @@ export class LabExtendedService {
     return this.createMicroFromCulture(
       await this.specialty.patchCulture(id, { status: 'Final' }, actor),
     );
+  }
+
+  // ---------- Histopathology ----------
+
+  private static readonly HISTO_STAGES = [
+    'Received',
+    'Grossing',
+    'Microscopy',
+    'Awaiting Approval',
+    'Released',
+  ] as const;
+
+  private mapHisto(
+    row: Prisma.LabHistopathologyCasesGetPayload<{
+      include: { person: { select: typeof PERSON_SELECT } };
+    }>,
+  ) {
+    return {
+      caseId: row.CASE_ID,
+      caseNo: row.CASE_NO,
+      personId: row.PERSON_ID,
+      labRequestId: row.LAB_REQUEST_ID,
+      patientName: personName(row.person),
+      hospitalNo: row.person.HOSPITAL_NO,
+      sex: row.person.SEX,
+      specimenType: row.SPECIMEN_TYPE,
+      stage: row.STAGE,
+      site: row.SITE,
+      gross: row.GROSS,
+      micro: row.MICRO,
+      diagnosis: row.DIAGNOSIS,
+      grade: row.GRADE,
+      receivedAt: row.RECEIVED_AT?.toISOString() ?? null,
+      createdAt: row.CREATED_DATE?.toISOString() ?? null,
+      createdBy: row.CREATED_BY,
+      updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
+    };
+  }
+
+  async listHistopathology(params?: {
+    stage?: string;
+    personId?: number;
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, params?.page ?? 1);
+    const limit = Math.min(100, Math.max(1, params?.limit ?? 50));
+    const where: Prisma.LabHistopathologyCasesWhereInput = {
+      NOT: { DELETED_FLAG: 'Y' },
+    };
+    if (params?.stage) where.STAGE = params.stage;
+    if (params?.personId) where.PERSON_ID = params.personId;
+    if (params?.q?.trim()) {
+      const q = params.q.trim();
+      where.OR = [
+        { CASE_NO: { contains: q, mode: 'insensitive' } },
+        { DIAGNOSIS: { contains: q, mode: 'insensitive' } },
+        { person: { HOSPITAL_NO: { contains: q, mode: 'insensitive' } } },
+        { person: { FIRST_NAME: { contains: q, mode: 'insensitive' } } },
+        { person: { LAST_NAME: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+    const base = { NOT: { DELETED_FLAG: 'Y' } } as const;
+    const stageCounts = await Promise.all(
+      LabExtendedService.HISTO_STAGES.map((stage) =>
+        this.prisma.labHistopathologyCases.count({
+          where: { ...base, STAGE: stage },
+        }),
+      ),
+    );
+    const [total, rows] = await Promise.all([
+      this.prisma.labHistopathologyCases.count({ where }),
+      this.prisma.labHistopathologyCases.findMany({
+        where,
+        include: { person: { select: PERSON_SELECT } },
+        orderBy: { CASE_ID: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    const kpis = {
+      received: stageCounts[0],
+      grossing: stageCounts[1],
+      microscopy: stageCounts[2],
+      awaitingApproval: stageCounts[3],
+      released: stageCounts[4],
+      total: stageCounts.reduce((a, b) => a + b, 0),
+    };
+    return {
+      items: rows.map((r) => this.mapHisto(r)),
+      meta: { page, limit, total },
+      kpis,
+    };
+  }
+
+  async getHistopathology(id: number) {
+    const row = await this.prisma.labHistopathologyCases.findFirst({
+      where: { CASE_ID: id, NOT: { DELETED_FLAG: 'Y' } },
+      include: { person: { select: PERSON_SELECT } },
+    });
+    if (!row) throw new NotFoundException('Histopathology case not found');
+    return this.mapHisto(row);
+  }
+
+  private histoReportData(dto: CreateHistopathologyDto | PatchHistopathologyDto) {
+    const data: Prisma.LabHistopathologyCasesUpdateInput = {};
+    if ('specimenType' in dto && dto.specimenType !== undefined) {
+      data.SPECIMEN_TYPE = dto.specimenType;
+    }
+    if (dto.site !== undefined) data.SITE = dto.site?.trim() || null;
+    if (dto.gross !== undefined) data.GROSS = dto.gross?.trim() || null;
+    if (dto.micro !== undefined) data.MICRO = dto.micro?.trim() || null;
+    if (dto.diagnosis !== undefined) data.DIAGNOSIS = dto.diagnosis?.trim() || null;
+    if (dto.grade !== undefined) data.GRADE = dto.grade?.trim() || null;
+    return data;
+  }
+
+  async createHistopathology(dto: CreateHistopathologyDto, actor?: AuthUser) {
+    const person = await this.prisma.persons.findUnique({
+      where: { PERSON_ID: dto.personId },
+      select: PERSON_SELECT,
+    });
+    if (!person) throw new NotFoundException('Patient not found');
+    const now = new Date();
+    const label = actorLabel(actor);
+    const created = await this.prisma.$transaction(async (tx) => {
+      const draft = await tx.labHistopathologyCases.create({
+        data: {
+          CASE_NO: `TMP-${Date.now()}`,
+          PERSON_ID: dto.personId,
+          LAB_REQUEST_ID: dto.labRequestId ?? null,
+          SPECIMEN_TYPE: dto.specimenType,
+          STAGE: 'Received',
+          SITE: dto.site?.trim() || null,
+          GROSS: dto.gross?.trim() || null,
+          MICRO: dto.micro?.trim() || null,
+          DIAGNOSIS: dto.diagnosis?.trim() || null,
+          GRADE: dto.grade?.trim() || null,
+          RECEIVED_AT: now,
+          CREATED_BY_ID: actor?.id ?? null,
+          CREATED_BY: label,
+          CREATED_DATE: now,
+        },
+      });
+      return tx.labHistopathologyCases.update({
+        where: { CASE_ID: draft.CASE_ID },
+        data: { CASE_NO: `HST-${now.getFullYear()}-${pad(draft.CASE_ID)}` },
+        include: { person: { select: PERSON_SELECT } },
+      });
+    });
+    const response = this.mapHisto(created);
+    await this.audit.log({
+      type: 'lab-histo:create',
+      entity: 'LabHistopathologyCase',
+      entityId: created.CASE_ID,
+      personId: dto.personId,
+      userId: actor?.id,
+      createdBy: label,
+      item: response.caseNo,
+      newValue: { specimenType: dto.specimenType },
+    });
+    return response;
+  }
+
+  async patchHistopathology(
+    id: number,
+    dto: PatchHistopathologyDto,
+    actor?: AuthUser,
+  ) {
+    const existing = await this.prisma.labHistopathologyCases.findFirst({
+      where: { CASE_ID: id, NOT: { DELETED_FLAG: 'Y' } },
+    });
+    if (!existing) throw new NotFoundException('Histopathology case not found');
+    if (existing.STAGE === 'Released') {
+      throw new BadRequestException('Released cases cannot be edited');
+    }
+    const label = actorLabel(actor);
+    const now = new Date();
+    const updated = await this.prisma.labHistopathologyCases.update({
+      where: { CASE_ID: id },
+      data: {
+        ...this.histoReportData(dto),
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: label,
+        UPDATED_DATE: now,
+      },
+      include: { person: { select: PERSON_SELECT } },
+    });
+    await this.audit.log({
+      type: 'lab-histo:update',
+      entity: 'LabHistopathologyCase',
+      entityId: id,
+      personId: existing.PERSON_ID,
+      userId: actor?.id,
+      createdBy: label,
+      item: updated.CASE_NO,
+    });
+    return this.mapHisto(updated);
+  }
+
+  async advanceHistopathology(
+    id: number,
+    dto: AdvanceHistopathologyDto,
+    actor?: AuthUser,
+  ) {
+    const existing = await this.prisma.labHistopathologyCases.findFirst({
+      where: { CASE_ID: id, NOT: { DELETED_FLAG: 'Y' } },
+    });
+    if (!existing) throw new NotFoundException('Histopathology case not found');
+    if (existing.STAGE === 'Released') {
+      throw new BadRequestException('Case is already released');
+    }
+    let next = dto.stage;
+    if (!next) {
+      const idx = LabExtendedService.HISTO_STAGES.indexOf(
+        existing.STAGE as (typeof LabExtendedService.HISTO_STAGES)[number],
+      );
+      if (idx < 0 || idx >= LabExtendedService.HISTO_STAGES.length - 1) {
+        throw new BadRequestException('Cannot advance stage');
+      }
+      next = LabExtendedService.HISTO_STAGES[idx + 1];
+    }
+    if (next === 'Released') {
+      return this.releaseHistopathology(id, actor);
+    }
+    if (
+      !(LabExtendedService.HISTO_STAGES as readonly string[]).includes(next)
+    ) {
+      throw new BadRequestException('Invalid stage');
+    }
+    const label = actorLabel(actor);
+    const updated = await this.prisma.labHistopathologyCases.update({
+      where: { CASE_ID: id },
+      data: {
+        STAGE: next,
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: label,
+        UPDATED_DATE: new Date(),
+      },
+      include: { person: { select: PERSON_SELECT } },
+    });
+    await this.audit.log({
+      type: 'lab-histo:advance',
+      entity: 'LabHistopathologyCase',
+      entityId: id,
+      personId: existing.PERSON_ID,
+      userId: actor?.id,
+      createdBy: label,
+      item: updated.CASE_NO,
+      oldValue: existing.STAGE,
+      newValue: next,
+    });
+    return this.mapHisto(updated);
+  }
+
+  async releaseHistopathology(id: number, actor?: AuthUser) {
+    const existing = await this.prisma.labHistopathologyCases.findFirst({
+      where: { CASE_ID: id, NOT: { DELETED_FLAG: 'Y' } },
+    });
+    if (!existing) throw new NotFoundException('Histopathology case not found');
+    if (existing.STAGE === 'Released') {
+      throw new BadRequestException('Case is already released');
+    }
+    if (!existing.DIAGNOSIS?.trim()) {
+      throw new BadRequestException('Diagnosis is required before release');
+    }
+    const label = actorLabel(actor);
+    const updated = await this.prisma.labHistopathologyCases.update({
+      where: { CASE_ID: id },
+      data: {
+        STAGE: 'Released',
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: label,
+        UPDATED_DATE: new Date(),
+      },
+      include: { person: { select: PERSON_SELECT } },
+    });
+    await this.audit.log({
+      type: 'lab-histo:release',
+      entity: 'LabHistopathologyCase',
+      entityId: id,
+      personId: existing.PERSON_ID,
+      userId: actor?.id,
+      createdBy: label,
+      item: updated.CASE_NO,
+    });
+    return this.mapHisto(updated);
+  }
+
+  // ---------- QC ----------
+
+  private mapQc(row: {
+    QC_RUN_ID: number;
+    RUN_NO: string;
+    ANALYTE: string;
+    INSTRUMENT: string;
+    LEVEL: string;
+    EXPECTED: string;
+    OBSERVED: string;
+    RESULT: string;
+    FREQ: string;
+    RUN_DATE: Date;
+    CORRECTIVE: string | null;
+    PREVENTIVE: string | null;
+    ASSIGNED_TO: string | null;
+    TARGET_DATE: Date | null;
+    CAPA_STATUS: string;
+    CREATED_BY: string | null;
+    CREATED_DATE: Date | null;
+    UPDATED_DATE: Date | null;
+  }) {
+    return {
+      qcRunId: row.QC_RUN_ID,
+      runNo: row.RUN_NO,
+      analyte: row.ANALYTE,
+      instrument: row.INSTRUMENT,
+      level: row.LEVEL,
+      expected: row.EXPECTED,
+      observed: row.OBSERVED,
+      result: row.RESULT,
+      freq: row.FREQ,
+      runDate: row.RUN_DATE.toISOString().slice(0, 10),
+      corrective: row.CORRECTIVE,
+      preventive: row.PREVENTIVE,
+      assignedTo: row.ASSIGNED_TO,
+      targetDate: row.TARGET_DATE?.toISOString().slice(0, 10) ?? null,
+      capaStatus: row.CAPA_STATUS,
+      createdAt: row.CREATED_DATE?.toISOString() ?? null,
+      createdBy: row.CREATED_BY,
+      updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
+    };
+  }
+
+  async listQc(params?: {
+    freq?: string;
+    result?: string;
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, params?.page ?? 1);
+    const limit = Math.min(100, Math.max(1, params?.limit ?? 50));
+    const where: Prisma.LabQcRunsWhereInput = { NOT: { DELETED_FLAG: 'Y' } };
+    if (params?.freq) where.FREQ = params.freq;
+    if (params?.result) where.RESULT = params.result;
+    if (params?.q?.trim()) {
+      const q = params.q.trim();
+      where.OR = [
+        { RUN_NO: { contains: q, mode: 'insensitive' } },
+        { ANALYTE: { contains: q, mode: 'insensitive' } },
+        { INSTRUMENT: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    const base = { NOT: { DELETED_FLAG: 'Y' } } as const;
+    const [total, rows, passed, failed] = await Promise.all([
+      this.prisma.labQcRuns.count({ where }),
+      this.prisma.labQcRuns.findMany({
+        where,
+        orderBy: [{ RUN_DATE: 'desc' }, { QC_RUN_ID: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.labQcRuns.count({ where: { ...base, RESULT: 'Passed' } }),
+      this.prisma.labQcRuns.count({ where: { ...base, RESULT: 'Failed' } }),
+    ]);
+    return {
+      items: rows.map((r) => this.mapQc(r)),
+      meta: { page, limit, total },
+      kpis: { passed, failed, total: passed + failed },
+    };
+  }
+
+  async getQc(id: number) {
+    const row = await this.prisma.labQcRuns.findFirst({
+      where: { QC_RUN_ID: id, NOT: { DELETED_FLAG: 'Y' } },
+    });
+    if (!row) throw new NotFoundException('QC run not found');
+    return this.mapQc(row);
+  }
+
+  private parseDateOnly(value: string | undefined, fallback: Date): Date {
+    if (!value?.trim()) return fallback;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException('Invalid date');
+    }
+    return d;
+  }
+
+  async createQc(dto: CreateQcRunDto, actor?: AuthUser) {
+    const now = new Date();
+    const label = actorLabel(actor);
+    const runDate = this.parseDateOnly(dto.runDate, now);
+    const created = await this.prisma.$transaction(async (tx) => {
+      const draft = await tx.labQcRuns.create({
+        data: {
+          RUN_NO: `TMP-${Date.now()}`,
+          ANALYTE: dto.analyte.trim(),
+          INSTRUMENT: dto.instrument.trim(),
+          LEVEL: dto.level,
+          EXPECTED: dto.expected.trim(),
+          OBSERVED: dto.observed.trim(),
+          RESULT: dto.result,
+          FREQ: dto.freq,
+          RUN_DATE: runDate,
+          CAPA_STATUS: dto.result === 'Failed' ? 'Open' : 'None',
+          CREATED_BY_ID: actor?.id ?? null,
+          CREATED_BY: label,
+          CREATED_DATE: now,
+        },
+      });
+      return tx.labQcRuns.update({
+        where: { QC_RUN_ID: draft.QC_RUN_ID },
+        data: { RUN_NO: `QC-${now.getFullYear()}-${pad(draft.QC_RUN_ID)}` },
+      });
+    });
+    await this.audit.log({
+      type: 'lab-qc:create',
+      entity: 'LabQcRun',
+      entityId: created.QC_RUN_ID,
+      userId: actor?.id,
+      createdBy: label,
+      item: created.RUN_NO,
+      newValue: { result: dto.result },
+    });
+    return this.mapQc(created);
+  }
+
+  async patchQc(id: number, dto: PatchQcRunDto, actor?: AuthUser) {
+    const existing = await this.prisma.labQcRuns.findFirst({
+      where: { QC_RUN_ID: id, NOT: { DELETED_FLAG: 'Y' } },
+    });
+    if (!existing) throw new NotFoundException('QC run not found');
+    const label = actorLabel(actor);
+    const data: Prisma.LabQcRunsUpdateInput = {
+      UPDATED_BY_ID: actor?.id ?? null,
+      UPDATED_BY: label,
+      UPDATED_DATE: new Date(),
+    };
+    if (dto.analyte !== undefined) data.ANALYTE = dto.analyte.trim();
+    if (dto.instrument !== undefined) data.INSTRUMENT = dto.instrument.trim();
+    if (dto.level !== undefined) data.LEVEL = dto.level;
+    if (dto.expected !== undefined) data.EXPECTED = dto.expected.trim();
+    if (dto.observed !== undefined) data.OBSERVED = dto.observed.trim();
+    if (dto.result !== undefined) {
+      data.RESULT = dto.result;
+      if (dto.result === 'Failed' && existing.CAPA_STATUS === 'None') {
+        data.CAPA_STATUS = 'Open';
+      }
+    }
+    if (dto.freq !== undefined) data.FREQ = dto.freq;
+    if (dto.runDate !== undefined) {
+      data.RUN_DATE = this.parseDateOnly(dto.runDate, existing.RUN_DATE);
+    }
+    const updated = await this.prisma.labQcRuns.update({
+      where: { QC_RUN_ID: id },
+      data,
+    });
+    await this.audit.log({
+      type: 'lab-qc:update',
+      entity: 'LabQcRun',
+      entityId: id,
+      userId: actor?.id,
+      createdBy: label,
+      item: updated.RUN_NO,
+    });
+    return this.mapQc(updated);
+  }
+
+  async upsertQcCapa(id: number, dto: QcCapaDto, actor?: AuthUser) {
+    const existing = await this.prisma.labQcRuns.findFirst({
+      where: { QC_RUN_ID: id, NOT: { DELETED_FLAG: 'Y' } },
+    });
+    if (!existing) throw new NotFoundException('QC run not found');
+    const label = actorLabel(actor);
+    const updated = await this.prisma.labQcRuns.update({
+      where: { QC_RUN_ID: id },
+      data: {
+        CORRECTIVE: dto.corrective.trim(),
+        PREVENTIVE: dto.preventive.trim(),
+        ASSIGNED_TO: dto.assignedTo.trim(),
+        TARGET_DATE: dto.targetDate
+          ? this.parseDateOnly(dto.targetDate, new Date())
+          : null,
+        CAPA_STATUS: dto.capaStatus ?? 'Open',
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: label,
+        UPDATED_DATE: new Date(),
+      },
+    });
+    await this.audit.log({
+      type: 'lab-qc:capa',
+      entity: 'LabQcRun',
+      entityId: id,
+      userId: actor?.id,
+      createdBy: label,
+      item: updated.RUN_NO,
+      newValue: { assignedTo: dto.assignedTo, capaStatus: updated.CAPA_STATUS },
+    });
+    return this.mapQc(updated);
   }
 }

@@ -105,8 +105,9 @@ model Persons {
   bloodRequests        BloodRequests[]
   labDrugScreens       LabDrugScreens[]
   labCultures          LabCultures[]
-  labSfaAnalyses       LabSfaAnalyses[]
-  labSpecimenTracking  LabSpecimenTracking[]
+  labSfaAnalyses            LabSfaAnalyses[]
+  labSpecimenTracking       LabSpecimenTracking[]
+  labHistopathologyCases    LabHistopathologyCases[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])

@@ -56,4 +56,23 @@ export class LabOverviewController {
     });
     return { data };
   }
+
+  /**
+   * Method: GET
+   * URL: /api/laboratory/staff?q=&limit=
+   * Purpose: Search hospital staff for lab assignment pickers (transfer, CAPA, etc.)
+   * Required permission: lab:read
+   * Response: { data: { items: [{ userId, name, email, role }] } }
+   * Errors: 401, 403
+   */
+  @Get('staff')
+  @RequirePermissions(PERMISSIONS.LAB_READ)
+  async staff(@Query('q') q?: string, @Query('limit') limit?: string) {
+    return {
+      data: await this.laboratory.searchStaff(
+        q,
+        limit ? Number(limit) : undefined,
+      ),
+    };
+  }
 }

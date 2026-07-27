@@ -130,6 +130,10 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Lab analytics summary (`GET /laboratory/analytics/summary`) live FE | ✅ |
 | Specimen tracking + chain-of-custody (`/laboratory/specimens/*`) | ✅ |
 | Microbiology workbench (`/laboratory/microbiology/*`, cultures-backed) | ✅ |
+| Histopathology cases (`/laboratory/histopathology/*`) live FE | ✅ |
+| Quality Control runs + CAPA (`/laboratory/qc/*`) live FE | ✅ |
+| Lab Configuration = live test catalog create/edit (`/laboratory/tests`) | ✅ |
+| Lab My Profile (`/dashboard/laboratory/profile`, `GET/PATCH /users/me`) | ✅ |
 | Lab report snapshots list/generate (`/laboratory/reports`) | ✅ |
 | Patient lab history (`GET /laboratory/history?personId=`) live FE History Center | ✅ |
 | Lab Request Center shows Unpaid as Pending Payment (limited detail; Collect/Results locked) | ✅ |

@@ -276,3 +276,71 @@ export class SpecimenStatusDto {
   @IsOptional() @IsString() @MaxLength(255) reason?: string;
   @IsOptional() @IsString() @MaxLength(150) location?: string;
 }
+
+export class CreateHistopathologyDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  personId!: number;
+
+  @IsIn(['Biopsy', 'Surgical Specimens', 'Cytology', 'Special Stains'])
+  specimenType!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  labRequestId?: number;
+
+  @IsOptional() @IsString() @MaxLength(255) site?: string;
+  @IsOptional() @IsString() gross?: string;
+  @IsOptional() @IsString() micro?: string;
+  @IsOptional() @IsString() diagnosis?: string;
+  @IsOptional() @IsString() @MaxLength(80) grade?: string;
+}
+
+export class PatchHistopathologyDto {
+  @IsOptional() @IsString() @MaxLength(255) site?: string;
+  @IsOptional() @IsString() gross?: string;
+  @IsOptional() @IsString() micro?: string;
+  @IsOptional() @IsString() diagnosis?: string;
+  @IsOptional() @IsString() @MaxLength(80) grade?: string;
+  @IsOptional()
+  @IsIn(['Biopsy', 'Surgical Specimens', 'Cytology', 'Special Stains'])
+  specimenType?: string;
+}
+
+export class AdvanceHistopathologyDto {
+  @IsOptional()
+  @IsIn(['Received', 'Grossing', 'Microscopy', 'Awaiting Approval', 'Released'])
+  stage?: string;
+}
+
+export class CreateQcRunDto {
+  @IsString() @MinLength(1) @MaxLength(150) analyte!: string;
+  @IsString() @MinLength(1) @MaxLength(150) instrument!: string;
+  @IsIn(['L1', 'L2', 'L3']) level!: string;
+  @IsString() @MinLength(1) @MaxLength(80) expected!: string;
+  @IsString() @MinLength(1) @MaxLength(80) observed!: string;
+  @IsIn(['Passed', 'Failed']) result!: string;
+  @IsIn(['Daily', 'Weekly', 'Monthly', 'Calibration']) freq!: string;
+  @IsOptional() @IsString() runDate?: string;
+}
+
+export class PatchQcRunDto {
+  @IsOptional() @IsString() @MaxLength(150) analyte?: string;
+  @IsOptional() @IsString() @MaxLength(150) instrument?: string;
+  @IsOptional() @IsIn(['L1', 'L2', 'L3']) level?: string;
+  @IsOptional() @IsString() @MaxLength(80) expected?: string;
+  @IsOptional() @IsString() @MaxLength(80) observed?: string;
+  @IsOptional() @IsIn(['Passed', 'Failed']) result?: string;
+  @IsOptional() @IsIn(['Daily', 'Weekly', 'Monthly', 'Calibration']) freq?: string;
+  @IsOptional() @IsString() runDate?: string;
+}
+
+export class QcCapaDto {
+  @IsString() @MinLength(1) corrective!: string;
+  @IsString() @MinLength(1) preventive!: string;
+  @IsString() @MinLength(1) @MaxLength(100) assignedTo!: string;
+  @IsOptional() @IsString() targetDate?: string;
+  @IsOptional() @IsIn(['Open', 'Closed']) capaStatus?: string;
+}
