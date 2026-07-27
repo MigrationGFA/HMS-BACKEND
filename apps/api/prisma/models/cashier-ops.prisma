@@ -1,0 +1,161 @@
+// Cashier operations: payment receipts ledger, refunds, discounts/waivers, shifts.
+// Soft-delete only — never hard-delete financial history.
+
+model CashierPaymentReceipts {
+  RECEIPT_ID       Int       @id @default(autoincrement())
+  RECEIPT_NO       String    @unique @db.VarChar(50)
+  /// card | pharmacy | prescription | lab | admission | imaging
+  SOURCE_TYPE      String    @db.VarChar(30)
+  SOURCE_ID        Int
+  PERSON_ID        Int
+  AMOUNT           Decimal   @db.Decimal(14, 2)
+  CHANNEL          String    @db.VarChar(40)
+  PAYMENT_REF      String?   @db.VarChar(100)
+  CASHIER_USER_ID  Int?
+  CASHIER_LABEL    String?   @db.VarChar(150)
+  PAID_AT          DateTime  @default(now())
+  /// Captured | PartiallyRefunded | Refunded
+  STATUS           String    @default("Captured") @db.VarChar(30)
+  AMOUNT_REFUNDED  Decimal   @default(0) @db.Decimal(14, 2)
+  PATIENT_NAME     String?   @db.VarChar(200)
+  SOURCE_REF       String?   @db.VarChar(80)
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+  DELETED_FLAG     String?   @default("N") @db.VarChar(1)
+
+  refunds CashierRefundRequests[]
+
+  @@unique([SOURCE_TYPE, SOURCE_ID])
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([PAID_AT])
+  @@index([CASHIER_USER_ID])
+  @@map("CASHIER_PAYMENT_RECEIPTS")
+}
+
+model CashierRefundRequests {
+  REFUND_ID         Int       @id @default(autoincrement())
+  REFUND_NO         String    @unique @db.VarChar(50)
+  RECEIPT_ID        Int
+  AMOUNT            Decimal   @db.Decimal(14, 2)
+  /// REFUND | REVERSAL
+  KIND              String    @db.VarChar(20)
+  /// Cash | POS Card | Bank Transfer | Wallet
+  METHOD            String    @db.VarChar(40)
+  REASON            String    @db.Text
+  /// Pending | Approved | Rejected | Paid
+  STATUS            String    @default("Pending") @db.VarChar(20)
+  REQUESTED_BY_ID   Int?
+  REQUESTED_BY      String?   @db.VarChar(150)
+  APPROVED_BY_ID    Int?
+  APPROVED_BY       String?   @db.VarChar(150)
+  APPROVED_AT       DateTime?
+  CREATED_BY_ID     Int?
+  CREATED_BY        String?   @db.VarChar(100)
+  CREATED_DATE      DateTime?
+  UPDATED_BY_ID     Int?
+  UPDATED_BY        String?   @db.VarChar(100)
+  UPDATED_DATE      DateTime?
+  DELETED_FLAG      String?   @default("N") @db.VarChar(1)
+
+  receipt CashierPaymentReceipts @relation(fields: [RECEIPT_ID], references: [RECEIPT_ID])
+
+  @@index([RECEIPT_ID])
+  @@index([STATUS])
+  @@index([CREATED_DATE])
+  @@map("CASHIER_REFUND_REQUESTS")
+}
+
+model CashierDiscountRequests {
+  DISCOUNT_ID       Int       @id @default(autoincrement())
+  DISCOUNT_NO       String    @unique @db.VarChar(50)
+  /// card | pharmacy | prescription | lab | admission | imaging
+  SOURCE_TYPE       String    @db.VarChar(30)
+  SOURCE_ID         Int
+  PERSON_ID         Int
+  PATIENT_NAME      String?   @db.VarChar(200)
+  SOURCE_REF        String?   @db.VarChar(80)
+  /// PERCENT | FIXED | WAIVER
+  DISC_KIND         String    @db.VarChar(20)
+  VALUE             Decimal?  @db.Decimal(14, 2)
+  CATEGORY          String    @db.VarChar(80)
+  REASON            String    @db.Text
+  COMPUTED_AMOUNT   Decimal   @db.Decimal(14, 2)
+  BILL_AMOUNT       Decimal   @db.Decimal(14, 2)
+  /// Pending | Approved | Rejected
+  STATUS            String    @default("Pending") @db.VarChar(20)
+  REQUESTED_BY_ID   Int?
+  REQUESTED_BY      String?   @db.VarChar(150)
+  APPROVED_BY_ID    Int?
+  APPROVED_BY       String?   @db.VarChar(150)
+  APPROVED_AT       DateTime?
+  CREATED_BY_ID     Int?
+  CREATED_BY        String?   @db.VarChar(100)
+  CREATED_DATE      DateTime?
+  UPDATED_BY_ID     Int?
+  UPDATED_BY        String?   @db.VarChar(100)
+  UPDATED_DATE      DateTime?
+  DELETED_FLAG      String?   @default("N") @db.VarChar(1)
+
+  @@index([SOURCE_TYPE, SOURCE_ID])
+  @@index([STATUS])
+  @@index([PERSON_ID])
+  @@index([CREATED_DATE])
+  @@map("CASHIER_DISCOUNT_REQUESTS")
+}
+
+model CashierShifts {
+  SHIFT_ID          Int       @id @default(autoincrement())
+  SHIFT_NO          String    @unique @db.VarChar(50)
+  CASHIER_USER_ID   Int
+  CASHIER_LABEL     String    @db.VarChar(150)
+  OPENING_FLOAT     Decimal   @db.Decimal(14, 2)
+  OPENED_AT         DateTime  @default(now())
+  CLOSED_AT         DateTime?
+  /// Open | Closed | Approved
+  STATUS            String    @default("Open") @db.VarChar(20)
+  ACTUAL_CASH       Decimal?  @db.Decimal(14, 2)
+  VARIANCE          Decimal?  @db.Decimal(14, 2)
+  NOTE              String?   @db.Text
+  TOTALS_JSON       Json?
+  APPROVED_BY_ID    Int?
+  APPROVED_BY       String?   @db.VarChar(150)
+  APPROVED_AT       DateTime?
+  CREATED_BY_ID     Int?
+  CREATED_BY        String?   @db.VarChar(100)
+  CREATED_DATE      DateTime?
+  UPDATED_BY_ID     Int?
+  UPDATED_BY        String?   @db.VarChar(100)
+  UPDATED_DATE      DateTime?
+  DELETED_FLAG      String?   @default("N") @db.VarChar(1)
+
+  @@index([CASHIER_USER_ID])
+  @@index([STATUS])
+  @@index([OPENED_AT])
+  @@map("CASHIER_SHIFTS")
+}
+
+/// Hospital-level cashier desk settings (singleton SETTINGS_ID = 1).
+model CashierSettings {
+  SETTINGS_ID              Int       @id @default(1)
+  CASH_ENABLED             String    @default("Y") @db.VarChar(1)
+  POS_ENABLED              String    @default("Y") @db.VarChar(1)
+  BANK_TRANSFER_ENABLED    String    @default("Y") @db.VarChar(1)
+  ONLINE_CARD_ENABLED      String    @default("Y") @db.VarChar(1)
+  WALLET_ENABLED           String    @default("Y") @db.VarChar(1)
+  NHIA_ENABLED             String    @default("Y") @db.VarChar(1)
+  HMO_ENABLED              String    @default("Y") @db.VarChar(1)
+  REQUIRE_OPEN_SHIFT       String    @default("N") @db.VarChar(1)
+  VARIANCE_TOLERANCE       Decimal   @default(0) @db.Decimal(14, 2)
+  REPRINT_WATERMARK        String    @default("Y") @db.VarChar(1)
+  UPDATED_BY_ID            Int?
+  UPDATED_BY               String?   @db.VarChar(100)
+  UPDATED_DATE             DateTime?
+  CREATED_DATE             DateTime?
+
+  @@map("CASHIER_SETTINGS")
+}

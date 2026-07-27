@@ -26,6 +26,20 @@ import { AdmissionBillsService } from '../admissions/admission-bills.service';
 import { ConfirmAdmissionBillPaymentDto } from '../admissions/dto/admission-bill.dto';
 import { RadiologyService } from '../radiology/radiology.service';
 import { ConfirmImagingRequestPaymentDto } from '../radiology/dto/imaging.dto';
+import { CashierService } from './cashier.service';
+
+function personLabel(person?: {
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+} | null): string {
+  if (!person) return 'Unknown';
+  return (
+    [person.firstName, person.middleName, person.lastName]
+      .filter(Boolean)
+      .join(' ') || 'Unknown'
+  );
+}
 
 @Controller('cashier/payments')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -37,6 +51,7 @@ export class PaymentsController {
     private readonly laboratoryService: LaboratoryService,
     private readonly admissionBills: AdmissionBillsService,
     private readonly radiologyService: RadiologyService,
+    private readonly cashierService: CashierService,
   ) {}
 
   /**
@@ -82,6 +97,17 @@ export class PaymentsController {
     @CurrentUser() user: AuthUser,
   ) {
     const card = await this.cardsService.confirmPayment(cardId, dto, user);
+    await this.cashierService.recordReceipt({
+      sourceType: 'card',
+      sourceId: card.cardId,
+      personId: card.personId,
+      amount: card.totalAmount,
+      channel: dto.paymentChannel,
+      paymentRef: dto.paymentRef,
+      patientName: personLabel(card.person),
+      sourceRef: card.cardNo,
+      user,
+    });
     return { data: card };
   }
 
@@ -128,6 +154,17 @@ export class PaymentsController {
     @CurrentUser() user: AuthUser,
   ) {
     const sale = await this.walkInSales.confirmPayment(saleId, dto, user);
+    await this.cashierService.recordReceipt({
+      sourceType: 'pharmacy',
+      sourceId: sale.saleId,
+      personId: sale.personId,
+      amount: sale.total,
+      channel: dto.paymentChannel,
+      paymentRef: dto.paymentRef,
+      patientName: personLabel(sale.person),
+      sourceRef: sale.saleNo,
+      user,
+    });
     return { data: sale };
   }
 
@@ -174,6 +211,17 @@ export class PaymentsController {
     @CurrentUser() user: AuthUser,
   ) {
     const rx = await this.prescriptionsService.confirmPayment(id, dto, user);
+    await this.cashierService.recordReceipt({
+      sourceType: 'prescription',
+      sourceId: rx.prescriptionId,
+      personId: rx.personId,
+      amount: rx.total,
+      channel: dto.paymentChannel,
+      paymentRef: dto.paymentRef,
+      patientName: personLabel(rx.person),
+      sourceRef: rx.rxNo,
+      user,
+    });
     return { data: rx };
   }
 
@@ -221,6 +269,17 @@ export class PaymentsController {
     @CurrentUser() user: AuthUser,
   ) {
     const request = await this.laboratoryService.confirmPayment(id, dto, user);
+    await this.cashierService.recordReceipt({
+      sourceType: 'lab',
+      sourceId: request.labRequestId,
+      personId: request.personId,
+      amount: request.totalAmount,
+      channel: dto.paymentChannel,
+      paymentRef: dto.paymentRef,
+      patientName: personLabel(request.person),
+      sourceRef: request.requestNo,
+      user,
+    });
     return { data: request };
   }
 
@@ -267,6 +326,17 @@ export class PaymentsController {
     @CurrentUser() user: AuthUser,
   ) {
     const bill = await this.admissionBills.confirmPayment(id, dto, user);
+    await this.cashierService.recordReceipt({
+      sourceType: 'admission',
+      sourceId: bill.admissionBillId,
+      personId: bill.personId,
+      amount: bill.totalAmount,
+      channel: dto.paymentChannel,
+      paymentRef: dto.paymentRef,
+      patientName: personLabel(bill.person),
+      sourceRef: bill.billNo,
+      user,
+    });
     return { data: bill };
   }
 
@@ -313,6 +383,17 @@ export class PaymentsController {
     @CurrentUser() user: AuthUser,
   ) {
     const request = await this.radiologyService.confirmPayment(id, dto, user);
+    await this.cashierService.recordReceipt({
+      sourceType: 'imaging',
+      sourceId: request.imagingRequestId,
+      personId: request.personId,
+      amount: request.totalAmount,
+      channel: dto.paymentChannel,
+      paymentRef: dto.paymentRef,
+      patientName: personLabel(request.person),
+      sourceRef: request.requestNo,
+      user,
+    });
     return { data: request };
   }
 }

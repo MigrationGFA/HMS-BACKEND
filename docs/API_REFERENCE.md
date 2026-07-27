@@ -638,7 +638,140 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 }
 ```
 
-**Error cases:** `400` validation, `401`, `403` missing `card:confirm-payment`, `404` card not found, `409` already Paid/Waived. Writes audit `card:payment-confirm`.
+**Error cases:** `400` validation, `401`, `403` missing `card:confirm-payment`, `404` card not found, `409` already Paid/Waived. Writes audit `card:payment-confirm`. Successful confirms also create an idempotent `CASHIER_PAYMENT_RECEIPTS` row (see Cashier Ops).
+
+---
+
+### Cashier Ops — Receipts, Refunds, Discounts, Shifts (`/cashier`)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/cashier/receipts` | List capturable receipts (`q`, page); includes `refundableAmount` | `cashier:receipt-read` |
+| GET | `/cashier/refunds` | Refund list + KPI counts | `cashier:refund-request` |
+| POST | `/cashier/refunds` | Create partial/full refund or reversal | `cashier:refund-request` |
+| PATCH | `/cashier/refunds/:id/approve` | Approve → apply to receipt (`AMOUNTRefunded` / status); mark Paid | `cashier:refund-approve` |
+| PATCH | `/cashier/refunds/:id/reject` | Reject pending | `cashier:refund-approve` |
+| GET | `/cashier/discounts` | Discount list + KPIs | `cashier:discount-request` |
+| GET | `/cashier/discounts/eligible` | Unpaid domain bills for picker | `cashier:discount-request` |
+| POST | `/cashier/discounts` | Request PERCENT / FIXED / WAIVER | `cashier:discount-request` |
+| PATCH | `/cashier/discounts/:id/approve` | Apply waiver/discount on domain bill | `cashier:discount-approve` |
+| PATCH | `/cashier/discounts/:id/reject` | Reject | `cashier:discount-approve` |
+| GET | `/cashier/shifts/current` | Open shift for me + live totals | `cashier:shift-read` |
+| GET | `/cashier/shifts` | Shift history | `cashier:shift-read` |
+| POST | `/cashier/shifts/open` | Open shift `{ openingFloat }` | `cashier:shift-open` |
+| POST | `/cashier/shifts/:id/close` | Close `{ actualCash, note? }` → variance + TOTALS_JSON | `cashier:shift-close` |
+| PATCH | `/cashier/shifts/:id/approve` | Closed → Approved | `cashier:shift-approve` |
+
+#### `POST /api/cashier/refunds`
+
+**Purpose:** Request a partial or full refund against a captured receipt.
+
+**Request body:**
+
+```json
+{
+  "receiptId": 12,
+  "amount": 1500.5,
+  "kind": "REFUND",
+  "method": "Cash",
+  "reason": "Overpayment on pharmacy sale"
+}
+```
+
+`amount` must be `> 0` and `≤ receipt.amount − amountRefunded`. `kind` ∈ `REFUND | REVERSAL`. `method` ∈ `Cash | POS Card | Bank Transfer | Wallet`.
+
+**Response example:**
+
+```json
+{ "data": { "refundId": 3, "refundNo": "CRF-2026-0001", "status": "Pending" } }
+```
+
+**Error cases:** `400` invalid amount/reason, `401`, `403`, `404` receipt, `409` fully refunded. Audit: `cashier-refund:create`. Approve writes `cashier-refund:approve` and updates receipt to `PartiallyRefunded` or `Refunded`.
+
+#### `POST /api/cashier/discounts`
+
+**Purpose:** Request discount/waiver on an unpaid clinical bill.
+
+**Request body:**
+
+```json
+{
+  "sourceType": "lab",
+  "sourceId": 44,
+  "discKind": "WAIVER",
+  "category": "Welfare",
+  "reason": "Indigent patient approved by social work"
+}
+```
+
+`sourceType` ∈ `card | pharmacy | prescription | lab | admission | imaging`. `discKind` ∈ `PERCENT | FIXED | WAIVER` (`value` required for PERCENT/FIXED).
+
+**Error cases:** `400` validation / bill not unpaid, `401`, `403`, `404`. On approve, domain `PAYMENT_STATUS` set to `Waived` (full waiver) or payable reduced where amount fields exist. Audit: `cashier-discount:*`.
+
+#### `POST /api/cashier/shifts/open` / `…/:id/close`
+
+**Purpose:** Open a cashier shift with float; close with actual cash count. Totals sum receipts since `OPENED_AT` for the cashier user.
+
+**Close body:** `{ "actualCash": 85000, "note": "POS batch matched" }`
+
+**Error cases:** `400` closing another user’s shift, `401`, `403`, `404`, `409` already open/closed. Audit: `cashier-shift:open|close|approve`.
+
+#### `GET /api/cashier/reports`
+
+**Purpose:** Revenue dashboard from `CASHIER_PAYMENT_RECEIPTS` + outstanding unpaid bills.
+
+**Query:** `from`, `to` (optional ISO dates; default today).
+
+**Permission:** `cashier:report-read`
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "kpis": { "collected": 120000, "refunds": 1500, "receiptCount": 42, "outstanding": 88000, "discounted": 5000 },
+    "bySource": [{ "department": "Pharmacy", "amount": 40000 }],
+    "byChannel": [{ "channel": "Cash", "amount": 50000 }],
+    "outstandingItems": [{ "ref": "LAB-001", "patientName": "Ada", "department": "Laboratory", "amount": 3500 }]
+  }
+}
+```
+
+**Error cases:** `401`, `403`.
+
+#### `GET /api/cashier/receipts/verify?receiptNo=`
+
+**Purpose:** Lookup any receipt including fully `Refunded`. Writes audit `cashier-receipt:verify`.
+
+**Permission:** `cashier:receipt-read`
+
+**Error cases:** `400` missing `receiptNo`, `401`, `403`, `404`.
+
+#### `POST /api/cashier/receipts/:id/reprint`
+
+**Purpose:** Audit-only reprint (`cashier-receipt:reprint`); returns watermark flag from settings.
+
+**Permission:** `cashier:receipt-read`
+
+**Error cases:** `401`, `403`, `404`.
+
+#### `GET /api/cashier/audit` / `GET /api/cashier/audit/stats`
+
+**Purpose:** Cashier-scoped audits (`cashier-*` + payment confirm types) and today KPI counts.
+
+**Permission:** `audit:read`
+
+**Error cases:** `401`, `403`.
+
+#### `GET/PATCH /api/cashier/settings`
+
+**Purpose:** Hospital singleton payment-channel toggles + desk policy (`requireOpenShift`, `varianceTolerance`, `reprintWatermark`).
+
+**Permissions:** `cashier:settings-read` / `cashier:settings-update`
+
+**PATCH body (partial):** `{ "cashEnabled": true, "posEnabled": false, "requireOpenShift": false, "varianceTolerance": 100, "reprintWatermark": true }`
+
+**Error cases:** `400` validation, `401`, `403`. Audit: `cashier-settings:update`.
 
 ---
 
