@@ -18,6 +18,7 @@ import type { AuthUser } from '../auth/types/auth-user.type';
 import { RadiologyService } from './radiology.service';
 import {
   CreateImagingRequestDto,
+  CreateImagingReportDto,
   UpdateImagingRequestDto,
 } from './dto/imaging.dto';
 
@@ -42,6 +43,88 @@ export class ImagingController {
     @Query('q') q?: string,
   ) {
     const data = await this.radiologyService.listStudies({ modality, status, q });
+    return { data };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/radiology/imaging/reports?personId=&critical=&status=&page=&limit=
+   * Purpose: List imaging reports (doctor completed / critical findings)
+   * Required permission: imaging:read
+   * Response: { data: { items: [{ reportId, reportNo, critical, status, findings, impression }], meta } }
+   * Errors: 401, 403
+   */
+  @Get('reports')
+  @RequirePermissions(PERMISSIONS.IMAGING_READ)
+  async listReports(
+    @Query('personId') personId?: string,
+    @Query('imagingRequestId') imagingRequestId?: string,
+    @Query('critical') critical?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.radiologyService.listReports({
+      personId: personId ? Number(personId) : undefined,
+      imagingRequestId: imagingRequestId ? Number(imagingRequestId) : undefined,
+      critical: critical === 'true' || critical === '1',
+      status,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/radiology/imaging/reports/:id
+   * Purpose: Imaging report detail
+   * Required permission: imaging:read
+   * Errors: 401, 403, 404
+   */
+  @Get('reports/:id')
+  @RequirePermissions(PERMISSIONS.IMAGING_READ)
+  async findReport(@Param('id', ParseIntPipe) id: number) {
+    const data = await this.radiologyService.findReportById(id);
+    return { data };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/radiology/imaging/reports
+   * Purpose: Create/release an imaging report (radiology role)
+   * Required permission: imaging:update
+   * Request body: { imagingRequestId, findings?, impression?, critical?: "Y"|"N", status?: "Draft"|"Released" }
+   * Response: { data: { reportId, reportNo, status, critical } }
+   * Errors: 400, 401, 403, 404
+   * Audit: imaging:report-create
+   */
+  @Post('reports')
+  @RequirePermissions(PERMISSIONS.IMAGING_UPDATE)
+  async createReport(
+    @Body() dto: CreateImagingReportDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const data = await this.radiologyService.createReport(dto, user);
+    return { data };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/radiology/imaging/reports/:id/acknowledge
+   * Purpose: Doctor acknowledges a critical imaging finding
+   * Required permission: imaging:read
+   * Response: { data: { reportId, criticalAckAt, criticalAckBy } }
+   * Errors: 400 not critical, 401, 403, 404
+   * Audit: imaging:report-critical-ack
+   */
+  @Post('reports/:id/acknowledge')
+  @RequirePermissions(PERMISSIONS.IMAGING_READ)
+  async acknowledgeReport(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const data = await this.radiologyService.acknowledgeCriticalReport(id, user);
     return { data };
   }
 

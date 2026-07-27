@@ -97,6 +97,7 @@ model Persons {
   clinicalNotes        ClinicalNotes[]
   labRequests          LabRequests[]
   imagingRequests      ImagingRequests[]
+  imagingReports       ImagingReports[]
   patientDiagnoses     PatientDiagnoses[]
   patientTransfers     PatientTransfers[]
   clinicalReferrals    ClinicalReferrals[]

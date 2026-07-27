@@ -153,7 +153,21 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Lab result amendment + immutable version history (`/laboratory/results/:id/amend`, `/versions`) | ✅ |
 | Lab dashboard pages live (requests/samples/results/validation/amendment/templates) | ✅ |
 | Doctor Lab Request Engine live queues (`listLabRequests`) + Results Viewer (`listLabResults` Validated/Submitted) | ✅ |
+| Doctor Lab critical results list + acknowledge (`GET …/results?critical=true`, `POST …/acknowledge`) | ✅ |
+| Doctor Lab drafts (IndexedDB per person when API on) + awaiting validation / rejected queues | ✅ |
+| Doctor Prescription Engine full tabs (drafts/dispensed/active/stopped/external/CDS/history) live | ✅ |
+| Prescription medications scope + stop line + refill + external purchase log | ✅ |
+| Doctor Imaging Engine live queues (status map fix) + reports/critical ack | ✅ |
+| Imaging reports (`IMAGING_REPORTS` create/list/ack) | ✅ |
 | Doctor Admission Request Engine (API Mine/All; clinical only — no ward/bed/payment) | ✅ |
+| Doctor Admission Admitted + History from live `GET /admissions` + closed requests (no seed/KPI padding) | ✅ |
+| Doctor Diagnosis Coding Support from catalog; Pending Integration for Export/Note/Schedule/Scales | ✅ |
+| Doctor Results Viewer: lab + imaging reports + critical ack + history; ECG Pending Integration | ✅ |
+| Doctor Emergency Override: all tabs live; create stubs Pending Integration | ✅ |
+| Shared `PendingIntegrationBanner` for honest non-integrated actions | ✅ |
+| Doctor CDS live (clinical-pharmacy alerts/check/allergies; Pending Integration for pregnancy/renal/liver/guidelines) | ✅ |
+| Doctor Analytics live (`GET /api/doctor/analytics`; CSV Excel-compatible exports) | ✅ |
+| Doctor Cross-Dept hub (referrals/critical aggregates; Module/Messages/Sync Pending Integration) | ✅ |
 | Standard ward/bed inventory (11 wards × 20 beds; AVAILABLE/OCCUPIED tracking) | ✅ |
 | Records Admission Requests live (approve/reject/allocate ward+bed/admit + Unpaid bill) | ✅ |
 | Doctor Patient Transfer Engine (API; no bed assign) | ✅ |

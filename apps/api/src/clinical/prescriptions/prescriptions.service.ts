@@ -317,7 +317,11 @@ export class PrescriptionsService {
         : undefined;
 
     const where: Prisma.PrescriptionsWhereInput = {
-      ...(status ? { STATUS: status } : {}),
+      ...(status
+        ? status.includes(',')
+          ? { STATUS: { in: status.split(',').map((s) => s.trim()) } }
+          : { STATUS: status }
+        : {}),
       ...(paymentStatus
         ? paymentStatus.includes(',')
           ? { PAYMENT_STATUS: { in: paymentStatus.split(',').map((s) => s.trim()) } }
@@ -792,5 +796,327 @@ export class PrescriptionsService {
     });
 
     return response;
+  }
+
+  async listMedications(params: {
+    personId: number;
+    scope?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const personId = params.personId;
+    if (!personId || Number.isNaN(personId)) {
+      throw new BadRequestException('personId is required');
+    }
+    const page = Math.max(params.page ?? 1, 1);
+    const limit = Math.min(Math.max(params.limit ?? 100, 1), 200);
+    const scope = (params.scope ?? 'active').toLowerCase();
+
+    let lineStatus: string | string[] | undefined;
+    let sourceFilter: string | undefined;
+    if (scope === 'active') lineStatus = 'Active';
+    else if (scope === 'stopped') lineStatus = 'Stopped';
+    else if (scope === 'external') sourceFilter = 'External Purchase';
+    else if (scope === 'history') lineStatus = undefined;
+    else lineStatus = 'Active';
+
+    const where: Prisma.PrescriptionItemsWhereInput = {
+      prescription: {
+        PERSON_ID: personId,
+        STATUS: { notIn: ['Cancelled', 'Draft'] },
+      },
+      ...(lineStatus
+        ? Array.isArray(lineStatus)
+          ? { LINE_STATUS: { in: lineStatus } }
+          : { LINE_STATUS: lineStatus }
+        : {}),
+      ...(sourceFilter ? { SOURCE: sourceFilter } : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.prescriptionItems.findMany({
+        where,
+        include: {
+          prescription: {
+            select: {
+              PRESCRIPTION_ID: true,
+              RX_NO: true,
+              STATUS: true,
+              SENT_AT: true,
+              PRESCRIBED_BY: true,
+              CREATED_DATE: true,
+            },
+          },
+        },
+        orderBy: { ITEM_ID: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.prescriptionItems.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((i) => ({
+        itemId: i.ITEM_ID,
+        prescriptionId: i.PRESCRIPTION_ID,
+        rxNo: i.prescription.RX_NO,
+        prescriptionStatus: i.prescription.STATUS,
+        drugId: i.DRUG_ID,
+        drugName: i.DRUG_NAME,
+        strength: i.STRENGTH,
+        form: i.FORM,
+        route: i.ROUTE,
+        dose: i.DOSE,
+        frequency: i.FREQUENCY,
+        duration: i.DURATION,
+        quantity: i.QUANTITY,
+        qtyDispensed: i.QTY_DISPENSED,
+        source: i.SOURCE,
+        instructions: i.INSTRUCTIONS,
+        indication: i.INDICATION,
+        lineStatus: i.LINE_STATUS,
+        prescribedBy: i.prescription.PRESCRIBED_BY,
+        sentAt: i.prescription.SENT_AT?.toISOString() ?? null,
+        createdAt: i.prescription.CREATED_DATE?.toISOString() ?? null,
+      })),
+      meta: { page, limit, total },
+    };
+  }
+
+  async stopItem(
+    prescriptionId: number,
+    itemId: number,
+    dto: { reason: string; comment?: string },
+    actor?: AuthUser,
+  ) {
+    const item = await this.prisma.prescriptionItems.findFirst({
+      where: { ITEM_ID: itemId, PRESCRIPTION_ID: prescriptionId },
+      include: { prescription: true },
+    });
+    if (!item) throw new NotFoundException('Prescription item not found');
+    if (item.LINE_STATUS === 'Stopped') {
+      throw new BadRequestException('Item is already stopped');
+    }
+    if (item.LINE_STATUS === 'Cancelled') {
+      throw new BadRequestException('Item is cancelled');
+    }
+    const label = actorLabel(actor);
+    const now = new Date();
+    const note = [dto.reason, dto.comment].filter(Boolean).join(' — ');
+    await this.prisma.prescriptionItems.update({
+      where: { ITEM_ID: itemId },
+      data: { LINE_STATUS: 'Stopped' },
+    });
+    await this.prisma.prescriptions.update({
+      where: { PRESCRIPTION_ID: prescriptionId },
+      data: {
+        NOTES: item.prescription.NOTES
+          ? `${item.prescription.NOTES}\n[Stopped ${item.DRUG_NAME}] ${note}`
+          : `[Stopped ${item.DRUG_NAME}] ${note}`,
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: label,
+        UPDATED_DATE: now,
+      },
+    });
+    await this.audit.log({
+      type: 'prescription:item-stop',
+      entity: 'prescription_items',
+      entityId: itemId,
+      personId: item.prescription.PERSON_ID,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Stopped ${item.DRUG_NAME} on ${item.prescription.RX_NO}: ${note}`,
+      newValue: { lineStatus: 'Stopped', reason: dto.reason },
+    });
+    return {
+      itemId,
+      prescriptionId,
+      lineStatus: 'Stopped',
+      reason: dto.reason,
+    };
+  }
+
+  async refill(id: number, actor?: AuthUser) {
+    const existing = await this.prisma.prescriptions.findUnique({
+      where: { PRESCRIPTION_ID: id },
+      include: ITEM_INCLUDE,
+    });
+    if (!existing) throw new NotFoundException('Prescription not found');
+    if (!['Sent', 'Dispensed', 'Partially Dispensed'].includes(existing.STATUS)) {
+      throw new BadRequestException(
+        'Only Sent or Dispensed prescriptions can be refilled',
+      );
+    }
+    const activeItems = existing.items.filter(
+      (i) =>
+        i.LINE_STATUS !== 'Cancelled' &&
+        i.SOURCE === 'Internal Pharmacy',
+    );
+    if (activeItems.length === 0) {
+      throw new BadRequestException('No refillable items on this prescription');
+    }
+    return this.create(
+      {
+        personId: existing.PERSON_ID,
+        send: true,
+        urgency: existing.URGENCY as 'Routine' | 'Urgent' | 'Stat',
+        diagnosis: existing.DIAGNOSIS ?? undefined,
+        allergiesNote: existing.ALLERGIES_NOTE ?? undefined,
+        clinic: existing.CLINIC ?? undefined,
+        notes: `Refill of ${existing.RX_NO}`,
+        items: activeItems.map((i) => ({
+          drugId: i.DRUG_ID,
+          strength: i.STRENGTH ?? undefined,
+          form: i.FORM ?? undefined,
+          route: i.ROUTE ?? undefined,
+          dose: i.DOSE,
+          frequency: i.FREQUENCY,
+          duration: i.DURATION ?? undefined,
+          quantity: i.QUANTITY,
+          source: 'Internal Pharmacy' as const,
+          instructions: i.INSTRUCTIONS ?? undefined,
+          indication: i.INDICATION ?? undefined,
+        })),
+      },
+      actor,
+    );
+  }
+
+  async createExternal(
+    dto: {
+      personId: number;
+      drugName: string;
+      drugId?: number;
+      strength?: string;
+      form?: string;
+      dose: string;
+      frequency: string;
+      duration?: string;
+      quantity?: number;
+      instructions?: string;
+      notes?: string;
+    },
+    actor?: AuthUser,
+  ) {
+    const person = await this.prisma.persons.findUnique({
+      where: { PERSON_ID: dto.personId },
+      select: { PERSON_ID: true },
+    });
+    if (!person) throw new NotFoundException('Patient not found');
+
+    let drugId = dto.drugId;
+    let drugName = dto.drugName;
+    let unitPrice = 0;
+    let strength = dto.strength ?? null;
+    let form = dto.form ?? null;
+
+    if (drugId) {
+      const drug = await this.prisma.drugs.findUnique({
+        where: { DRUG_ID: drugId },
+      });
+      if (!drug) throw new BadRequestException('Unknown drug id');
+      drugName = drug.NAME;
+      unitPrice = Number(drug.UNIT_PRICE);
+      strength = strength ?? drug.STRENGTH;
+      form = form ?? drug.FORM;
+    } else {
+      // Prefer a catalog match by name; else require a placeholder Active drug
+      const match = await this.prisma.drugs.findFirst({
+        where: {
+          NAME: { equals: dto.drugName, mode: 'insensitive' },
+          STATUS: 'Active',
+        },
+      });
+      if (match) {
+        drugId = match.DRUG_ID;
+        drugName = match.NAME;
+        unitPrice = Number(match.UNIT_PRICE);
+        strength = strength ?? match.STRENGTH;
+        form = form ?? match.FORM;
+      } else {
+        const anyDrug = await this.prisma.drugs.findFirst({
+          where: { STATUS: 'Active' },
+          orderBy: { DRUG_ID: 'asc' },
+        });
+        if (!anyDrug) {
+          throw new BadRequestException(
+            'No drug catalog entry available to attach external purchase',
+          );
+        }
+        drugId = anyDrug.DRUG_ID;
+      }
+    }
+
+    const label = actorLabel(actor);
+    const now = new Date();
+    const year = now.getFullYear();
+    const created = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.prescriptions.create({
+        data: {
+          RX_NO: `RX-${year}-PENDING`,
+          PERSON_ID: dto.personId,
+          STATUS: 'External',
+          URGENCY: 'Routine',
+          PAYMENT_STATUS: 'Waived',
+          NOTES: dto.notes ?? 'External purchase logged by doctor',
+          SENT_AT: now,
+          PRESCRIBED_BY_ID: actor?.id ?? null,
+          PRESCRIBED_BY: label,
+          CREATED_BY_ID: actor?.id ?? null,
+          CREATED_BY: label,
+          CREATED_DATE: now,
+          items: {
+            create: [
+              {
+                DRUG_ID: drugId!,
+                DRUG_NAME: drugName,
+                STRENGTH: strength,
+                FORM: form,
+                DOSE: dto.dose,
+                FREQUENCY: dto.frequency,
+                DURATION: dto.duration ?? null,
+                QUANTITY: dto.quantity ?? 1,
+                SOURCE: 'External Purchase',
+                INSTRUCTIONS: dto.instructions ?? null,
+                LINE_STATUS: 'Active',
+                UNIT_PRICE: unitPrice,
+              },
+            ],
+          },
+        },
+        include: ITEM_INCLUDE,
+      });
+      return tx.prescriptions.update({
+        where: { PRESCRIPTION_ID: row.PRESCRIPTION_ID },
+        data: { RX_NO: `EXT-${year}-${pad(row.PRESCRIPTION_ID)}` },
+        include: ITEM_INCLUDE,
+      });
+    });
+
+    const response = toResponse(created);
+    await this.audit.log({
+      type: 'prescription:external',
+      entity: 'prescriptions',
+      entityId: created.PRESCRIPTION_ID,
+      personId: dto.personId,
+      userId: actor?.id,
+      createdBy: label,
+      item: `External Rx logged: ${response.rxNo} · ${drugName}`,
+      newValue: response,
+    });
+    return response;
+  }
+
+  async listExternal(params?: {
+    personId?: number;
+    page?: number;
+    limit?: number;
+  }) {
+    return this.list({
+      status: 'External',
+      personId: params?.personId,
+      page: params?.page,
+      limit: params?.limit,
+    });
   }
 }

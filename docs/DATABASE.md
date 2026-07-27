@@ -63,6 +63,7 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `IMAGING_STUDIES` | `ImagingStudies` | Priced radiology catalog (modality + unit price); migration `20260721170000_imaging_requests` |
 | `IMAGING_REQUESTS` | `ImagingRequests` | Doctor imaging orders; `PAYMENT_STATUS` Unpaid\|Paid\|Waived (cashier confirms) |
 | `IMAGING_REQUEST_ITEMS` | `ImagingRequestItems` | Snapshotted study lines on a request |
+| `IMAGING_REPORTS` | `ImagingReports` | Radiologist reports (`IRPT-YYYY-####`); Draft\|Released; `CRITICAL` Y/N + doctor ack; migration `20260727200000_imaging_reports` |
 | `PATIENT_TRANSFERS` | `PatientTransfers` | Multi-role transfer requests (`XFR-YYYY-####`); statuses Draft→Completed (+ Rejected/Cancelled); migration `20260721180000_patient_transfers` |
 | `PATIENT_TRANSFER_EVENTS` | `PatientTransferEvents` | Immutable step log per transfer |
 | `CLINICAL_REFERRALS` | `ClinicalReferrals` | Clinical referrals (`REF-YYYY-####`); Internal/External; Outpatient/Inpatient; state machine Draft→Submitted→…→Completed/Admitted/ClearedExternal (+ Returned/Rejected/Cancelled); migration `20260721190000_clinical_referrals` |
@@ -142,7 +143,7 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `LAB_REQUEST_ITEMS` | `LabRequestItems` | Line items with snapshotted test code/name/price |
 | `LAB_RESULT_TEMPLATES` | `LabResultTemplates` | Result entry templates (`CODE` unique, e.g. `tpl-fbc`); `FIELDS` JSONB array of field defs; Active/Inactive; 12 seeded |
 | `LAB_SAMPLES` | `LabSamples` | Collected specimens (`SMP-YYYY-####`) per request per specimen type; Collected/Rejected + reject reason |
-| `LAB_RESULTS` | `LabResults` | One row per request item; `VALUES` JSONB keyed by template field key; status Draft/Submitted/Validated/PendingRevalidation; `VERSION` counter |
+| `LAB_RESULTS` | `LabResults` | One row per request item; `VALUES` JSONB keyed by template field key; status Draft/Submitted/Validated/PendingRevalidation; `VERSION` counter; `CRITICAL_FLAG` + doctor ack stamps (migration `20260727210000_lab_result_critical_ack`) |
 | `LAB_RESULT_VERSIONS` | `LabResultVersions` | Immutable snapshot per result change (draft/submit/validate/return/amend + reason) |
 | `DIAGNOSIS_CODES` | `DiagnosisCodes` | ICD-11/DSM/Local catalog for doctor coding |
 | `PATIENT_DIAGNOSES` | `PatientDiagnoses` | Patient problem-list diagnoses (immutable history via status; no hard delete) |

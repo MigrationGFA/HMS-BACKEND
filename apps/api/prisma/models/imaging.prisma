@@ -61,6 +61,7 @@ model ImagingRequests {
   encounter Encounters?           @relation(fields: [ENCOUNTER_ID], references: [ENCOUNTER_ID])
   doctor    Users                 @relation("ImagingRequestDoctor", fields: [DOCTOR_ID], references: [USER_ID])
   items     ImagingRequestItems[]
+  reports   ImagingReports[]
 
   @@index([PERSON_ID])
   @@index([ENCOUNTER_ID])
@@ -89,4 +90,40 @@ model ImagingRequestItems {
   @@index([IMAGING_REQUEST_ID])
   @@index([IMAGING_STUDY_ID])
   @@map("IMAGING_REQUEST_ITEMS")
+}
+
+/// Radiologist / tech report released against an imaging request (soft clinical record).
+model ImagingReports {
+  REPORT_ID           Int       @id @default(autoincrement())
+  REPORT_NO           String    @unique @db.VarChar(50)
+  IMAGING_REQUEST_ID  Int
+  PERSON_ID           Int
+  FINDINGS            String?   @db.Text
+  IMPRESSION          String?   @db.Text
+  /// Y | N
+  CRITICAL            String    @default("N") @db.VarChar(1)
+  /// Draft | Released
+  STATUS              String    @default("Draft") @db.VarChar(50)
+  RELEASED_AT         DateTime?
+  CRITICAL_ACK_AT     DateTime?
+  CRITICAL_ACK_BY     String?   @db.VarChar(100)
+  CRITICAL_ACK_BY_ID  Int?
+  DELETED             String?   @default("N") @db.VarChar(1)
+  DELETED_DATE        DateTime?
+  CREATED_BY_ID       Int?
+  CREATED_BY          String?   @db.VarChar(100)
+  CREATED_DATE        DateTime?
+  UPDATED_BY_ID       Int?
+  UPDATED_BY          String?   @db.VarChar(100)
+  UPDATED_DATE        DateTime?
+
+  request ImagingRequests @relation(fields: [IMAGING_REQUEST_ID], references: [IMAGING_REQUEST_ID])
+  person  Persons         @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([IMAGING_REQUEST_ID])
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([CRITICAL])
+  @@index([CREATED_DATE])
+  @@map("IMAGING_REPORTS")
 }

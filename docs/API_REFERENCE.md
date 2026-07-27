@@ -1433,13 +1433,22 @@ Doctor creates/sends prescriptions; pharmacy lists inbound (`status=Sent`). Drug
 
 | Method | Path | Purpose | Permission |
 |--------|------|---------|------------|
-| POST | `/prescriptions` | Create prescription (`send: true` → pharmacy queue) | `prescription:create` |
-| GET | `/prescriptions` | List (`q`, `status`, `paymentStatus`, `personId`, `page`, `limit`) | `prescription:read` |
+| POST | `/prescriptions` | Create prescription (`send: true` → pharmacy queue; `send: false` → Draft) | `prescription:create` |
+| GET | `/prescriptions` | List (`q`, `status` comma-list, `paymentStatus`, `personId`, `page`, `limit`) | `prescription:read` |
+| GET | `/prescriptions/medications?personId=&scope=active\|stopped\|external\|history` | Active/stopped/external/history medication lines | `prescription:read` |
+| GET | `/prescriptions/external?personId=` | List external purchase logs | `prescription:read` |
+| POST | `/prescriptions/external` | Log external purchase `{ personId, drugName, dose, frequency, … }` | `prescription:create` |
 | GET | `/prescriptions/by-rx/:rxNo` | Detail by Rx number (e.g. `RX-2026-0001`) + audit trail | `prescription:read` |
 | GET | `/prescriptions/:id` | Detail by numeric id + audit trail | `prescription:read` |
+| POST | `/prescriptions/:id/items/:itemId/stop` | Stop line `{ reason, comment? }` → `LINE_STATUS=Stopped` | `prescription:update` |
+| POST | `/prescriptions/:id/refill` | Clone Sent/Dispensed as new Sent Rx | `prescription:create` |
 | POST | `/prescriptions/:id/dispense` | Dispense after Paid/Waived/Emergency (FEFO + audit) | `pharmacy:dispense` |
 | POST | `/prescriptions/:id/emergency-dispense` | Emergency unpaid dispense; records receiver; leaves Emergency bill | `pharmacy:dispense` |
 | PATCH | `/prescriptions/:id` | Update status / payment / pharmacy notes | `prescription:update` |
+
+**Static routes** `medications` and `external` are declared before `:id`.
+
+**Audit:** `prescription:stop-item`, `prescription:refill`, `prescription:external`
 
 #### `POST /api/prescriptions`
 
@@ -2266,6 +2275,10 @@ Priced study catalog + doctor imaging requests (pay-before-process). Doctor crea
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
 | GET | `/radiology/imaging/studies?modality=&status=&q=` | Priced catalog | `imaging:read` |
+| GET | `/radiology/imaging/reports?personId=&critical=&status=&page=&limit=` | List reports (Draft\|Released; critical=true) | `imaging:read` |
+| GET | `/radiology/imaging/reports/:id` | Report detail | `imaging:read` |
+| POST | `/radiology/imaging/reports` | Create/release report `{ imagingRequestId, findings?, impression?, critical?, status? }` | `imaging:update` |
+| POST | `/radiology/imaging/reports/:id/acknowledge` | Doctor ack critical finding | `imaging:read` |
 | POST | `/radiology/imaging/requests` | Create request (always Unpaid) | `imaging:create` |
 | GET | `/radiology/imaging/requests?paymentStatus=&workQueue=&q=` | List (`workQueue=true` → Paid only) | `imaging:read` |
 | GET | `/radiology/imaging/requests/:id` | Detail | `imaging:read` |
@@ -2273,6 +2286,8 @@ Priced study catalog + doctor imaging requests (pay-before-process). Doctor crea
 | POST | `/radiology/imaging/requests/:id/cancel` | Cancel if unpaid | `imaging:update` |
 | GET | `/cashier/payments/imaging-requests` | Cashier unpaid queue | `imaging:pay` |
 | POST | `/cashier/payments/imaging-requests/:id/confirm` | Confirm payment | `imaging:pay` |
+
+**Audit:** `imaging:report-create`, `imaging:report-critical-ack`
 
 **POST `/radiology/imaging/requests` body:** `{ personId, encounterId?, priority?, clinicalIndication?, clinicalNotes?, contrast?, source?, items: [{ studyId, lineNotes? }] }`
 
@@ -2715,9 +2730,10 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 | POST | `/laboratory/requests/:id/results` | Save/submit results `{ action: draft\|submit, items }` | `lab:result` |
 | GET | `/laboratory/samples?status=&q=&page=&limit=` | LIS sample worklist | `lab:read` |
 | POST | `/laboratory/samples/:id/reject` | Reject sample `{ reason }` (request back to AwaitingCollection) | `lab:collect` |
-| GET | `/laboratory/results?status=&requestId=&q=&page=&limit=` | Result worklist | `lab:read` |
+| GET | `/laboratory/results?status=&requestId=&personId=&critical=&q=&page=&limit=` | Result worklist (`critical=true` → CRITICAL_FLAG=Y) | `lab:read` |
 | GET | `/laboratory/results/:id` | Result detail (values, template, request, person) | `lab:read` |
 | GET | `/laboratory/results/:id/versions` | Immutable version history | `lab:read` |
+| POST | `/laboratory/results/:id/acknowledge` | Doctor ack critical result | `lab:read` |
 | POST | `/laboratory/results/:id/validate` | Validate result (all validated → request Validated) | `lab:validate` |
 | POST | `/laboratory/results/:id/return` | Return to bench `{ reason }` (back to Draft) | `lab:validate` |
 | POST | `/laboratory/results/:id/amend` | Amend validated result `{ values, comment?, reason }` → PendingRevalidation | `lab:validate` |
