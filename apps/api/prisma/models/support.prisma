@@ -1,0 +1,36 @@
+// Staff support tickets (shared across Pharmacy, Doctor, Cashier, Records, Lab, …).
+// Soft-delete only — never hard-delete support history.
+
+model SupportRequests {
+  REQUEST_ID     Int       @id @default(autoincrement())
+  REQUEST_NO     String    @unique @db.VarChar(50)
+  USER_ID        Int
+  STAFF_NAME     String    @db.VarChar(150)
+  ROLE_LABEL     String?   @db.VarChar(100)
+  /// Profile Change | Complaint | Technical Issue
+  ISSUE_TYPE     String    @db.VarChar(40)
+  DESCRIPTION    String    @db.Text
+  /// pharmacy | doctor | cashier | records | laboratory | other
+  MODULE         String?   @db.VarChar(40)
+  /// Open | In Progress | Resolved | Closed
+  STATUS         String    @default("Open") @db.VarChar(30)
+  RESOLVED_NOTE  String?   @db.Text
+  RESOLVED_AT    DateTime?
+  RESOLVED_BY    String?   @db.VarChar(150)
+  RESOLVED_BY_ID Int?
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+  /// Soft delete flag (Y/N)
+  DELETED_FLAG   String?   @default("N") @db.VarChar(1)
+
+  @@index([USER_ID])
+  @@index([STATUS])
+  @@index([MODULE])
+  @@index([CREATED_DATE])
+  @@index([ISSUE_TYPE])
+  @@map("SUPPORT_REQUESTS")
+}

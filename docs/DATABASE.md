@@ -36,6 +36,7 @@ apps/api/prisma/
 │   ├── laboratory.prisma     # LAB_TESTS, LAB_REQUESTS(+LAB_STATUS), LAB_REQUEST_ITEMS, LAB_RESULT_TEMPLATES, LAB_SAMPLES, LAB_RESULTS, LAB_RESULT_VERSIONS
 │   ├── lab-specialty.prisma  # LAB_DRUG_SCREENS(+RESULTS), LAB_CULTURES(+SENSITIVITIES), LAB_REPORT_SNAPSHOTS, LAB_SFA_ANALYSES, LAB_SPECIMEN_TRACKING(+EVENTS), LAB_HISTOPATHOLOGY_CASES, LAB_QC_RUNS
 │   ├── blood-bank.prisma     # BLOOD_DONORS, BLOOD_UNITS, BLOOD_REQUESTS, BLOOD_REQUEST_EVENTS, BLOOD_CROSSMATCHES
+│   ├── support.prisma        # SUPPORT_REQUESTS
 │   └── audit.prisma          # AUDITS (with AUDIT_TYPE)
 ├── migrations/
 └── seed.ts
@@ -72,6 +73,7 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `LAB_SPECIMEN_EVENTS` | `LabSpecimenEvents` | Immutable chain-of-custody events (Registered\|Transferred\|Received\|Rejected\|Lost\|Delayed\|Completed) |
 | `LAB_HISTOPATHOLOGY_CASES` | `LabHistopathologyCases` | Histo cases (`HST-YYYY-####`); stages Received→Released; report fields; migration `20260724190000_lab_histo_qc` |
 | `LAB_QC_RUNS` | `LabQcRuns` | QC runs (`QC-YYYY-####`) + CAPA; freq Daily\|Weekly\|Monthly\|Calibration |
+| `SUPPORT_REQUESTS` | `SupportRequests` | Staff support tickets (`SR-YYYY-####`); statuses Open\|In Progress\|Resolved\|Closed; soft delete; migration `20260727120000_support_requests` |
 | `CLINICAL_CERTIFICATES` | `ClinicalCertificates` | Issued docs (`DOC-YYYY-####`); Draft→PendingSignature→PendingApproval→Issued (+ Expired/Cancelled) |
 | `CLINICAL_CERTIFICATE_EVENTS` | `ClinicalCertificateEvents` | Immutable certificate lifecycle log |
 | `DISCHARGE_DRAFT_EVENTS` | `DischargeDraftEvents` | Immutable step log per discharge draft |
