@@ -2403,6 +2403,17 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 | POST | `/laboratory/microbiology` | Create culture (delegate) | `lab:create` |
 | PATCH | `/laboratory/microbiology/:id` | Update culture | `lab:update` |
 | POST | `/laboratory/microbiology/:id/validate` | Mark culture Final | `lab:validate` |
+| GET | `/laboratory/histopathology?stage=&personId=&q=` | Histopathology cases + stage KPIs | `lab:read` |
+| GET | `/laboratory/histopathology/:id` | Case detail | `lab:read` |
+| POST | `/laboratory/histopathology` | Register case `{ personId, specimenType, … }` | `lab:create` |
+| PATCH | `/laboratory/histopathology/:id` | Update report fields (not Released) | `lab:result` |
+| POST | `/laboratory/histopathology/:id/advance` | Next stage `{ stage? }` | `lab:update` |
+| POST | `/laboratory/histopathology/:id/release` | Release (requires diagnosis) | `lab:validate` |
+| GET | `/laboratory/qc?freq=&result=&q=` | QC runs + passed/failed KPIs | `lab:read` |
+| GET | `/laboratory/qc/:id` | QC run detail | `lab:read` |
+| POST | `/laboratory/qc` | Create QC run | `lab:create` |
+| PATCH | `/laboratory/qc/:id` | Update QC run | `lab:update` |
+| POST | `/laboratory/qc/:id/capa` | Upsert CAPA | `lab:update` |
 | GET | `/laboratory/tests?q=&category=&status=` | Lab test catalog | `lab:read` |
 | GET | `/laboratory/tests/:id` | Test detail | `lab:read` |
 | POST | `/laboratory/tests` | Create catalog entry | `lab:update` |
@@ -2458,7 +2469,7 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 
 **List rules:** `workQueue=true` forces `paymentStatus in (Paid,Waived)` and default `status=Sent` (ready-to-process subset). LAB role otherwise lists unpaid too. Responses include `paymentCleared`, `processingLocked` and `labStatus`. For LAB + unpaid, clinical indication/notes, prices, phone, and DOB are redacted.
 
-**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay|template-create|template-update|sample-collect|sample-reject|result-save|result-submit|result-validate|result-return|result-amend` · `lab-drug-screen:*` · `lab-culture:*` · `lab-report:generate` · `lab-sfa:*` · `lab-specimen:*` · `blood-bank:unit-create|unit-update|request-create|crossmatch-start|crossmatch-record|issue|reject|complete|donor-create|donor-update`.
+**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay|template-create|template-update|sample-collect|sample-reject|result-save|result-submit|result-validate|result-return|result-amend` · `lab-drug-screen:*` · `lab-culture:*` · `lab-report:generate` · `lab-sfa:*` · `lab-specimen:*` · `lab-histo:*` · `lab-qc:*` · `blood-bank:unit-create|unit-update|request-create|crossmatch-start|crossmatch-record|issue|reject|complete|donor-create|donor-update`.
 
 **History response:** `{ data: { patient, items: [{ requestId, requestNo, testName, category, requestedAt, paymentStatus, labStatus, resultId, resultSummary, validatedAt }], meta } }` — requires `personId`.
 
@@ -2503,6 +2514,24 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 - **Validate:** `POST /laboratory/microbiology/:id/validate` → culture status Final
 - **Response (list):** `{ data: { items: […cultures with microStatus], kpis: { pending, positive, negative, awaitingValidation, completed, total }, meta } }`
 - **Errors:** same as cultures (400/404/401/403). Culture & Sensitivity page remains on `/laboratory/cultures`.
+
+**Histopathology — `POST /laboratory/histopathology`**
+- **Purpose:** Register histopathology case (stage Received).
+- **Permission:** `lab:create`
+- **Body:** `{ personId, specimenType: "Biopsy"|"Surgical Specimens"|"Cytology"|"Special Stains", site?, gross?, micro?, diagnosis?, grade? }`
+- **Response:** `{ data: { caseId, caseNo: "HST-YYYY-####", stage: "Received", patientName, … } }`
+- **Lifecycle:** `PATCH /:id` (`lab:result`) → `POST /:id/advance` (`lab:update`) → `POST /:id/release` (`lab:validate`, requires diagnosis). Soft delete only. Audit: `lab-histo:*`.
+- **Errors:** 400 released edit / missing diagnosis; 404; 401; 403
+
+**QC — `POST /laboratory/qc`**
+- **Purpose:** Log quality-control run.
+- **Permission:** `lab:create`
+- **Body:** `{ analyte, instrument, level: "L1"|"L2"|"L3", expected, observed, result: "Passed"|"Failed", freq: "Daily"|"Weekly"|"Monthly"|"Calibration", runDate? }`
+- **Response:** `{ data: { qcRunId, runNo: "QC-YYYY-####", …, capaStatus } }`
+- **CAPA:** `POST /:id/capa` `{ corrective, preventive, assignedTo, targetDate?, capaStatus? }` (`lab:update`). Audit: `lab-qc:*`.
+- **Errors:** 400 invalid date; 404; 401; 403
+
+**Lab Config (tests):** Use existing `POST/PATCH /laboratory/tests` (`lab:update`) to create/edit catalog entries shown on `/dashboard/laboratory/config`.
 
 ---
 
