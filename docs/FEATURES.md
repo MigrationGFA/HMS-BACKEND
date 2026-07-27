@@ -58,7 +58,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Card payment gate (`GET /cards/person/:id`; triage blocked with 409 while Pending) | ✅ |
 | Cashier confirm card payment (`POST /cashier/payments/cards/:id/confirm`) | ✅ |
 | Person search (`GET /patients?q=`) | ✅ |
-| Medical records management | 📋 |
+| Medical records management (retrieval / archive / reports / analytics) | ✅ |
+| Records My Profile (`/records/profile`, `GET/PATCH /users/me`) | ✅ | Identity, desk/unit, station, duty hours, password — not clinical license/specialty |
 | Appointment booking | 📋 |
 | Walk-in queue | ✅ |
 | Walk-in sales: request → cashier pay → dispense (`/pharmacy/walk-in`, cashier pharmacy-sales) | ✅ |

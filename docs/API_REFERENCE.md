@@ -1989,6 +1989,28 @@ Pharmacist safety worklist: configurable interaction rules, structured allergies
 
 ---
 
+### Records ops — file retrieval / archive / reports / analytics (`/records`)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/records/file-requests` | Retrieval worklist + KPIs | `records-file:read` |
+| GET | `/records/file-requests/:id` | Detail + events | `records-file:read` |
+| POST | `/records/file-requests` | Create `{ personId, department, reason, dueDate?, requestedBy? }` | `records-file:create` |
+| PATCH | `/records/file-requests/:id/status` | `{ status, note?, location? }` | `records-file:update` |
+| GET | `/records/archives` | Archive catalog + KPIs | `records-archive:read` |
+| POST | `/records/archives` | Archive person | `records-archive:create` |
+| POST | `/records/archives/:id/restore` | Restore | `records-archive:update` |
+| PATCH | `/records/archives/:id` | Extend retention / access | `records-archive:update` |
+| POST | `/records/archives/:id/access-request` | Log access request | `records-archive:update` |
+| GET | `/records/reports/summary` | Reports page KPI strip | `records-report:read` |
+| GET | `/records/reports/snapshots` | Saved snapshots | `records-report:read` |
+| POST | `/records/reports/generate` | `{ reportType, from, to, department? }` | `records-report:create` |
+| GET | `/records/analytics` | KPIs + trends/demographics/operations (`range`) | `records-analytics:read` |
+
+**Audit:** `records-file:create|status`, `records-archive:create|restore|update|access-request`, `records-report:generate`
+
+---
+
 ### Doctor Research (`/doctor/research`)
 
 | Method | Path | Description | Permission |
