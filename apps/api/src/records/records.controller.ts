@@ -58,6 +58,30 @@ export class RecordsController {
 
   /**
    * Method: GET
+   * URL: /api/records/overview?timezoneOffsetMinutes=60&recentLimit=8
+   * Purpose: Records Officer Overview dashboard (/dashboard/records) — KPIs, queues, activity, alerts
+   * Required permission: patient:read
+   * Request body: none
+   * Response example: { data: { asOf, kpis, pendingTasks, recentActivity, recentArrivals, alerts } }
+   * Error cases: 401, 403
+   */
+  @Get('overview')
+  @RequirePermissions(PERMISSIONS.PATIENT_READ)
+  async overview(
+    @Query('timezoneOffsetMinutes') timezoneOffsetMinutes?: string,
+    @Query('recentLimit') recentLimit?: string,
+  ) {
+    const result = await this.recordsService.overview({
+      timezoneOffsetMinutes: timezoneOffsetMinutes
+        ? Number(timezoneOffsetMinutes)
+        : undefined,
+      recentLimit: recentLimit ? Number(recentLimit) : undefined,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
    * URL: /api/records/directory-stats?timezoneOffsetMinutes=60
    * Purpose: Summary cards on Patient Directory (/records/directory)
    * Required permission: patient:read
