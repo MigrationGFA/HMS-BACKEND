@@ -2370,6 +2370,7 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
 | GET | `/laboratory/overview?timezoneOffsetMinutes=&recentLimit=` | Dashboard KPIs, recent activity, STAT alerts, pending tasks | `lab:read` |
+| GET | `/laboratory/staff?q=&limit=` | Search staff for lab pickers (transfer, CAPA) | `lab:read` |
 | GET | `/laboratory/drug-screens?status=&personId=&q=` | List urine drug screens (+ drug catalog) | `lab:read` |
 | GET | `/laboratory/drug-screens/:id` | Drug screen detail + result lines | `lab:read` |
 | POST | `/laboratory/drug-screens` | Create draft `{ personId, drugCodes[], labRequestId? }` | `lab:create` |

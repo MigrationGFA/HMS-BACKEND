@@ -2030,6 +2030,54 @@ export class LaboratoryService {
       },
     };
   }
+
+  /**
+   * Staff picker for lab workflows (transfer, CAPA, etc.) without requiring user:read.
+   */
+  async searchStaff(q?: string, limit = 20) {
+    const take = Math.min(50, Math.max(1, limit));
+    const where: Prisma.UsersWhereInput = {
+      OR: [{ LOCK_ACCOUNT: null }, { LOCK_ACCOUNT: { not: 'Y' } }],
+    };
+    if (q?.trim()) {
+      const term = q.trim();
+      where.AND = [
+        {
+          OR: [
+            { FIRST_NAME: { contains: term, mode: 'insensitive' } },
+            { LAST_NAME: { contains: term, mode: 'insensitive' } },
+            { USER_NAME: { contains: term, mode: 'insensitive' } },
+            { EMAIL_ADDRESS: { contains: term, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+    const rows = await this.prisma.users.findMany({
+      where,
+      take,
+      orderBy: [{ LAST_NAME: 'asc' }, { FIRST_NAME: 'asc' }],
+      select: {
+        USER_ID: true,
+        FIRST_NAME: true,
+        LAST_NAME: true,
+        USER_NAME: true,
+        EMAIL_ADDRESS: true,
+        role: { select: { ROLE_NAME: true } },
+      },
+    });
+    return {
+      items: rows.map((u) => ({
+        userId: u.USER_ID,
+        name:
+          [u.FIRST_NAME, u.LAST_NAME].filter(Boolean).join(' ') ||
+          u.USER_NAME ||
+          u.EMAIL_ADDRESS ||
+          `#${u.USER_ID}`,
+        email: u.EMAIL_ADDRESS,
+        role: u.role?.ROLE_NAME ?? null,
+      })),
+    };
+  }
 }
 
 function dayBoundsLocal(offsetMin: number) {
