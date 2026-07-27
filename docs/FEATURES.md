@@ -84,6 +84,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Doctor clinical boards | ✅ | Patient Directory, Active Board, Ward Round, Transfers, Emergency Override, Audit & Compliance, Research & Audit live when `VITE_USE_API` |
 | Emergency Override | ✅ | `/api/emergency-override/*` — break-glass sessions, alerts, board KPIs (`emergency-override:*`) |
 | Staff support requests | ✅ | `/api/support-requests` — create/list/detail/status update (`support:create|read|update`); HR queue |
+| Clinical Pharmacy (interactions) | ✅ | `/api/clinical-pharmacy/*` — alerts, check, override/notify, rules, allergies (`clinical-pharmacy:*`) |
 | Psychiatry | ✅ | `/api/psychiatry/*` |
 | Allied Health | ✅ | `/api/allied-health/*` |
 | ICU | ✅ | `/api/icu` |

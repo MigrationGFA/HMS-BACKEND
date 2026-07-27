@@ -57,6 +57,7 @@ import { GovernanceModule } from './governance/governance.module';
 import { AdministrationModule } from './administration/administration.module';
 import { HrModule } from './hr/hr.module';
 import { SupportRequestsModule } from './support-requests/support-requests.module';
+import { ClinicalPharmacyModule } from './clinical-pharmacy/clinical-pharmacy.module';
 
 @Module({
   imports: [
@@ -118,6 +119,7 @@ import { SupportRequestsModule } from './support-requests/support-requests.modul
     AdministrationModule,
     HrModule,
     SupportRequestsModule,
+    ClinicalPharmacyModule,
   ],
   controllers: [AppController],
   providers: [AppService],
