@@ -453,6 +453,9 @@ export type LabResultResponse = {
   personName: string | null;
   hospitalNo: string | null;
   sex: string | null;
+  criticalFlag: boolean;
+  criticalAckAt: string | null;
+  criticalAckBy: string | null;
 };
 
 function toResultResponse(row: LabResultRow): LabResultResponse {
@@ -487,6 +490,9 @@ function toResultResponse(row: LabResultRow): LabResultResponse {
       : null,
     hospitalNo: person?.HOSPITAL_NO ?? null,
     sex: person?.SEX ?? null,
+    criticalFlag: row.CRITICAL_FLAG === 'Y',
+    criticalAckAt: row.CRITICAL_ACK_AT?.toISOString() ?? null,
+    criticalAckBy: row.CRITICAL_ACK_BY ?? null,
   };
 }
 
@@ -1398,6 +1404,8 @@ export class LaboratoryService {
   async listResults(params: {
     status?: string;
     requestId?: number;
+    personId?: number;
+    critical?: boolean;
     q?: string;
     page?: number;
     limit?: number;
@@ -1406,6 +1414,12 @@ export class LaboratoryService {
     const limit = Math.min(100, Math.max(1, params.limit ?? 50));
     const where: Prisma.LabResultsWhereInput = {};
     if (params.requestId) where.LAB_REQUEST_ID = params.requestId;
+    if (params.personId) {
+      where.request = { PERSON_ID: params.personId };
+    }
+    if (params.critical === true) {
+      where.CRITICAL_FLAG = 'Y';
+    }
     if (params.status) {
       const parts = params.status
         .split(',')
@@ -1445,6 +1459,43 @@ export class LaboratoryService {
       items: rows.map(toResultResponse),
       meta: { page, limit, total },
     };
+  }
+
+  async acknowledgeCriticalResult(id: number, actor?: AuthUser) {
+    const row = await this.prisma.labResults.findUnique({
+      where: { LAB_RESULT_ID: id },
+      include: RESULT_INCLUDE,
+    });
+    if (!row) throw new NotFoundException('Lab result not found');
+    if (row.CRITICAL_FLAG !== 'Y') {
+      throw new BadRequestException('Result is not flagged critical');
+    }
+    if (row.CRITICAL_ACK_AT) {
+      return toResultResponse(row);
+    }
+    const label = actorLabel(actor);
+    const updated = await this.prisma.labResults.update({
+      where: { LAB_RESULT_ID: id },
+      data: {
+        CRITICAL_ACK_AT: new Date(),
+        CRITICAL_ACK_BY: label,
+        CRITICAL_ACK_BY_ID: actor?.id ?? null,
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: label,
+        UPDATED_DATE: new Date(),
+      },
+      include: RESULT_INCLUDE,
+    });
+    await this.audit.log({
+      type: 'lab:result-critical-ack',
+      entity: 'lab_results',
+      entityId: id,
+      personId: row.request?.PERSON_ID ?? null,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Critical lab result acknowledged: ${row.request?.REQUEST_NO ?? id}`,
+    });
+    return toResultResponse(updated);
   }
 
   async findResultById(id: number): Promise<LabResultResponse> {

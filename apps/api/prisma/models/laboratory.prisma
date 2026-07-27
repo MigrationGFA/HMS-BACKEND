@@ -169,6 +169,11 @@ model LabResults {
   VALIDATED_AT        DateTime?
   RETURN_REASON       String?   @db.Text
   VERSION             Int       @default(1)
+  /// Y when values hit critical template thresholds (or flagged manually)
+  CRITICAL_FLAG       String?   @default("N") @db.VarChar(1)
+  CRITICAL_ACK_AT     DateTime?
+  CRITICAL_ACK_BY     String?   @db.VarChar(100)
+  CRITICAL_ACK_BY_ID  Int?
   CREATED_BY_ID       Int?
   CREATED_BY          String?   @db.VarChar(100)
   CREATED_DATE        DateTime?
@@ -184,6 +189,7 @@ model LabResults {
   @@index([LAB_REQUEST_ID])
   @@index([STATUS])
   @@index([TEMPLATE_ID])
+  @@index([CRITICAL_FLAG])
   @@map("LAB_RESULTS")
 }
 

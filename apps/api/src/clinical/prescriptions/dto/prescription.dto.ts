@@ -111,7 +111,15 @@ export class CreatePrescriptionDto {
 
 export class UpdatePrescriptionDto {
   @IsOptional()
-  @IsIn(['Draft', 'Sent', 'Dispensed', 'Partially Dispensed', 'Cancelled', 'Rejected'])
+  @IsIn([
+    'Draft',
+    'Sent',
+    'Dispensed',
+    'Partially Dispensed',
+    'Cancelled',
+    'Rejected',
+    'External',
+  ])
   status?: string;
 
   @IsOptional()
@@ -175,4 +183,68 @@ export class ConfirmPrescriptionPaymentDto {
   @IsString()
   @MaxLength(100)
   paymentRef?: string;
+}
+
+export class StopPrescriptionItemDto {
+  @IsString()
+  @MaxLength(500)
+  reason!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  comment?: string;
+}
+
+export class CreateExternalPrescriptionDto {
+  @IsInt()
+  @Min(1)
+  personId!: number;
+
+  @IsString()
+  @MaxLength(255)
+  drugName!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  drugId?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  strength?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  form?: string;
+
+  @IsString()
+  @MaxLength(100)
+  dose!: string;
+
+  @IsString()
+  @MaxLength(50)
+  frequency!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  duration?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  quantity?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  instructions?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
 }

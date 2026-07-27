@@ -9,6 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import type {
   ConfirmImagingRequestPaymentDto,
+  CreateImagingReportDto,
   CreateImagingRequestDto,
   UpdateImagingRequestDto,
 } from './dto/imaging.dto';
@@ -475,5 +476,211 @@ export class RadiologyService {
       newValue: response,
     });
     return response;
+  }
+
+  private toReportResponse(row: {
+    REPORT_ID: number;
+    REPORT_NO: string;
+    IMAGING_REQUEST_ID: number;
+    PERSON_ID: number;
+    FINDINGS: string | null;
+    IMPRESSION: string | null;
+    CRITICAL: string;
+    STATUS: string;
+    RELEASED_AT: Date | null;
+    CRITICAL_ACK_AT: Date | null;
+    CRITICAL_ACK_BY: string | null;
+    CREATED_BY: string | null;
+    CREATED_DATE: Date | null;
+    UPDATED_DATE: Date | null;
+    request?: { REQUEST_NO: string; PRIORITY: string; STATUS: string } | null;
+    person?: {
+      PERSON_ID: number;
+      HOSPITAL_NO: string | null;
+      FIRST_NAME: string | null;
+      LAST_NAME: string | null;
+      MIDDLE_NAME: string | null;
+      SEX: string | null;
+      DATE_OF_BIRTH: Date | null;
+      PATIENT_PHONE_NO: string | null;
+    } | null;
+  }) {
+    return {
+      reportId: row.REPORT_ID,
+      reportNo: row.REPORT_NO,
+      imagingRequestId: row.IMAGING_REQUEST_ID,
+      requestNo: row.request?.REQUEST_NO ?? null,
+      personId: row.PERSON_ID,
+      findings: row.FINDINGS,
+      impression: row.IMPRESSION,
+      critical: row.CRITICAL === 'Y',
+      status: row.STATUS,
+      releasedAt: row.RELEASED_AT?.toISOString() ?? null,
+      criticalAckAt: row.CRITICAL_ACK_AT?.toISOString() ?? null,
+      criticalAckBy: row.CRITICAL_ACK_BY,
+      createdBy: row.CREATED_BY,
+      createdAt: row.CREATED_DATE?.toISOString() ?? null,
+      updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
+      person: mapPerson(row.person ?? null),
+    };
+  }
+
+  async listReports(params: {
+    personId?: number;
+    imagingRequestId?: number;
+    critical?: boolean;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(100, Math.max(1, params.limit ?? 50));
+    const where: Prisma.ImagingReportsWhereInput = {
+      OR: [{ DELETED: null }, { DELETED: 'N' }],
+    };
+    if (params.personId) where.PERSON_ID = params.personId;
+    if (params.imagingRequestId) where.IMAGING_REQUEST_ID = params.imagingRequestId;
+    if (params.critical === true) where.CRITICAL = 'Y';
+    if (params.status) where.STATUS = params.status;
+    const include = {
+      request: { select: { REQUEST_NO: true, PRIORITY: true, STATUS: true } },
+      person: { select: PERSON_SELECT },
+    } as const;
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.imagingReports.count({ where }),
+      this.prisma.imagingReports.findMany({
+        where,
+        include,
+        orderBy: { CREATED_DATE: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    return {
+      items: rows.map((r) => this.toReportResponse(r)),
+      meta: { page, limit, total },
+    };
+  }
+
+  async findReportById(id: number) {
+    const row = await this.prisma.imagingReports.findFirst({
+      where: {
+        REPORT_ID: id,
+        OR: [{ DELETED: null }, { DELETED: 'N' }],
+      },
+      include: {
+        request: { select: { REQUEST_NO: true, PRIORITY: true, STATUS: true } },
+        person: { select: PERSON_SELECT },
+      },
+    });
+    if (!row) throw new NotFoundException('Imaging report not found');
+    return this.toReportResponse(row);
+  }
+
+  async createReport(dto: CreateImagingReportDto, actor?: AuthUser) {
+    const request = await this.prisma.imagingRequests.findUnique({
+      where: { IMAGING_REQUEST_ID: dto.imagingRequestId },
+    });
+    if (!request) throw new NotFoundException('Imaging request not found');
+    if (request.STATUS === 'Cancelled' || request.STATUS === 'Rejected') {
+      throw new BadRequestException('Cannot report on cancelled/rejected request');
+    }
+    const now = new Date();
+    const label = actorLabel(actor);
+    const status = dto.status ?? 'Released';
+    const critical = dto.critical === 'Y' ? 'Y' : 'N';
+    const created = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.imagingReports.create({
+        data: {
+          REPORT_NO: `IRPT-${now.getFullYear()}-PENDING`,
+          IMAGING_REQUEST_ID: dto.imagingRequestId,
+          PERSON_ID: request.PERSON_ID,
+          FINDINGS: dto.findings?.trim() ?? null,
+          IMPRESSION: dto.impression?.trim() ?? null,
+          CRITICAL: critical,
+          STATUS: status,
+          RELEASED_AT: status === 'Released' ? now : null,
+          CREATED_BY_ID: actor?.id ?? null,
+          CREATED_BY: label,
+          CREATED_DATE: now,
+        },
+      });
+      const withNo = await tx.imagingReports.update({
+        where: { REPORT_ID: row.REPORT_ID },
+        data: { REPORT_NO: `IRPT-${now.getFullYear()}-${pad(row.REPORT_ID)}` },
+        include: {
+          request: { select: { REQUEST_NO: true, PRIORITY: true, STATUS: true } },
+          person: { select: PERSON_SELECT },
+        },
+      });
+      if (status === 'Released' && request.STATUS !== 'Completed') {
+        await tx.imagingRequests.update({
+          where: { IMAGING_REQUEST_ID: dto.imagingRequestId },
+          data: {
+            STATUS: 'Completed',
+            UPDATED_BY_ID: actor?.id ?? null,
+            UPDATED_BY: label,
+            UPDATED_DATE: now,
+          },
+        });
+      }
+      return withNo;
+    });
+    const response = this.toReportResponse(created);
+    await this.audit.log({
+      type: 'imaging:report-create',
+      entity: 'imaging_reports',
+      entityId: created.REPORT_ID,
+      personId: request.PERSON_ID,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Imaging report ${response.reportNo} (${status})`,
+      newValue: response,
+    });
+    return response;
+  }
+
+  async acknowledgeCriticalReport(id: number, actor?: AuthUser) {
+    const row = await this.prisma.imagingReports.findFirst({
+      where: {
+        REPORT_ID: id,
+        OR: [{ DELETED: null }, { DELETED: 'N' }],
+      },
+      include: {
+        request: { select: { REQUEST_NO: true, PRIORITY: true, STATUS: true } },
+        person: { select: PERSON_SELECT },
+      },
+    });
+    if (!row) throw new NotFoundException('Imaging report not found');
+    if (row.CRITICAL !== 'Y') {
+      throw new BadRequestException('Report is not flagged critical');
+    }
+    if (row.CRITICAL_ACK_AT) return this.toReportResponse(row);
+    const label = actorLabel(actor);
+    const updated = await this.prisma.imagingReports.update({
+      where: { REPORT_ID: id },
+      data: {
+        CRITICAL_ACK_AT: new Date(),
+        CRITICAL_ACK_BY: label,
+        CRITICAL_ACK_BY_ID: actor?.id ?? null,
+        UPDATED_BY_ID: actor?.id ?? null,
+        UPDATED_BY: label,
+        UPDATED_DATE: new Date(),
+      },
+      include: {
+        request: { select: { REQUEST_NO: true, PRIORITY: true, STATUS: true } },
+        person: { select: PERSON_SELECT },
+      },
+    });
+    await this.audit.log({
+      type: 'imaging:report-critical-ack',
+      entity: 'imaging_reports',
+      entityId: id,
+      personId: row.PERSON_ID,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Critical imaging report acknowledged: ${row.REPORT_NO}`,
+    });
+    return this.toReportResponse(updated);
   }
 }

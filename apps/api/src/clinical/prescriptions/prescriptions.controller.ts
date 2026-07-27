@@ -19,6 +19,8 @@ import {
   CreatePrescriptionDto,
   DispensePrescriptionDto,
   EmergencyDispensePrescriptionDto,
+  CreateExternalPrescriptionDto,
+  StopPrescriptionItemDto,
   UpdatePrescriptionDto,
 } from './dto/prescription.dto';
 import { PrescriptionsService } from './prescriptions.service';
@@ -45,6 +47,66 @@ export class PrescriptionsController {
   ) {
     const rx = await this.prescriptionsService.create(dto, user);
     return { data: rx };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/prescriptions/medications?personId=&scope=active|stopped|external|history
+   * Purpose: Active / stopped / external / history medication lines for a patient
+   * Required permission: prescription:read
+   */
+  @Get('medications')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_READ)
+  async medications(
+    @Query('personId') personId?: string,
+    @Query('scope') scope?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.prescriptionsService.listMedications({
+      personId: personId ? Number(personId) : 0,
+      scope,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 100,
+    });
+    return { data };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/prescriptions/external?personId=
+   * Purpose: List external purchase prescriptions
+   * Required permission: prescription:read
+   */
+  @Get('external')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_READ)
+  async listExternal(
+    @Query('personId') personId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.prescriptionsService.listExternal({
+      personId: personId ? Number(personId) : undefined,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/prescriptions/external
+   * Purpose: Log an external drug purchase for a patient
+   * Required permission: prescription:create
+   */
+  @Post('external')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_CREATE)
+  async createExternal(
+    @Body() dto: CreateExternalPrescriptionDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const data = await this.prescriptionsService.createExternal(dto, user);
+    return { data };
   }
 
   /**
@@ -107,6 +169,41 @@ export class PrescriptionsController {
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const rx = await this.prescriptionsService.findById(id);
     return { data: rx };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/prescriptions/:id/items/:itemId/stop
+   * Purpose: Stop an active medication line
+   * Required permission: prescription:update
+   * Request body: { reason, comment? }
+   */
+  @Post(':id/items/:itemId/stop')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_UPDATE)
+  async stopItem(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() dto: StopPrescriptionItemDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const data = await this.prescriptionsService.stopItem(id, itemId, dto, user);
+    return { data };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/prescriptions/:id/refill
+   * Purpose: Clone a Sent/Dispensed Rx as a new Sent prescription
+   * Required permission: prescription:create
+   */
+  @Post(':id/refill')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_CREATE)
+  async refill(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const data = await this.prescriptionsService.refill(id, user);
+    return { data };
   }
 
   /**

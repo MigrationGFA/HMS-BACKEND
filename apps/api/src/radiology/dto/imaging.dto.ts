@@ -85,3 +85,28 @@ export class ConfirmImagingRequestPaymentDto {
   @MaxLength(100)
   paymentRef?: string;
 }
+
+export class CreateImagingReportDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  imagingRequestId!: number;
+
+  @IsOptional()
+  @IsString()
+  findings?: string;
+
+  @IsOptional()
+  @IsString()
+  impression?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['Y', 'N'])
+  critical?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['Draft', 'Released'])
+  status?: string;
+}
