@@ -37,6 +37,7 @@ apps/api/prisma/
 │   ├── lab-specialty.prisma  # LAB_DRUG_SCREENS(+RESULTS), LAB_CULTURES(+SENSITIVITIES), LAB_REPORT_SNAPSHOTS, LAB_SFA_ANALYSES, LAB_SPECIMEN_TRACKING(+EVENTS), LAB_HISTOPATHOLOGY_CASES, LAB_QC_RUNS
 │   ├── blood-bank.prisma     # BLOOD_DONORS, BLOOD_UNITS, BLOOD_REQUESTS, BLOOD_REQUEST_EVENTS, BLOOD_CROSSMATCHES
 │   ├── support.prisma        # SUPPORT_REQUESTS
+│   ├── records-ops.prisma    # RECORD_FILE_REQUESTS(+EVENTS), RECORD_ARCHIVES, RECORD_REPORT_SNAPSHOTS
 │   ├── clinical-pharmacy.prisma # PATIENT_ALLERGIES, DRUG_INTERACTION_RULES, CLINICAL_PHARMACY_ALERTS
 │   └── audit.prisma          # AUDITS (with AUDIT_TYPE)
 ├── migrations/
@@ -75,6 +76,10 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `LAB_HISTOPATHOLOGY_CASES` | `LabHistopathologyCases` | Histo cases (`HST-YYYY-####`); stages Received→Released; report fields; migration `20260724190000_lab_histo_qc` |
 | `LAB_QC_RUNS` | `LabQcRuns` | QC runs (`QC-YYYY-####`) + CAPA; freq Daily\|Weekly\|Monthly\|Calibration |
 | `SUPPORT_REQUESTS` | `SupportRequests` | Staff support tickets (`SR-YYYY-####`); statuses Open\|In Progress\|Resolved\|Closed; soft delete; migration `20260727120000_support_requests` |
+| `RECORD_FILE_REQUESTS` | `RecordFileRequests` | Physical chart retrieval (`RFR-YYYY-####`); migration `20260727160000_records_file_archive_reports` |
+| `RECORD_FILE_REQUEST_EVENTS` | `RecordFileRequestEvents` | Immutable retrieval status events |
+| `RECORD_ARCHIVES` | `RecordArchives` | Archive catalog (`RA-YYYY-####`); categories Inactive\|Deceased\|Long-Stay\|Restricted\|Legal Hold |
+| `RECORD_REPORT_SNAPSHOTS` | `RecordReportSnapshots` | Generated Records report metrics JSON |
 | `PATIENT_ALLERGIES` | `PatientAllergies` | Structured patient allergies (substance/severity); soft delete; migration `20260727140000_clinical_pharmacy` |
 | `DRUG_INTERACTION_RULES` | `DrugInteractionRules` | Hospital-configurable DDI/duplicate/allergy/controlled/psych rules |
 | `CLINICAL_PHARMACY_ALERTS` | `ClinicalPharmacyAlerts` | Pharmacist safety alerts (`CPA-YYYY-####`); Open\|Overridden\|Notified\|Closed |

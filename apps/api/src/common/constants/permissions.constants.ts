@@ -202,6 +202,17 @@ export const PERMISSIONS = {
   CLINICAL_PHARMACY_READ: 'clinical-pharmacy:read',
   CLINICAL_PHARMACY_UPDATE: 'clinical-pharmacy:update',
   CLINICAL_PHARMACY_MANAGE_RULES: 'clinical-pharmacy:manage-rules',
+
+  // Records file retrieval / archive / reports / analytics
+  RECORDS_FILE_READ: 'records-file:read',
+  RECORDS_FILE_CREATE: 'records-file:create',
+  RECORDS_FILE_UPDATE: 'records-file:update',
+  RECORDS_ARCHIVE_READ: 'records-archive:read',
+  RECORDS_ARCHIVE_CREATE: 'records-archive:create',
+  RECORDS_ARCHIVE_UPDATE: 'records-archive:update',
+  RECORDS_REPORT_READ: 'records-report:read',
+  RECORDS_REPORT_CREATE: 'records-report:create',
+  RECORDS_ANALYTICS_READ: 'records-analytics:read',
 } as const;
 
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -248,6 +259,15 @@ const RECORDS_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.AUDIT_READ,
   PERMISSIONS.USER_READ,
   ...SUPPORT_SELF_PERMISSIONS,
+  PERMISSIONS.RECORDS_FILE_READ,
+  PERMISSIONS.RECORDS_FILE_CREATE,
+  PERMISSIONS.RECORDS_FILE_UPDATE,
+  PERMISSIONS.RECORDS_ARCHIVE_READ,
+  PERMISSIONS.RECORDS_ARCHIVE_CREATE,
+  PERMISSIONS.RECORDS_ARCHIVE_UPDATE,
+  PERMISSIONS.RECORDS_REPORT_READ,
+  PERMISSIONS.RECORDS_REPORT_CREATE,
+  PERMISSIONS.RECORDS_ANALYTICS_READ,
 ];
 
 const CASHIER_PERMISSIONS: PermissionName[] = [

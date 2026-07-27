@@ -1,0 +1,98 @@
+// Records operations: physical file retrieval, archive catalog, report snapshots.
+// Soft-delete only — never hard-delete clinical/ops history.
+
+model RecordFileRequests {
+  REQUEST_ID            Int       @id @default(autoincrement())
+  REQUEST_NO            String    @unique @db.VarChar(50)
+  PERSON_ID             Int
+  REQUESTED_BY          String    @db.VarChar(150)
+  REQUESTED_BY_USER_ID  Int?
+  DEPARTMENT            String    @db.VarChar(100)
+  REASON                String    @db.Text
+  LOCATION              String    @default("Records") @db.VarChar(150)
+  DUE_DATE              DateTime?
+  /// Requested | Released | In Transit | Overdue | Returned | Missing
+  STATUS                String    @default("Requested") @db.VarChar(30)
+  CREATED_BY_ID         Int?
+  CREATED_BY            String?   @db.VarChar(100)
+  CREATED_DATE          DateTime?
+  UPDATED_BY_ID         Int?
+  UPDATED_BY            String?   @db.VarChar(100)
+  UPDATED_DATE          DateTime?
+  DELETED_FLAG          String?   @default("N") @db.VarChar(1)
+
+  events RecordFileRequestEvents[]
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([DUE_DATE])
+  @@index([CREATED_DATE])
+  @@map("RECORD_FILE_REQUESTS")
+}
+
+model RecordFileRequestEvents {
+  EVENT_ID     Int       @id @default(autoincrement())
+  REQUEST_ID   Int
+  EVENT_TYPE   String    @db.VarChar(50)
+  OLD_STATUS   String?   @db.VarChar(30)
+  NEW_STATUS   String?   @db.VarChar(30)
+  NOTE         String?   @db.Text
+  LOCATION     String?   @db.VarChar(150)
+  ACTOR_USER_ID Int?
+  ACTOR_LABEL  String?   @db.VarChar(150)
+  CREATED_DATE DateTime?
+
+  request RecordFileRequests @relation(fields: [REQUEST_ID], references: [REQUEST_ID])
+
+  @@index([REQUEST_ID])
+  @@index([CREATED_DATE])
+  @@map("RECORD_FILE_REQUEST_EVENTS")
+}
+
+model RecordArchives {
+  ARCHIVE_ID      Int       @id @default(autoincrement())
+  ARCHIVE_NO      String    @unique @db.VarChar(50)
+  PERSON_ID       Int       @unique
+  /// Inactive | Deceased | Long-Stay | Restricted | Legal Hold
+  CATEGORY        String    @db.VarChar(40)
+  /// Standard | Supervisor | Legal Only
+  ACCESS_LEVEL    String    @default("Standard") @db.VarChar(40)
+  LAST_VISIT_AT   DateTime?
+  ARCHIVED_AT     DateTime
+  RETENTION_UNTIL DateTime?
+  DUE_REVIEW_AT   DateTime?
+  /// Archived | Restored
+  STATUS          String    @default("Archived") @db.VarChar(30)
+  NOTES           String?   @db.Text
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime?
+  UPDATED_BY_ID   Int?
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+  DELETED_FLAG    String?   @default("N") @db.VarChar(1)
+
+  @@index([CATEGORY])
+  @@index([STATUS])
+  @@index([ARCHIVED_AT])
+  @@index([DUE_REVIEW_AT])
+  @@map("RECORD_ARCHIVES")
+}
+
+model RecordReportSnapshots {
+  SNAPSHOT_ID   Int       @id @default(autoincrement())
+  REPORT_TYPE   String    @db.VarChar(120)
+  FROM_DATE     DateTime
+  TO_DATE       DateTime
+  DEPARTMENT    String?   @db.VarChar(100)
+  METRICS_JSON  Json
+  GENERATED_BY  String?   @db.VarChar(150)
+  GENERATED_BY_ID Int?
+  CREATED_DATE  DateTime?
+  DELETED_FLAG  String?   @default("N") @db.VarChar(1)
+
+  @@index([REPORT_TYPE])
+  @@index([FROM_DATE, TO_DATE])
+  @@index([CREATED_DATE])
+  @@map("RECORD_REPORT_SNAPSHOTS")
+}
