@@ -1,11 +1,15 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
+  forwardRef,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { RadiologyService } from '../radiology/radiology.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import type {
   CreateExternalMedDto,
@@ -56,6 +60,9 @@ export class NursingOpsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    @Optional()
+    @Inject(forwardRef(() => RadiologyService))
+    private readonly radiology?: RadiologyService,
   ) {}
 
   // ── Orders ─────────────────────────────────────────────────────────
@@ -138,6 +145,24 @@ export class NursingOpsService {
             CREATED_BY_ID: actor?.id ?? null,
           },
         });
+      }
+    }
+
+    if (dto.kind === 'imaging' && this.radiology) {
+      try {
+        await this.radiology.importFromNursingOrder({
+          nursingOrderId: row.ORDER_ID,
+          personId: dto.personId,
+          items: (dto.items ?? []).map((i) => ({
+            code: i.code,
+            name: i.name,
+            price: i.price,
+          })),
+          orderedBy: dto.orderedBy ?? actorLabel,
+          actor,
+        });
+      } catch {
+        // Do not fail the nursing order if RIS import fails; radiology can re-import.
       }
     }
 

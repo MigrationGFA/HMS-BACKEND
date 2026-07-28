@@ -17,14 +17,28 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { RadiologyService } from './radiology.service';
 import {
+<<<<<<< HEAD
+  CompleteImagingDto,
+  CreateImagingRequestDto,
+  ScheduleImagingDto,
+  UpdateImagingRequestDto,
+} from './dto/radiology.dto';
+=======
   CreateImagingRequestDto,
   CreateImagingReportDto,
   UpdateImagingRequestDto,
 } from './dto/imaging.dto';
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
 
 @Controller('radiology/imaging')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ImagingController {
+<<<<<<< HEAD
+  constructor(private readonly radiology: RadiologyService) {}
+
+  @Get('studies')
+  @RequirePermissions(PERMISSIONS.RADIOLOGY_STUDY_READ)
+=======
   constructor(private readonly radiologyService: RadiologyService) {}
 
   /**
@@ -37,11 +51,20 @@ export class ImagingController {
    */
   @Get('studies')
   @RequirePermissions(PERMISSIONS.IMAGING_READ)
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
   async listStudies(
     @Query('modality') modality?: string,
     @Query('status') status?: string,
     @Query('q') q?: string,
   ) {
+<<<<<<< HEAD
+    return { data: await this.radiology.listStudies({ modality, status, q }) };
+  }
+
+  @Get('requests')
+  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_READ)
+  async listRequests(
+=======
     const data = await this.radiologyService.listStudies({ modality, status, q });
     return { data };
   }
@@ -160,6 +183,7 @@ export class ImagingController {
   @RequirePermissions(PERMISSIONS.IMAGING_READ)
   async listRequests(
     @CurrentUser() user: AuthUser,
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
     @Query('personId') personId?: string,
     @Query('encounterId') encounterId?: string,
     @Query('status') status?: string,
@@ -170,13 +194,40 @@ export class ImagingController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+<<<<<<< HEAD
+    return {
+      data: await this.radiology.listRequests({
+=======
     const data = await this.radiologyService.listRequests(
       {
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
         personId: personId ? Number(personId) : undefined,
         encounterId: encounterId ? Number(encounterId) : undefined,
         status,
         paymentStatus,
         source,
+<<<<<<< HEAD
+        workQueue: workQueue === 'true',
+        q,
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 50,
+      }),
+    };
+  }
+
+  @Post('requests')
+  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_CREATE)
+  async createRequest(
+    @Body() dto: CreateImagingRequestDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.radiology.createRequest(dto, user) };
+  }
+
+  @Patch('requests/:id')
+  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE)
+  async updateRequest(
+=======
         workQueue: workQueue === 'true' || workQueue === '1',
         q,
         page: page ? Number(page) : 1,
@@ -212,10 +263,43 @@ export class ImagingController {
   @Patch('requests/:id')
   @RequirePermissions(PERMISSIONS.IMAGING_UPDATE)
   async update(
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateImagingRequestDto,
     @CurrentUser() user: AuthUser,
   ) {
+<<<<<<< HEAD
+    return { data: await this.radiology.updateRequest(id, dto, user) };
+  }
+
+  @Post('requests/:id/schedule')
+  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE)
+  async schedule(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ScheduleImagingDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.radiology.schedule(id, dto, user) };
+  }
+
+  @Post('requests/:id/start')
+  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE)
+  async start(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.radiology.startExam(id, user) };
+  }
+
+  @Post('requests/:id/complete-imaging')
+  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE)
+  async complete(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CompleteImagingDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.radiology.completeImaging(id, dto, user) };
+=======
     const data = await this.radiologyService.updateRequest(id, dto, user);
     return { data };
   }
@@ -235,5 +319,6 @@ export class ImagingController {
   ) {
     const data = await this.radiologyService.cancelRequest(id, user);
     return { data };
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
   }
 }
