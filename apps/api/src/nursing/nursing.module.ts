@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { TriageModule } from '../triage/triage.module';
 import { PatientsModule } from '../patients/patients.module';
+import { RadiologyModule } from '../radiology/radiology.module';
 import { NursingController } from './nursing.controller';
 import { NursingCareController } from './nursing-care.controller';
 import { NursingOpsController } from './nursing-ops.controller';
@@ -10,7 +11,12 @@ import { NursingCareService } from './nursing-care.service';
 import { NursingOpsService } from './nursing-ops.service';
 
 @Module({
-  imports: [AuditModule, TriageModule, PatientsModule],
+  imports: [
+    AuditModule,
+    TriageModule,
+    PatientsModule,
+    forwardRef(() => RadiologyModule),
+  ],
   controllers: [
     NursingController,
     NursingCareController,

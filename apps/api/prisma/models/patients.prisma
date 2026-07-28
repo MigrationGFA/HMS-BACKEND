@@ -90,6 +90,9 @@ model Persons {
   nursingIcuNotes        NursingIcuNotes[]
   nursingIcuInfusions    NursingIcuInfusions[]
   nursingMessages        NursingMessages[]
+  imagingRequests        ImagingRequests[]
+  ecgStudies             EcgStudies[]
+  radFormInstances       RadFormInstances[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])
