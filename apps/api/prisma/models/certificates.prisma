@@ -1,0 +1,89 @@
+// Clinical certificates & reports — template store + issued documents
+
+model CertificateTemplates {
+  TEMPLATE_ID        Int       @id @default(autoincrement())
+  CODE               String    @unique @db.VarChar(80)
+  NAME               String    @db.VarChar(150)
+  DESCRIPTION        String?   @db.Text
+  /// Certificate | Report
+  CATEGORY           String    @default("Report") @db.VarChar(40)
+  /// JSON array: [{ key, label }]
+  FIELD_SCHEMA       Json      @default("[]")
+  APPROVAL_REQUIRED  Boolean   @default(false)
+  /// Standard | Legal | Insurance
+  LAYOUT             String    @default("Standard") @db.VarChar(40)
+  /// Active | Inactive
+  STATUS             String    @default("Active") @db.VarChar(20)
+  CREATED_BY_ID      Int?
+  CREATED_BY         String?   @db.VarChar(100)
+  CREATED_DATE       DateTime?
+  UPDATED_BY_ID      Int?
+  UPDATED_BY         String?   @db.VarChar(100)
+  UPDATED_DATE       DateTime?
+
+  certificates ClinicalCertificates[]
+
+  @@index([STATUS])
+  @@index([CATEGORY])
+  @@map("CERTIFICATE_TEMPLATES")
+}
+
+model ClinicalCertificates {
+  CERTIFICATE_ID       Int       @id @default(autoincrement())
+  DOC_NO               String    @unique @db.VarChar(50)
+  PERSON_ID            Int
+  TEMPLATE_ID          Int
+  /// Draft | PendingSignature | PendingApproval | Issued | Expired | Cancelled
+  STATUS               String    @default("Draft") @db.VarChar(40)
+  FIELDS               Json      @default("{}")
+  LAYOUT               String    @default("Standard") @db.VarChar(40)
+  VALIDITY_UNTIL       DateTime?
+  LOCKED               Boolean   @default(false)
+  QR_CODE              String?   @db.VarChar(120)
+  SIGNED_AT            DateTime?
+  SIGNED_BY            String?   @db.VarChar(150)
+  SIGNED_BY_USER_ID    Int?
+  ISSUED_AT            DateTime?
+  ISSUED_BY            String?   @db.VarChar(150)
+  ISSUED_BY_USER_ID    Int?
+  APPROVED_AT          DateTime?
+  APPROVED_BY          String?   @db.VarChar(150)
+  APPROVED_BY_USER_ID  Int?
+  AUTHOR_USER_ID       Int?
+  CREATED_BY_ID        Int?
+  CREATED_BY           String?   @db.VarChar(100)
+  CREATED_DATE         DateTime?
+  UPDATED_BY_ID        Int?
+  UPDATED_BY           String?   @db.VarChar(100)
+  UPDATED_DATE         DateTime?
+
+  person   Persons               @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  template CertificateTemplates  @relation(fields: [TEMPLATE_ID], references: [TEMPLATE_ID])
+  author   Users?                @relation("CertificateAuthor", fields: [AUTHOR_USER_ID], references: [USER_ID])
+  events   ClinicalCertificateEvents[]
+
+  @@index([PERSON_ID])
+  @@index([TEMPLATE_ID])
+  @@index([STATUS])
+  @@index([AUTHOR_USER_ID])
+  @@index([CREATED_DATE])
+  @@map("CLINICAL_CERTIFICATES")
+}
+
+model ClinicalCertificateEvents {
+  EVENT_ID       Int       @id @default(autoincrement())
+  CERTIFICATE_ID Int
+  EVENT_TYPE     String    @db.VarChar(50)
+  ACTOR_USER_ID  Int?
+  ACTOR_LABEL    String?   @db.VarChar(150)
+  NOTE           String?   @db.Text
+  OLD_STATUS     String?   @db.VarChar(40)
+  NEW_STATUS     String?   @db.VarChar(40)
+  CREATED_DATE   DateTime  @default(now())
+
+  certificate ClinicalCertificates @relation(fields: [CERTIFICATE_ID], references: [CERTIFICATE_ID], onDelete: Cascade)
+
+  @@index([CERTIFICATE_ID])
+  @@index([CREATED_DATE])
+  @@map("CLINICAL_CERTIFICATE_EVENTS")
+}

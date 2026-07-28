@@ -37,4 +37,24 @@ export class AuditController {
     });
     return { data: result };
   }
+
+  /**
+   * Method: GET
+   * URL: /api/audit/stats?timezoneOffsetMinutes=60
+   * Purpose: KPI counts for doctor Audit & Compliance board (total, today, emergency, notes, Rx, flagged)
+   * Required permission: audit:read
+   * Request body: none
+   * Response example: { data: { asOf, total, today, emergencyOverrides, noteEdits, prescriptionChanges, flagged } }
+   * Error cases: 401 unauthorized, 403 missing permission
+   */
+  @Get('stats')
+  @RequirePermissions(PERMISSIONS.AUDIT_READ)
+  async stats(@Query('timezoneOffsetMinutes') timezoneOffsetMinutes?: string) {
+    const result = await this.auditService.stats({
+      timezoneOffsetMinutes: timezoneOffsetMinutes
+        ? Number(timezoneOffsetMinutes)
+        : undefined,
+    });
+    return { data: result };
+  }
 }

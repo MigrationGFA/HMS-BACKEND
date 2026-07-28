@@ -1,0 +1,95 @@
+// Clinical pharmacy — hospital-configurable interaction rules, patient allergies,
+// and pharmacist safety alert worklist. Soft-delete only.
+
+model PatientAllergies {
+  ALLERGY_ID     Int       @id @default(autoincrement())
+  PERSON_ID      Int
+  SUBSTANCE      String    @db.VarChar(150)
+  REACTION       String?   @db.VarChar(255)
+  /// Mild | Moderate | Severe
+  SEVERITY       String    @default("Moderate") @db.VarChar(30)
+  /// Active | Inactive
+  STATUS         String    @default("Active") @db.VarChar(30)
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+  DELETED_FLAG   String?   @default("N") @db.VarChar(1)
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([SUBSTANCE])
+  @@map("PATIENT_ALLERGIES")
+}
+
+model DrugInteractionRules {
+  RULE_ID        Int       @id @default(autoincrement())
+  CODE           String    @unique @db.VarChar(80)
+  DRUG_A_ID      Int?
+  DRUG_B_ID      Int?
+  DRUG_A_NAME    String?   @db.VarChar(255)
+  DRUG_B_NAME    String?   @db.VarChar(255)
+  /// DDI | Duplicate | AllergyClass | Controlled | Psychiatric
+  ALERT_TYPE     String    @db.VarChar(40)
+  /// Severe | Moderate | Mild
+  SEVERITY       String    @default("Moderate") @db.VarChar(30)
+  MESSAGE        String    @db.Text
+  /// Active | Inactive
+  STATUS         String    @default("Active") @db.VarChar(30)
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+  DELETED_FLAG   String?   @default("N") @db.VarChar(1)
+
+  @@index([ALERT_TYPE])
+  @@index([STATUS])
+  @@index([DRUG_A_ID])
+  @@index([DRUG_B_ID])
+  @@map("DRUG_INTERACTION_RULES")
+}
+
+model ClinicalPharmacyAlerts {
+  ALERT_ID         Int       @id @default(autoincrement())
+  ALERT_NO         String    @unique @db.VarChar(50)
+  PERSON_ID        Int
+  PRESCRIPTION_ID  Int?
+  DOCTOR_USER_ID   Int?
+  /// DDI | Duplicate | Allergy | Controlled | Psychiatric
+  ALERT_TYPE       String    @db.VarChar(40)
+  /// Severe | Moderate | Mild
+  SEVERITY         String    @db.VarChar(30)
+  DRUG_A           String    @db.VarChar(255)
+  DRUG_B           String?   @db.VarChar(255)
+  MESSAGE          String    @db.Text
+  RULE_CODE        String?   @db.VarChar(80)
+  /// Open | Overridden | Notified | Closed
+  STATUS           String    @default("Open") @db.VarChar(30)
+  OVERRIDE_REASON  String?   @db.Text
+  OVERRIDDEN_BY    String?   @db.VarChar(150)
+  OVERRIDDEN_BY_ID Int?
+  OVERRIDDEN_AT    DateTime?
+  NOTIFY_NOTE      String?   @db.Text
+  NOTIFIED_AT      DateTime?
+  NOTIFIED_BY      String?   @db.VarChar(150)
+  NOTIFIED_BY_ID   Int?
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+  DELETED_FLAG     String?   @default("N") @db.VarChar(1)
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([SEVERITY])
+  @@index([ALERT_TYPE])
+  @@index([PRESCRIPTION_ID])
+  @@index([CREATED_DATE])
+  @@map("CLINICAL_PHARMACY_ALERTS")
+}

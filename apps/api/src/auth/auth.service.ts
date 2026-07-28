@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -7,7 +8,9 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Users } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { AuthUser } from './types/auth-user.type';
 import { JwtPayload } from './types/jwt-payload.type';
 import {
@@ -26,6 +29,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   async login(dto: LoginDto) {
@@ -93,6 +97,44 @@ export class AuthService {
     }
 
     return this.toAuthUser(user);
+  }
+
+  async changePassword(userId: number, dto: ChangePasswordDto, actor: AuthUser) {
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException(
+        'New password must be different from current password',
+      );
+    }
+    const user = await this.prisma.users.findUnique({
+      where: { USER_ID: userId },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Invalid session');
+    }
+    await this.verifyPassword(dto.currentPassword, user);
+    const hash = await bcrypt.hash(dto.newPassword, 12);
+    const actorLabel =
+      actor.email ||
+      [actor.firstName, actor.lastName].filter(Boolean).join(' ') ||
+      'SYSTEM';
+    await this.prisma.users.update({
+      where: { USER_ID: userId },
+      data: {
+        PASSWORD: hash,
+        PWD: hash,
+        UPDATED_BY: actorLabel,
+        UPDATED_DATE: new Date(),
+      },
+    });
+    await this.audit.log({
+      type: 'auth:change-password',
+      entity: 'USERS',
+      entityId: userId,
+      userId,
+      createdBy: actorLabel,
+      status: 'Success',
+    });
+    return { success: true };
   }
 
   private async findUserByEmail(email: string): Promise<UserWithRole | null> {

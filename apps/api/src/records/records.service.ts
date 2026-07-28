@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -6,6 +7,8 @@ import {
 import { CardsService } from '../patients/cards.service';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { TriageService } from '../triage/triage.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import type { CreatePersonDto } from '../patients/dto/create-person.dto';
 import type { UpdatePersonDto } from '../patients/dto/update-person.dto';
@@ -20,6 +23,8 @@ export class RecordsService {
     private readonly patients: PatientsService,
     private readonly cards: CardsService,
     private readonly prisma: PrismaService,
+    private readonly triage: TriageService,
+    private readonly audit: AuditService,
   ) {}
 
   /** Create PERSONS + pending PATIENT_CARDS after Next of Kin (steps 1–3). */
@@ -114,6 +119,266 @@ export class RecordsService {
       awaitingTriage,
       awaitingConsultation,
     };
+  }
+
+  private async safeCount(fn: () => Promise<number>): Promise<number> {
+    try {
+      return await fn();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        /(does not exist|Unknown column|column .* does not exist)/i.test(
+          message,
+        )
+      ) {
+        return 0;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Composite Records Officer Overview (/dashboard/records).
+   * Bundles today KPIs, operational queues, recent audit, and derived alerts.
+   */
+  async overview(params?: {
+    timezoneOffsetMinutes?: number;
+    recentLimit?: number;
+  }) {
+    const offsetMin = params?.timezoneOffsetMinutes ?? 60;
+    const recentLimit = Math.min(Math.max(params?.recentLimit ?? 8, 1), 30);
+    const now = new Date();
+
+    const [kpis, directory, audit, pendingTasks, recentArrivals] =
+      await Promise.all([
+        this.dashboardStats({ timezoneOffsetMinutes: offsetMin }),
+        this.directoryStats({ timezoneOffsetMinutes: offsetMin }),
+        this.auditTrail({ page: 1, limit: recentLimit }),
+        this.overviewPendingTasks(),
+        this.overviewArrivalPreview(offsetMin),
+      ]);
+
+    const alerts: {
+      type: 'info' | 'warning' | 'danger' | 'success';
+      message: string;
+      href?: string;
+    }[] = [];
+
+    if (kpis.pendingRegistration > 0) {
+      alerts.push({
+        type: 'warning',
+        message: `${kpis.pendingRegistration} registration card(s) awaiting payment`,
+        href: '/hms/identity',
+      });
+    }
+    if (kpis.awaitingTriage > 0) {
+      alerts.push({
+        type: 'warning',
+        message: `${kpis.awaitingTriage} patient(s) awaiting triage`,
+        href: '/records/triage',
+      });
+    }
+    if (pendingTasks.overdueFileRequests > 0) {
+      alerts.push({
+        type: 'danger',
+        message: `${pendingTasks.overdueFileRequests} medical file request(s) overdue`,
+        href: '/records/retrieval',
+      });
+    }
+    if (pendingTasks.openAdmissionRequests > 0) {
+      alerts.push({
+        type: 'info',
+        message: `${pendingTasks.openAdmissionRequests} admission request(s) need Records action`,
+        href: '/records/admissions',
+      });
+    }
+    if (pendingTasks.openTransfers > 0) {
+      alerts.push({
+        type: 'info',
+        message: `${pendingTasks.openTransfers} transfer(s) awaiting bed allocate / verify`,
+        href: '/records/transfers',
+      });
+    }
+    if (pendingTasks.openReferrals > 0) {
+      alerts.push({
+        type: 'info',
+        message: `${pendingTasks.openReferrals} referral(s) in Records queue`,
+        href: '/records/referrals',
+      });
+    }
+    if (directory.duplicatesFlagged > 0) {
+      alerts.push({
+        type: 'warning',
+        message: `${directory.duplicatesFlagged} possible duplicate phone group(s)`,
+        href: '/records/duplicates',
+      });
+    }
+    if (directory.incompleteProfiles > 0) {
+      alerts.push({
+        type: 'info',
+        message: `${directory.incompleteProfiles} incomplete patient profile(s)`,
+        href: '/records/directory',
+      });
+    }
+    if (alerts.length === 0) {
+      alerts.push({
+        type: 'success',
+        message: 'No outstanding Records queues right now',
+      });
+    }
+
+    return {
+      asOf: now.toISOString(),
+      timezoneOffsetMinutes: offsetMin,
+      kpis: {
+        totalToday: kpis.totalToday,
+        newToday: kpis.newToday,
+        returningToday: kpis.returningToday,
+        walkInToday: kpis.walkInToday,
+        emergencyToday: kpis.emergencyToday,
+        pendingRegistration: kpis.pendingRegistration,
+        awaitingTriage: kpis.awaitingTriage,
+        awaitingConsultation: kpis.awaitingConsultation,
+        totalPatients: directory.totalPatients,
+        incompleteProfiles: directory.incompleteProfiles,
+        duplicatesFlagged: directory.duplicatesFlagged,
+        openFileRequests: pendingTasks.openFileRequests,
+        openAdmissionRequests: pendingTasks.openAdmissionRequests,
+        openTransfers: pendingTasks.openTransfers,
+        openReferrals: pendingTasks.openReferrals,
+        dischargesPending: pendingTasks.dischargesPending,
+      },
+      pendingTasks,
+      recentActivity: audit.items.map((a) => ({
+        id: String(a.auditId),
+        actor: a.officer,
+        action: `${a.action}${a.patient && a.patient !== '-' ? ` — ${a.patient}` : ''}`,
+        timestamp: a.time,
+        module: a.module,
+        href: a.personId
+          ? `/records/patient-directory/${a.personId}/profile`
+          : '/records/audit',
+      })),
+      recentArrivals,
+      alerts,
+    };
+  }
+
+  private async overviewPendingTasks() {
+    const [
+      openFileRequests,
+      overdueFileRequests,
+      openAdmissionRequests,
+      openTransfers,
+      openReferrals,
+      dischargesPending,
+      archivesDueReview,
+    ] = await Promise.all([
+      this.safeCount(() =>
+        this.prisma.recordFileRequests.count({
+          where: {
+            NOT: { DELETED_FLAG: 'Y' },
+            STATUS: {
+              in: ['Requested', 'Released', 'In Transit', 'Overdue'],
+            },
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.recordFileRequests.count({
+          where: {
+            NOT: { DELETED_FLAG: 'Y' },
+            STATUS: 'Overdue',
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.admissionRequests.count({
+          where: {
+            STATUS: { in: ['Submitted', 'UnderReview', 'Approved'] },
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.patientTransfers.count({
+          where: {
+            STATUS: {
+              in: ['AwaitingBed', 'BedReserved', 'ReceivingAccepted', 'InTransit'],
+            },
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.clinicalReferrals.count({
+          where: {
+            STATUS: {
+              in: [
+                'Submitted',
+                'UnderReview',
+                'QueuedForDept',
+                'AwaitingBed',
+                'BedAllocated',
+              ],
+            },
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.dischargeDrafts.count({
+          where: {
+            STATUS: {
+              in: [
+                'Submitted',
+                'AwaitingPayment',
+                'PaymentCleared',
+                'Returned',
+              ],
+            },
+          },
+        }),
+      ),
+      this.safeCount(() =>
+        this.prisma.recordArchives.count({
+          where: {
+            NOT: { DELETED_FLAG: 'Y' },
+            STATUS: 'Archived',
+            DUE_REVIEW_AT: { lte: new Date() },
+          },
+        }),
+      ),
+    ]);
+
+    return {
+      openFileRequests,
+      overdueFileRequests,
+      openAdmissionRequests,
+      openTransfers,
+      openReferrals,
+      dischargesPending,
+      archivesDueReview,
+    };
+  }
+
+  private async overviewArrivalPreview(offsetMin: number) {
+    try {
+      const arrivals = await this.arrivals({
+        page: 1,
+        limit: 6,
+        timezoneOffsetMinutes: offsetMin,
+      });
+      return arrivals.items.map((row) => ({
+        arrivalNo: row.arrivalNo,
+        personId: row.personId,
+        name: row.name,
+        hospitalId: row.hospitalId,
+        type: row.type,
+        routing: row.routing,
+        arrival: row.arrival,
+        href: '/records/arrivals',
+      }));
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -527,7 +792,468 @@ export class RecordsService {
     if (type.startsWith('triage')) return 'Triage';
     if (type.startsWith('auth')) return 'Auth';
     if (type.startsWith('document')) return 'Documents';
+    if (type.startsWith('arrival')) return 'Arrivals';
     return 'Records';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Patient Arrival / Check-In (/records/arrivals)
+  // ---------------------------------------------------------------------------
+
+  async arrivals(params?: {
+    q?: string;
+    type?: string;
+    routing?: string;
+    page?: number;
+    limit?: number;
+    timezoneOffsetMinutes?: number;
+  }) {
+    const offsetMin = params?.timezoneOffsetMinutes ?? 60;
+    const { startOfDay, endOfDay } = this.dayBounds(offsetMin);
+    const page = Math.max(params?.page ?? 1, 1);
+    const limit = Math.min(Math.max(params?.limit ?? 50, 1), 200);
+    const q = params?.q?.trim()?.toLowerCase();
+    const typeFilter =
+      params?.type && params.type !== 'all' ? params.type : undefined;
+    const routingFilter =
+      params?.routing && params.routing !== 'all'
+        ? params.routing
+        : undefined;
+
+    const triageRows = await this.prisma.triage.findMany({
+      where: {
+        ARRIVAL_AT: { gte: startOfDay, lt: endOfDay },
+        STATUS: { not: 'Cancelled' },
+      },
+      include: {
+        person: {
+          include: {
+            cards: { orderBy: { CREATED_DATE: 'desc' }, take: 1 },
+          },
+        },
+      },
+      orderBy: { ARRIVAL_AT: 'desc' },
+    });
+
+    const triagePersonIds = new Set(triageRows.map((t) => t.PERSON_ID));
+
+    // Paid / Active registrations today that have not been checked into triage yet
+    const pendingCheckIn = await this.prisma.persons.findMany({
+      where: {
+        CREATED_DATE: { gte: startOfDay, lt: endOfDay },
+        DISCONTINUE_FLAG: { not: 'Y' },
+        PERSON_ID: { notIn: [...triagePersonIds] },
+        cards: {
+          some: {
+            PAYMENT_STATUS: { in: ['Paid', 'Waived'] },
+          },
+        },
+      },
+      include: {
+        cards: { orderBy: { CREATED_DATE: 'desc' }, take: 1 },
+        triage: {
+          where: { ARRIVAL_AT: { gte: startOfDay, lt: endOfDay } },
+          take: 1,
+        },
+      },
+      orderBy: { CREATED_DATE: 'desc' },
+      take: 200,
+    });
+
+    const items = [
+      ...triageRows.map((t) => this.toArrivalFromTriage(t)),
+      ...pendingCheckIn
+        .filter((p) => p.triage.length === 0)
+        .map((p) => this.toArrivalFromPerson(p)),
+    ];
+
+    let filtered = items;
+    if (typeFilter) {
+      filtered = filtered.filter((r) => r.type === typeFilter);
+    }
+    const wantCheckedOut =
+      routingFilter === 'Checked Out' ||
+      routingFilter === 'checkedout' ||
+      routingFilter === 'CheckedOut';
+
+    if (routingFilter && !wantCheckedOut) {
+      filtered = filtered.filter((r) => r.routing === routingFilter);
+    }
+    if (q) {
+      filtered = filtered.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          r.hospitalId.toLowerCase().includes(q) ||
+          r.arrivalNo.toLowerCase().includes(q),
+      );
+    }
+
+    // Include cancelled (checked out) from today for the checked-out tab
+    if (wantCheckedOut || !routingFilter) {
+      const checkedOut = await this.prisma.triage.findMany({
+        where: {
+          ARRIVAL_AT: { gte: startOfDay, lt: endOfDay },
+          STATUS: 'Cancelled',
+        },
+        include: {
+          person: {
+            include: {
+              cards: { orderBy: { CREATED_DATE: 'desc' }, take: 1 },
+            },
+          },
+        },
+        orderBy: { UPDATED_DATE: 'desc' },
+      });
+      const checkoutRows = checkedOut.map((t) => this.toArrivalFromTriage(t));
+      if (wantCheckedOut) {
+        filtered = checkoutRows.filter(
+          (r) =>
+            !q ||
+            r.name.toLowerCase().includes(q) ||
+            r.hospitalId.toLowerCase().includes(q) ||
+            r.arrivalNo.toLowerCase().includes(q),
+        );
+        if (typeFilter) {
+          filtered = filtered.filter((r) => r.type === typeFilter);
+        }
+      } else if (!typeFilter) {
+        // merge checked out into all view
+        const existing = new Set(filtered.map((r) => r.arrivalNo));
+        for (const row of checkoutRows) {
+          if (!existing.has(row.arrivalNo)) filtered.push(row);
+        }
+      }
+    }
+
+    const summary = {
+      total: items.length + (await this.prisma.triage.count({
+        where: {
+          ARRIVAL_AT: { gte: startOfDay, lt: endOfDay },
+          STATUS: 'Cancelled',
+        },
+      })),
+      walkIn: items.filter((r) => r.type === 'Walk-In').length,
+      appointment: items.filter((r) => r.type === 'Appointment').length,
+      referral: items.filter((r) => r.type === 'Referral').length,
+      emergency: items.filter((r) => r.type === 'Emergency').length,
+      awaitingTriage: items.filter((r) => r.routing === 'Awaiting Triage')
+        .length,
+      awaitingConsultation: items.filter(
+        (r) => r.routing === 'Awaiting Consultation',
+      ).length,
+      checkedOut: await this.prisma.triage.count({
+        where: {
+          ARRIVAL_AT: { gte: startOfDay, lt: endOfDay },
+          STATUS: 'Cancelled',
+        },
+      }),
+    };
+
+    const total = filtered.length;
+    return {
+      asOf: new Date().toISOString(),
+      summary,
+      items: filtered.slice((page - 1) * limit, page * limit),
+      meta: { page, limit, total },
+    };
+  }
+
+  async routeArrival(
+    dto: {
+      personId: number;
+      triageId?: number;
+      action: 'triage' | 'consult' | 'emergency' | 'checkout';
+      clinic?: string;
+    },
+    actor?: AuthUser,
+  ) {
+    const person = await this.prisma.persons.findUnique({
+      where: { PERSON_ID: dto.personId },
+    });
+    if (!person || person.DISCONTINUE_FLAG === 'Y') {
+      throw new NotFoundException('Person not found');
+    }
+
+    let triageId = dto.triageId;
+    let triage =
+      triageId != null
+        ? await this.prisma.triage.findUnique({ where: { TRIAGE_ID: triageId } })
+        : await this.prisma.triage.findFirst({
+            where: {
+              PERSON_ID: dto.personId,
+              STATUS: { not: 'Cancelled' },
+            },
+            orderBy: { ARRIVAL_AT: 'desc' },
+          });
+
+    if (triage && triage.PERSON_ID !== dto.personId) {
+      throw new BadRequestException('Triage does not belong to this person');
+    }
+
+    const label = actor
+      ? [actor.firstName, actor.lastName].filter(Boolean).join(' ') ||
+        actor.email
+      : 'SYSTEM';
+
+    if (dto.action === 'triage' || dto.action === 'emergency') {
+      if (!triage) {
+        const created = await this.triage.create(
+          {
+            personId: dto.personId,
+            clinic: dto.clinic ?? undefined,
+            status: 'Waiting',
+            priority: dto.action === 'emergency' ? 'Emergency' : 'Routine',
+            patientType:
+              dto.action === 'emergency' ? 'Emergency' : undefined,
+          },
+          actor,
+        );
+        triageId = created.triageId;
+        triage = await this.prisma.triage.findUnique({
+          where: { TRIAGE_ID: triageId },
+        });
+      } else {
+        await this.triage.update(
+          triage.TRIAGE_ID,
+          {
+            status: 'Waiting',
+            ...(dto.action === 'emergency'
+              ? { priority: 'Emergency', patientType: 'Emergency' }
+              : {}),
+            ...(dto.clinic ? { clinic: dto.clinic } : {}),
+          },
+          actor,
+        );
+        triageId = triage.TRIAGE_ID;
+      }
+    } else if (dto.action === 'consult') {
+      // Payment must be cleared before a patient enters the doctor queue
+      // (create path already gates via TriageService.create).
+      await this.cards.assertPaymentCleared(dto.personId);
+      if (!triage) {
+        const created = await this.triage.create(
+          {
+            personId: dto.personId,
+            clinic: dto.clinic ?? undefined,
+            status: 'Sent to Consultation',
+            priority: 'Routine',
+          },
+          actor,
+        );
+        triageId = created.triageId;
+      } else {
+        await this.triage.update(
+          triage.TRIAGE_ID,
+          {
+            status: 'Sent to Consultation',
+            ...(dto.clinic ? { clinic: dto.clinic } : {}),
+          },
+          actor,
+        );
+        triageId = triage.TRIAGE_ID;
+      }
+    } else if (dto.action === 'checkout') {
+      if (!triage) {
+        throw new BadRequestException(
+          'Patient is not checked in — nothing to check out',
+        );
+      }
+      await this.triage.update(
+        triage.TRIAGE_ID,
+        { status: 'Cancelled' },
+        actor,
+      );
+      triageId = triage.TRIAGE_ID;
+    } else {
+      throw new BadRequestException(
+        'action must be triage, consult, emergency, or checkout',
+      );
+    }
+
+    await this.audit.log({
+      type: `arrival:${dto.action}`,
+      entity: 'triage',
+      entityId: triageId,
+      personId: dto.personId,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Arrival routed: ${dto.action} for person ${dto.personId}`,
+      newValue: { action: dto.action, triageId, clinic: dto.clinic ?? null },
+    });
+
+    const refreshed = await this.prisma.triage.findUnique({
+      where: { TRIAGE_ID: triageId! },
+      include: {
+        person: {
+          include: {
+            cards: { orderBy: { CREATED_DATE: 'desc' }, take: 1 },
+          },
+        },
+      },
+    });
+    if (!refreshed) throw new NotFoundException('Triage record not found');
+    return this.toArrivalFromTriage(refreshed);
+  }
+
+  private dayBounds(offsetMin: number) {
+    const now = new Date();
+    const localMs = now.getTime() + offsetMin * 60_000;
+    const local = new Date(localMs);
+    const startLocal = new Date(
+      Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()),
+    );
+    const startOfDay = new Date(startLocal.getTime() - offsetMin * 60_000);
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    return { startOfDay, endOfDay };
+  }
+
+  private mapTriageRouting(status: string, priority: string): string {
+    if (priority === 'Emergency' && status !== 'Cancelled') return 'Emergency';
+    switch (status) {
+      case 'Waiting':
+        return 'Awaiting Triage';
+      case 'In Triage':
+        return 'In Triage';
+      case 'Triage Completed':
+        return 'Awaiting Consultation';
+      case 'Sent to Consultation':
+        return 'Awaiting Consultation';
+      case 'In Consultation':
+        return 'In Consultation';
+      case 'Cancelled':
+        return 'Checked Out';
+      default:
+        return 'Awaiting Triage';
+    }
+  }
+
+  private mapArrivalType(person: {
+    REG_TYPE?: string | null;
+    PATIENT_TYPE?: string | null;
+  }, triage?: { PRIORITY?: string | null; PATIENT_TYPE?: string | null }): string {
+    if (
+      triage?.PRIORITY === 'Emergency' ||
+      /emergency/i.test(triage?.PATIENT_TYPE ?? '') ||
+      /emergency/i.test(person.PATIENT_TYPE ?? '') ||
+      /emergency/i.test(person.REG_TYPE ?? '')
+    ) {
+      return 'Emergency';
+    }
+    const reg = person.REG_TYPE ?? '';
+    if (/appoint/i.test(reg)) return 'Appointment';
+    if (/refer/i.test(reg)) return 'Referral';
+    return 'Walk-In';
+  }
+
+  private mapVisit(person: {
+    PATIENT_TYPE?: string | null;
+  }, triage?: { PATIENT_TYPE?: string | null }): string {
+    const t = triage?.PATIENT_TYPE || person.PATIENT_TYPE || '';
+    if (/emergency/i.test(t)) return 'Emergency';
+    if (/return/i.test(t) || /follow/i.test(t)) return 'Follow-up';
+    return 'New';
+  }
+
+  private mapPayment(person: {
+    NHIS_NO?: string | null;
+    HMO_ID?: number | null;
+  }, card?: { PAYMENT_STATUS?: string | null } | null): string {
+    if (person.NHIS_NO) return 'NHIA';
+    if (person.HMO_ID != null) return 'HMO';
+    if (card?.PAYMENT_STATUS === 'Pending') return 'Pending';
+    return 'Paid';
+  }
+
+  private personDisplayName(p: {
+    FIRST_NAME?: string | null;
+    MIDDLE_NAME?: string | null;
+    LAST_NAME?: string | null;
+  }) {
+    return (
+      [p.FIRST_NAME, p.MIDDLE_NAME, p.LAST_NAME].filter(Boolean).join(' ') ||
+      'Unknown'
+    );
+  }
+
+  private toArrivalFromTriage(t: {
+    TRIAGE_ID: number;
+    PERSON_ID: number;
+    QUEUE_NO: string;
+    CLINIC: string | null;
+    STATUS: string;
+    PRIORITY: string;
+    PATIENT_TYPE: string | null;
+    ARRIVAL_AT: Date;
+    person: {
+      HOSPITAL_NO: string | null;
+      FIRST_NAME: string | null;
+      MIDDLE_NAME: string | null;
+      LAST_NAME: string | null;
+      REG_TYPE: string | null;
+      PATIENT_TYPE: string | null;
+      NHIS_NO: string | null;
+      HMO_ID: number | null;
+      DATE_OF_REGISTRATION: Date | null;
+      CREATED_DATE: Date | null;
+      cards: Array<{ PAYMENT_STATUS: string | null }>;
+    };
+  }) {
+    const card = t.person.cards[0] ?? null;
+    return {
+      triageId: t.TRIAGE_ID,
+      personId: t.PERSON_ID,
+      arrivalNo: t.QUEUE_NO,
+      hospitalId: t.person.HOSPITAL_NO || `PERSON_${t.PERSON_ID}`,
+      name: this.personDisplayName(t.person),
+      type: this.mapArrivalType(t.person, t),
+      clinic: t.CLINIC || 'General OPD',
+      arrival: t.ARRIVAL_AT.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      arrivalAt: t.ARRIVAL_AT.toISOString(),
+      visit: this.mapVisit(t.person, t),
+      routing: this.mapTriageRouting(t.STATUS, t.PRIORITY),
+      payment: this.mapPayment(t.person, card),
+      lastVisit: null as string | null,
+      status: t.STATUS,
+    };
+  }
+
+  private toArrivalFromPerson(p: {
+    PERSON_ID: number;
+    HOSPITAL_NO: string | null;
+    FIRST_NAME: string | null;
+    MIDDLE_NAME: string | null;
+    LAST_NAME: string | null;
+    REG_TYPE: string | null;
+    PATIENT_TYPE: string | null;
+    NHIS_NO: string | null;
+    HMO_ID: number | null;
+    CREATED_DATE: Date | null;
+    cards: Array<{ PAYMENT_STATUS: string | null }>;
+  }) {
+    const card = p.cards[0] ?? null;
+    const at = p.CREATED_DATE ?? new Date();
+    return {
+      triageId: null as number | null,
+      personId: p.PERSON_ID,
+      arrivalNo: `PEND-${p.PERSON_ID}`,
+      hospitalId: p.HOSPITAL_NO || `PERSON_${p.PERSON_ID}`,
+      name: this.personDisplayName(p),
+      type: this.mapArrivalType(p),
+      clinic: 'General OPD',
+      arrival: at.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      arrivalAt: at.toISOString(),
+      visit: this.mapVisit(p),
+      routing: 'Awaiting Triage',
+      payment: this.mapPayment(p, card),
+      lastVisit: null as string | null,
+      status: 'Pending Check-In',
+    };
   }
 
   private toDirectoryItem(row: {

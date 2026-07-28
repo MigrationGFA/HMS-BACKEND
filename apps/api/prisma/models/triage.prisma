@@ -6,7 +6,7 @@ model Triage {
   PERSON_ID        Int
   QUEUE_NO         String    @unique @db.VarChar(50)
   CLINIC           String?   @db.VarChar(100)
-  /// Waiting | In Triage | Triage Completed | Sent to Consultation | Cancelled
+  /// Waiting | In Triage | Triage Completed | Sent to Consultation | In Consultation | Cancelled
   STATUS           String    @db.VarChar(50)
   /// Routine | Urgent | Emergency | VIP | Elderly / Special Needs
   PRIORITY         String    @default("Routine") @db.VarChar(50)
@@ -30,9 +30,10 @@ model Triage {
   UPDATED_BY       String?   @db.VarChar(100)
   UPDATED_DATE     DateTime?
 
-  person    Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
-  createdBy Users?  @relation("TriageCreatedBy", fields: [CREATED_BY_ID], references: [USER_ID])
-  updatedBy Users?  @relation("TriageUpdatedBy", fields: [UPDATED_BY_ID], references: [USER_ID])
+  person     Persons     @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  createdBy  Users?      @relation("TriageCreatedBy", fields: [CREATED_BY_ID], references: [USER_ID])
+  updatedBy  Users?      @relation("TriageUpdatedBy", fields: [UPDATED_BY_ID], references: [USER_ID])
+  encounters Encounters?
 
   @@index([PERSON_ID])
   @@index([STATUS])

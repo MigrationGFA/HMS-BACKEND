@@ -1,0 +1,76 @@
+// Doctor research registry, trials, and clinical audit projects.
+// Soft-delete only — never hard-delete research governance rows.
+
+model ResearchRegistryEntries {
+  ENTRY_ID         Int       @id @default(autoincrement())
+  PERSON_ID        Int?
+  PATIENT_LABEL    String    @db.VarChar(200)
+  DIAGNOSIS        String    @db.VarChar(255)
+  ELIGIBILITY      String    @default("Eligible") @db.VarChar(50)
+  /// Pending | Granted | Declined | Withdrawn
+  CONSENT          String    @default("Pending") @db.VarChar(30)
+  ENROLLED_BY      String?   @db.VarChar(150)
+  STUDY_GROUP      String    @db.VarChar(200)
+  /// Active | Completed | Withdrawn
+  STATUS           String    @default("Active") @db.VarChar(30)
+  /// GMPC | OPC | Other
+  CLINIC           String    @default("OPC") @db.VarChar(30)
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+  DELETED_FLAG     String?   @default("N") @db.VarChar(1)
+
+  @@index([STATUS])
+  @@index([CLINIC])
+  @@index([CREATED_DATE])
+  @@map("RESEARCH_REGISTRY_ENTRIES")
+}
+
+model ResearchTrials {
+  TRIAL_ID         Int       @id @default(autoincrement())
+  NAME             String    @db.VarChar(255)
+  PI               String    @db.VarChar(150)
+  ELIGIBLE_COUNT   Int       @default(0)
+  ENROLLED_COUNT   Int       @default(0)
+  START_DATE       DateTime?
+  /// Recruiting | Active | Completed | Suspended
+  STATUS           String    @default("Recruiting") @db.VarChar(30)
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+  DELETED_FLAG     String?   @default("N") @db.VarChar(1)
+
+  @@index([STATUS])
+  @@index([CREATED_DATE])
+  @@map("RESEARCH_TRIALS")
+}
+
+model ClinicalAuditProjects {
+  PROJECT_ID       Int       @id @default(autoincrement())
+  TITLE            String    @db.VarChar(255)
+  DEPARTMENT       String    @db.VarChar(150)
+  LEAD             String    @db.VarChar(150)
+  INDICATOR        String    @db.VarChar(255)
+  STANDARD         String    @db.VarChar(100)
+  PERFORMANCE      String?   @db.VarChar(100)
+  /// Planning | In Progress | Completed
+  STATUS           String    @default("Planning") @db.VarChar(30)
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+  DELETED_FLAG     String?   @default("N") @db.VarChar(1)
+
+  @@index([STATUS])
+  @@index([DEPARTMENT])
+  @@index([CREATED_DATE])
+  @@map("CLINICAL_AUDIT_PROJECTS")
+}

@@ -58,7 +58,13 @@ export class AuditService {
     const page = Math.max(params?.page ?? 1, 1);
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 200);
     const where = {
-      ...(params?.type ? { AUDIT_TYPE: params.type } : {}),
+      ...(params?.type
+        ? params.type.endsWith('*')
+          ? { AUDIT_TYPE: { startsWith: params.type.slice(0, -1) } }
+          : params.type.endsWith(':')
+            ? { AUDIT_TYPE: { startsWith: params.type } }
+            : { AUDIT_TYPE: params.type }
+        : {}),
       ...(params?.personId != null ? { PERSON_ID: params.personId } : {}),
       ...(params?.userId != null ? { USER_ID: params.userId } : {}),
     };
@@ -89,6 +95,53 @@ export class AuditService {
         oldValue: r.OLD_VALUE,
       })),
       meta: { page, limit, total },
+    };
+  }
+
+  async stats(params?: { timezoneOffsetMinutes?: number }) {
+    const offsetMin = params?.timezoneOffsetMinutes ?? 60;
+    const now = new Date();
+    const localMs = now.getTime() + offsetMin * 60_000;
+    const local = new Date(localMs);
+    const startLocal = new Date(
+      Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()),
+    );
+    const startOfDay = new Date(startLocal.getTime() - offsetMin * 60_000);
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    const today = { CREATE_DATE: { gte: startOfDay, lt: endOfDay } };
+
+    const [total, todayCount, emergencyOverrides, noteEdits, prescriptionChanges, flagged] =
+      await Promise.all([
+        this.prisma.audits.count(),
+        this.prisma.audits.count({ where: today }),
+        this.prisma.audits.count({
+          where: { AUDIT_TYPE: { startsWith: 'emergency:' } },
+        }),
+        this.prisma.audits.count({
+          where: { AUDIT_TYPE: { startsWith: 'clinical-note:' } },
+        }),
+        this.prisma.audits.count({
+          where: { AUDIT_TYPE: { startsWith: 'prescription:' } },
+        }),
+        this.prisma.audits.count({
+          where: {
+            OR: [
+              { STATUS: { equals: 'Flagged' } },
+              { STATUS: { equals: 'Suspicious' } },
+              { STATUS: { contains: 'fail', mode: 'insensitive' } },
+            ],
+          },
+        }),
+      ]);
+
+    return {
+      asOf: now.toISOString(),
+      total,
+      today: todayCount,
+      emergencyOverrides,
+      noteEdits,
+      prescriptionChanges,
+      flagged,
     };
   }
 }

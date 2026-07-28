@@ -17,12 +17,30 @@ apps/api/prisma/
 │   ├── patients.prisma       # PERSONS
 │   ├── cards.prisma          # PATIENT_CARDS (registration card + payment gate)
 │   ├── triage.prisma         # TRIAGE
-│   ├── audit.prisma          # AUDITS (with AUDIT_TYPE)
-│   ├── admissions.prisma     # WARDS, BEDS, ADMISSIONS
+│   ├── encounters.prisma     # ENCOUNTERS
+│   ├── followups.prisma      # FOLLOW_UPS
+│   ├── clinical-notes.prisma # CLINICAL_NOTES + CLINICAL_NOTE_VERSIONS
+│   ├── admissions.prisma     # WARDS (+GENDER), BEDS, ADMISSIONS, ADMISSION_REQUESTS, ADMISSION_BILLING_ITEMS, ADMISSION_BILLS, ADMISSION_BILL_LINES
+│   ├── transfers.prisma      # PATIENT_TRANSFERS, PATIENT_TRANSFER_EVENTS, NOTIFICATIONS
+│   ├── referrals.prisma      # CLINICAL_REFERRALS, CLINICAL_REFERRAL_EVENTS
+│   ├── discharge.prisma      # DISCHARGE_DRAFTS, DISCHARGE_DRAFT_EVENTS
+│   ├── certificates.prisma   # CERTIFICATE_TEMPLATES, CLINICAL_CERTIFICATES, CLINICAL_CERTIFICATE_EVENTS
+│   ├── clinical-diagnoses.prisma # DIAGNOSIS_CODES, PATIENT_DIAGNOSES
 │   ├── nursing-care.prisma   # nursing notes/vitals/care plans/obs/incidents/forms
 │   ├── nursing-ops.prisma    # orders, tasks, MAR, shifts, handover, ICU, messages, reports
 │   ├── pharmacy.prisma       # SUPPLIERS, SUPPLIER_DRUGS, DRUGS, DRUG_BATCHES, PRs/POs/GRNs
-│   └── prescriptions.prisma  # PRESCRIPTIONS, PRESCRIPTION_ITEMS
+│   ├── pharmacy-sales.prisma
+│   ├── pharmacy-returns.prisma
+│   ├── pharmacy-settings.prisma
+│   ├── prescriptions.prisma  # PRESCRIPTIONS, PRESCRIPTION_ITEMS
+│   ├── laboratory.prisma     # LAB_TESTS, LAB_REQUESTS(+LAB_STATUS), LAB_REQUEST_ITEMS, LAB_RESULT_TEMPLATES, LAB_SAMPLES, LAB_RESULTS, LAB_RESULT_VERSIONS
+│   ├── lab-specialty.prisma  # LAB_DRUG_SCREENS(+RESULTS), LAB_CULTURES(+SENSITIVITIES), LAB_REPORT_SNAPSHOTS, LAB_SFA_ANALYSES, LAB_SPECIMEN_TRACKING(+EVENTS), LAB_HISTOPATHOLOGY_CASES, LAB_QC_RUNS
+│   ├── blood-bank.prisma     # BLOOD_DONORS, BLOOD_UNITS, BLOOD_REQUESTS, BLOOD_REQUEST_EVENTS, BLOOD_CROSSMATCHES
+│   ├── support.prisma        # SUPPORT_REQUESTS
+│   ├── records-ops.prisma    # RECORD_FILE_REQUESTS(+EVENTS), RECORD_ARCHIVES, RECORD_REPORT_SNAPSHOTS
+│   ├── cashier-ops.prisma    # CASHIER_PAYMENT_RECEIPTS, CASHIER_REFUND_REQUESTS, CASHIER_DISCOUNT_REQUESTS, CASHIER_SHIFTS, CASHIER_SETTINGS
+│   ├── clinical-pharmacy.prisma # PATIENT_ALLERGIES, DRUG_INTERACTION_RULES, CLINICAL_PHARMACY_ALERTS
+│   └── audit.prisma          # AUDITS (with AUDIT_TYPE)
 ├── migrations/
 └── seed.ts
 ```
@@ -34,15 +52,53 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | Table | Model | Purpose |
 |-------|-------|---------|
 | `PERSONS` | `Persons` | Patient identity (single source of truth for demographics / NOK) |
-| `USERS` | `Users` | Staff accounts |
+| `USERS` | `Users` | Staff accounts; clinical profile fields `LICENSE_NUMBER`, `SPECIALTIES`, `SUB_SPECIALTY`, `QUALIFICATIONS`, `DEPARTMENT_NAME`, `CLINIC_NAME`, `CONSULTATION_HOURS`, `WARD_ASSIGNMENT` |
 | `ROLES` | `Roles` | RBAC roles (seeded) |
 | `REFRESH_TOKENS` | `RefreshToken` | JWT refresh sessions |
 | `TRIAGE` | `Triage` | Queue + vitals; stores `PERSON_ID` only (no duplicated demographics). Also backing store for Nursing Patient Queues (`/api/nursing/patient-queues*`) |
 | `PATIENT_CARDS` | `PatientCards` | Registration card per person; `PAYMENT_STATUS` starts `Pending` and gates the workflow until a cashier confirms |
 | `AUDITS` | `Audits` | Immutable audit trail with filterable `AUDIT_TYPE` |
-| `WARDS` | `Wards` | Inpatient wards |
-| `BEDS` | `Beds` | Beds per ward (`AVAILABLE` / `OCCUPIED` / `CLEANING` / …) |
+| `WARDS` | `Wards` | Inpatient wards; `CODE`, `NAME`, `WARD_CLASS`, `GENDER` (Male\|Female\|Mixed), rates, `STATUS` Active\|Inactive. Standard testing codes: MGEN, FGEN, MIXG, MVIP, FVIP, GEN, PRIV, SEMI, VIP, ICU, W1C (20 beds each via migration `20260721160000_standard_wards_beds`) |
+| `BEDS` | `Beds` | Beds per ward; `LABEL` (01–20), `STATUS` (`AVAILABLE` / `OCCUPIED` / `CLEANING` / `RESERVED` / `OUT_OF_SERVICE`). Admit sets OCCUPIED; discharge frees AVAILABLE |
+| `IMAGING_STUDIES` | `ImagingStudies` | Priced radiology catalog (modality + unit price); migration `20260721170000_imaging_requests` |
+| `IMAGING_REQUESTS` | `ImagingRequests` | Doctor imaging orders; `PAYMENT_STATUS` Unpaid\|Paid\|Waived (cashier confirms) |
+| `IMAGING_REQUEST_ITEMS` | `ImagingRequestItems` | Snapshotted study lines on a request |
+| `IMAGING_REPORTS` | `ImagingReports` | Radiologist reports (`IRPT-YYYY-####`); Draft\|Released; `CRITICAL` Y/N + doctor ack; migration `20260727200000_imaging_reports` |
+| `PATIENT_TRANSFERS` | `PatientTransfers` | Multi-role transfer requests (`XFR-YYYY-####`); statuses Draft→Completed (+ Rejected/Cancelled); migration `20260721180000_patient_transfers` |
+| `PATIENT_TRANSFER_EVENTS` | `PatientTransferEvents` | Immutable step log per transfer |
+| `CLINICAL_REFERRALS` | `ClinicalReferrals` | Clinical referrals (`REF-YYYY-####`); Internal/External; Outpatient/Inpatient; state machine Draft→Submitted→…→Completed/Admitted/ClearedExternal (+ Returned/Rejected/Cancelled); migration `20260721190000_clinical_referrals` |
+| `CLINICAL_REFERRAL_EVENTS` | `ClinicalReferralEvents` | Immutable step log per referral |
+| `DISCHARGE_DRAFTS` | `DischargeDrafts` | Doctor discharge drafts (`DSD-YYYY-####`); statuses Draft→AwaitingPayment→PaymentCleared→Discharged (+ Returned/Cancelled); migration `20260721200000_discharge_drafts` |
+| `CERTIFICATE_TEMPLATES` | `CertificateTemplates` | Certificate/report template store (16 DOC_TYPES seeded); `FIELD_SCHEMA` JSON; migration `20260722120000_doctor_profile_and_certificates` |
+| Blood bank tables | see above | Migration `20260722140000_lab_blood_bank`; donors + doctor/donor FKs in `20260724160000_lab_specialty_blood_donors` |
+| Lab specialty tables | see `lab-specialty.prisma` | Drug screens/cultures/reports (`20260724160000`); SFA + specimens (`20260724180000`); histopathology + QC + catalog gaps (`20260724190000_lab_histo_qc`) |
+| `LAB_SFA_ANALYSES` | `LabSfaAnalyses` | Seminal fluid analyses (`SFA-YYYY-####`); macro/micro fields; statuses Draft\|Submitted\|Validated\|Rejected; soft delete |
+| `LAB_SPECIMEN_TRACKING` | `LabSpecimenTracking` | Specimen tracking (`SPC-YYYY-####`); location + TAT; statuses In Transit\|Received\|Rejected\|Lost\|Delayed\|Completed |
+| `LAB_SPECIMEN_EVENTS` | `LabSpecimenEvents` | Immutable chain-of-custody events (Registered\|Transferred\|Received\|Rejected\|Lost\|Delayed\|Completed) |
+| `LAB_HISTOPATHOLOGY_CASES` | `LabHistopathologyCases` | Histo cases (`HST-YYYY-####`); stages Received→Released; report fields; migration `20260724190000_lab_histo_qc` |
+| `LAB_QC_RUNS` | `LabQcRuns` | QC runs (`QC-YYYY-####`) + CAPA; freq Daily\|Weekly\|Monthly\|Calibration |
+| `SUPPORT_REQUESTS` | `SupportRequests` | Staff support tickets (`SR-YYYY-####`); statuses Open\|In Progress\|Resolved\|Closed; soft delete; migration `20260727120000_support_requests` |
+| `RECORD_FILE_REQUESTS` | `RecordFileRequests` | Physical chart retrieval (`RFR-YYYY-####`); migration `20260727160000_records_file_archive_reports` |
+| `RECORD_FILE_REQUEST_EVENTS` | `RecordFileRequestEvents` | Immutable retrieval status events |
+| `RECORD_ARCHIVES` | `RecordArchives` | Archive catalog (`RA-YYYY-####`); categories Inactive\|Deceased\|Long-Stay\|Restricted\|Legal Hold |
+| `RECORD_REPORT_SNAPSHOTS` | `RecordReportSnapshots` | Generated Records report metrics JSON |
+| `CASHIER_PAYMENT_RECEIPTS` | `CashierPaymentReceipts` | Refundable payment ledger (`CPR-YYYY-####`); Captured\|PartiallyRefunded\|Refunded; unique SOURCE_TYPE+SOURCE_ID; migration `20260727180000_cashier_ops` |
+| `CASHIER_REFUND_REQUESTS` | `CashierRefundRequests` | Partial/full refund requests (`CRF-YYYY-####`); Pending→Approved/Paid\|Rejected |
+| `CASHIER_DISCOUNT_REQUESTS` | `CashierDiscountRequests` | Discount/waiver on unpaid bills (`CDC-YYYY-####`); PERCENT\|FIXED\|WAIVER |
+| `CASHIER_SHIFTS` | `CashierShifts` | Cashier open/close shifts (`CSH-YYYY-####`); Open\|Closed\|Approved; TOTALS_JSON on close |
+| `CASHIER_SETTINGS` | `CashierSettings` | Singleton desk settings (enabled channels, require-open-shift, variance tolerance, reprint watermark); migration `20260727190000_cashier_reports_settings` |
+| `PATIENT_ALLERGIES` | `PatientAllergies` | Structured patient allergies (substance/severity); soft delete; migration `20260727140000_clinical_pharmacy` |
+| `DRUG_INTERACTION_RULES` | `DrugInteractionRules` | Hospital-configurable DDI/duplicate/allergy/controlled/psych rules |
+| `CLINICAL_PHARMACY_ALERTS` | `ClinicalPharmacyAlerts` | Pharmacist safety alerts (`CPA-YYYY-####`); Open\|Overridden\|Notified\|Closed |
+| `CLINICAL_CERTIFICATES` | `ClinicalCertificates` | Issued docs (`DOC-YYYY-####`); Draft→PendingSignature→PendingApproval→Issued (+ Expired/Cancelled) |
+| `CLINICAL_CERTIFICATE_EVENTS` | `ClinicalCertificateEvents` | Immutable certificate lifecycle log |
+| `DISCHARGE_DRAFT_EVENTS` | `DischargeDraftEvents` | Immutable step log per discharge draft |
+| `NOTIFICATIONS` | `Notifications` | In-app inbox (transfer + referral + discharge + system); indexed by user + unread |
 | `ADMISSIONS` | `Admissions` | Inpatient stays linked to person + optional ward/bed |
+| `ADMISSION_REQUESTS` | `AdmissionRequests` | Doctor pending admission queue; statuses Draft\|Submitted\|UnderReview\|Approved\|Rejected\|Cancelled\|Admitted |
+| `ADMISSION_BILLING_ITEMS` | `AdmissionBillingItems` | Configured admission package catalogue (fee, nursing, folder, consumables, deposit) |
+| `ADMISSION_BILLS` | `AdmissionBills` | Admission package invoices (`AB-YYYY-####`); `PAYMENT_STATUS` Unpaid\|Paid\|Waived |
+| `ADMISSION_BILL_LINES` | `AdmissionBillLines` | Immutable snapshotted bill lines (incl. Day-1 bed charge) |
 | `NURSING_NOTES` | `NursingNotes` | Ward nursing notes |
 | `NURSING_VITALS` | `NursingVitals` | Ward vitals + abnormal flags |
 | `NURSING_CARE_PLANS` | `NursingCarePlans` | Nursing care plans |
@@ -67,8 +123,30 @@ Do not reintroduce unused tables without an owning module and migration plan.
 | `PURCHASE_ORDERS` | `PurchaseOrders` | POs to suppliers (`PO-YYYY-###`) with approval + send workflow |
 | `PURCHASE_ORDER_ITEMS` | `PurchaseOrderItems` | PO line items per drug |
 | `GOODS_RECEIVED_NOTES` | `GoodsReceivedNotes` | GRNs (`GRN-YYYY-###`) linking receipts to PO/drug/batch |
-| `PRESCRIPTIONS` | `Prescriptions` | Doctor prescriptions (`RX-YYYY-####`); status Draft/Sent/Dispensed/…; linked to `PERSON_ID` |
-| `PRESCRIPTION_ITEMS` | `PrescriptionItems` | Line items: `DRUG_ID` + dose/frequency/qty; drug name snapshotted for clinical immutability |
+| `PRESCRIPTIONS` | `Prescriptions` | Doctor prescriptions (`RX-YYYY-####`); payment fields + emergency receiver; status Draft/Sent/Dispensed/…; linked to `PERSON_ID` |
+| `PRESCRIPTION_ITEMS` | `PrescriptionItems` | Line items: `DRUG_ID` + dose/frequency/qty; `QTY_DISPENSED` / `QTY_RETURNED`; drug name snapshotted |
+| `PHARMACY_SALES` | `PharmacySales` | Walk-in OTC sales (`WS-YYYY-####`); pay then dispense |
+| `PHARMACY_SALE_ITEMS` | `PharmacySaleItems` | Walk-in lines; `QTY_DISPENSED` / `QTY_RETURNED` |
+| `PHARMACY_RETURNS` | `PharmacyReturns` | Drug returns (`RT-YYYY-####`) from dispensed Rx or walk-in |
+| `PHARMACY_RETURN_ITEMS` | `PharmacyReturnItems` | Return line quantities restored to batches |
+| `PHARMACY_SETTINGS` | `PharmacySettings` | Singleton hospital thresholds (reorder default, expiry alert days, flags) |
+| `ENCOUNTERS` | `Encounters` | Doctor consultations (start from triage queue; draft notes + complete) |
+| `FOLLOW_UPS` | `FollowUps` | Doctor-scheduled follow-up visits (from complete consult or schedule dialog) |
+| `CLINICAL_NOTES` | `ClinicalNotes` | Structured clinical documentation (SOAP, psych assessment, etc.); soft-void only |
+| `CLINICAL_NOTE_VERSIONS` | `ClinicalNoteVersions` | Immutable version snapshots for clinical notes |
+| `LAB_TESTS` | `LabTests` | Orderable lab catalog (`TEST_CODE`, category, specimen, TAT, `UNIT_PRICE`, Active/Inactive) |
+| `LAB_REQUESTS` | `LabRequests` | Lab requests (`LR-YYYY-####`); `SOURCE` Doctor\|WalkIn; `PAYMENT_STATUS` Unpaid/Paid/Waived; status Draft/Sent/Cancelled; `LAB_STATUS` LIS pipeline (AwaitingCollection → … → Validated) |
+| `BLOOD_UNITS` | `BloodUnits` | Blood inventory (`BU-…`); group/component/expiry; status Available\|Reserved\|Issued\|Expired\|Quarantine |
+| `BLOOD_REQUESTS` | `BloodRequests` | Transfusion requests (`BR-YYYY-####`); Pending→Crossmatching→Issued/Rejected→Completed |
+| `BLOOD_REQUEST_EVENTS` | `BloodRequestEvents` | Immutable audit trail for blood requests |
+| `BLOOD_CROSSMATCHES` | `BloodCrossmatches` | Crossmatch history (`CM-YYYY-####`); Compatible\|Incompatible\|Pending |
+| `LAB_REQUEST_ITEMS` | `LabRequestItems` | Line items with snapshotted test code/name/price |
+| `LAB_RESULT_TEMPLATES` | `LabResultTemplates` | Result entry templates (`CODE` unique, e.g. `tpl-fbc`); `FIELDS` JSONB array of field defs; Active/Inactive; 12 seeded |
+| `LAB_SAMPLES` | `LabSamples` | Collected specimens (`SMP-YYYY-####`) per request per specimen type; Collected/Rejected + reject reason |
+| `LAB_RESULTS` | `LabResults` | One row per request item; `VALUES` JSONB keyed by template field key; status Draft/Submitted/Validated/PendingRevalidation; `VERSION` counter; `CRITICAL_FLAG` + doctor ack stamps (migration `20260727210000_lab_result_critical_ack`) |
+| `LAB_RESULT_VERSIONS` | `LabResultVersions` | Immutable snapshot per result change (draft/submit/validate/return/amend + reason) |
+| `DIAGNOSIS_CODES` | `DiagnosisCodes` | ICD-11/DSM/Local catalog for doctor coding |
+| `PATIENT_DIAGNOSES` | `PatientDiagnoses` | Patient problem-list diagnoses (immutable history via status; no hard delete) |
 
 ### Relationships
 
@@ -79,12 +157,35 @@ USERS ── PERSON_ID ── PERSONS (optional link)
 PERSONS ── TRIAGE (1:N)
 PERSONS ── PATIENT_CARDS (1:N; created by / confirmed by USERS)
 PERSONS ── ADMISSIONS (1:N)
+PERSONS ── ADMISSION_REQUESTS (1:N)
+PERSONS ── PATIENT_TRANSFERS (1:N)
+PERSONS ── CLINICAL_REFERRALS (1:N)
+PERSONS ── ADMISSION_BILLS (1:N)
 PERSONS ── PRESCRIPTIONS ── PRESCRIPTION_ITEMS ── DRUGS
+USERS ── NOTIFICATIONS (1:N)
+PATIENT_TRANSFERS ── PATIENT_TRANSFER_EVENTS (1:N)
+CLINICAL_REFERRALS ── CLINICAL_REFERRAL_EVENTS (1:N)
+CLINICAL_REFERRALS ── ADMISSIONS (optional, inpatient path)
 WARDS ── BEDS (1:N)
 WARDS / BEDS ── ADMISSIONS
+WARDS / BEDS ── PATIENT_TRANSFERS (from/to / allocated)
+WARDS / BEDS ── CLINICAL_REFERRALS (allocated ward/bed)
+WARDS ── ADMISSION_REQUESTS (optional ward preference)
+ADMISSIONS / ADMISSION_REQUESTS ── ADMISSION_BILLS (optional)
+ADMISSION_BILLS ── ADMISSION_BILL_LINES (1:N)
 ADMISSIONS / PERSONS ── nursing care docs (notes, vitals, care plans, …)
 ADMISSIONS / PERSONS ── nursing ops (orders, tasks, MAR, ICU …)
 WARDS ── nursing shifts / handovers / report snapshots
+PERSONS ── PHARMACY_SALES ── PHARMACY_SALE_ITEMS ── DRUGS
+PERSONS ── PHARMACY_RETURNS ── PHARMACY_RETURN_ITEMS ── DRUGS
+PERSONS ── LAB_REQUESTS ── LAB_REQUEST_ITEMS ── LAB_TESTS
+PERSONS ── BLOOD_REQUESTS ── BLOOD_REQUEST_EVENTS
+BLOOD_REQUESTS ── BLOOD_CROSSMATCHES ── BLOOD_UNITS (optional)
+ENCOUNTERS ── LAB_REQUESTS (optional)
+USERS ── LAB_REQUESTS (doctor)
+LAB_REQUESTS ── LAB_SAMPLES (1:N specimens)
+LAB_REQUEST_ITEMS ── LAB_RESULTS (1:1) ── LAB_RESULT_VERSIONS (1:N)
+LAB_RESULT_TEMPLATES ── LAB_RESULTS (optional template)
 USERS ── AUDITS
 SUPPLIERS ── SUPPLIER_DRUGS ── DRUGS (drugs supplied, by ID)
 SUPPLIERS ── DRUGS (optional preferred supplier)
@@ -108,6 +209,7 @@ PURCHASE_ORDERS ── GOODS_RECEIVED_NOTES ── DRUG_BATCHES
 | `admission:transfer` | Bed transfer |
 | `admission:order-discharge` | Discharge ordered |
 | `admission:discharge` | Discharge completed |
+| `discharge:create` / `discharge:submit` / `discharge:clear-payment` / `discharge:finalize` / … | Discharge draft lifecycle |
 | `nursing-note:create` / `nursing-vital:create` / … | Nursing care documentation writes |
 | `supplier:create` / `supplier:update` | Supplier registered / edited |
 | `drug:create` / `drug:update` | Drug added to / edited in catalog |
@@ -115,8 +217,16 @@ PURCHASE_ORDERS ── GOODS_RECEIVED_NOTES ── DRUG_BATCHES
 | `stock:receive` | GRN recorded, batch created |
 | `stock:adjust` | Manual stock adjustment (reason required) |
 | `prescription:create` / `prescription:send` | Prescription draft / sent to pharmacy |
+| `prescription:pay` | Cashier/billing confirms Rx payment |
+| `pharmacy:dispense` / `pharmacy:emergency-dispense` | Normal / emergency Rx dispense |
+| `pharmacy:sale-create` / `pharmacy:sale-pay` / `pharmacy:sale-dispense` | Walk-in sale lifecycle |
+| `pharmacy:return` | Drug return of dispensed stock |
 | `prescription:update` | Status / payment / pharmacy notes change |
 | `pharmacy:dispense` | Pharmacist dispensed Rx (FEFO stock deducted) |
+| `pharmacy:sale-create` | Walk-in pharmacy request created (awaiting cashier) |
+| `pharmacy:sale-pay` | Cashier confirmed walk-in sale payment |
+| `pharmacy:sale-dispense` | Pharmacist dispensed paid walk-in sale |
+| `pharmacy:sale-cancel` | Walk-in sale cancelled |
 | `auth:login` | (planned) successful login |
 
 Filter audits with `GET /api/audit/logs?type=triage:create`.
@@ -135,4 +245,14 @@ npx prisma migrate dev
 
 Migration `20260710140000_triage_and_audit_type` adds `TRIAGE` and `AUDITS.AUDIT_TYPE` / `ENTITY` / `ENTITY_ID`.
 
-Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). Migration `20260716210000_supplier_drugs_join` adds `SUPPLIER_DRUGS` (and drops legacy `SUPPLIERS.CATEGORIES`) for environments where the first pharmacy migration was applied before the join table existed in that SQL file. Migration `20260716220000_prescriptions` adds `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS`. Run `npx prisma migrate deploy` after pull.
+Migration `20260716000000_pharmacy_procurement_inventory` adds the pharmacy tables (`SUPPLIERS`, `DRUGS`, `DRUG_BATCHES`, `PURCHASE_REQUESTS`, `PURCHASE_ORDERS`, `PURCHASE_ORDER_ITEMS`, `GOODS_RECEIVED_NOTES`). Migration `20260716210000_supplier_drugs_join` adds `SUPPLIER_DRUGS` (and drops legacy `SUPPLIERS.CATEGORIES`) for environments where the first pharmacy migration was applied before the join table existed in that SQL file. Migration `20260716220000_prescriptions` adds `PRESCRIPTIONS` + `PRESCRIPTION_ITEMS`. Migration `20260717100000_pharmacy_walk_in_sales` adds walk-in sales. Migration `20260717120000_pharmacy_pay_gate_returns` adds Rx payment/emergency columns, `QTY_RETURNED`, and `PHARMACY_RETURNS` tables. Migration `20260717130000_pharmacy_settings` adds `PHARMACY_SETTINGS` thresholds. Migration `20260717160000_encounters` creates `ENCOUNTERS`. Migration `20260717180000_encounter_note_fields` adds expanded note columns. Migration `20260718160000_follow_ups` creates `FOLLOW_UPS`. Migration `20260718170000_clinical_notes` creates `CLINICAL_NOTES` + versions. Migration `20260720120000_laboratory` creates `LAB_TESTS` / `LAB_REQUESTS` / `LAB_REQUEST_ITEMS` and seeds the initial catalog. Migration `20260720140000_lab_request_source` adds `LAB_REQUESTS.SOURCE` (`Doctor`\|`WalkIn`, indexed). Migration `20260720160000_lab_result_templates` creates `LAB_RESULT_TEMPLATES` and seeds 12 result templates. Migration `20260720170000_lab_lis` adds `LAB_REQUESTS.LAB_STATUS` (indexed) and creates `LAB_SAMPLES`, `LAB_RESULTS`, `LAB_RESULT_VERSIONS`. Run `npx prisma migrate deploy` after pull.
+
+### Production (Render)
+
+`npm run start:prod` (and `render.yaml` startCommand) run `npx prisma migrate deploy` before serving traffic. If `/api/emergency-override/*`, `/api/encounters/*`, or other new APIs return **500** after a deploy, check Render logs for `relation "…" does not exist` (e.g. `EMERGENCY_OVERRIDE_SESSIONS`) — then either **Manual Deploy** so migrate runs, or from the Render Shell:
+
+```bash
+npx prisma migrate deploy
+```
+
+Confirm logs show applying `20260724120000_emergency_override` / `20260724130000_doctor_research` when those features ship.

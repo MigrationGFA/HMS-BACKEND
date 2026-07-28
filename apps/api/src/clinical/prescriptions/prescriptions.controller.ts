@@ -18,6 +18,9 @@ import type { AuthUser } from '../../auth/types/auth-user.type';
 import {
   CreatePrescriptionDto,
   DispensePrescriptionDto,
+  EmergencyDispensePrescriptionDto,
+  CreateExternalPrescriptionDto,
+  StopPrescriptionItemDto,
   UpdatePrescriptionDto,
 } from './dto/prescription.dto';
 import { PrescriptionsService } from './prescriptions.service';
@@ -48,6 +51,66 @@ export class PrescriptionsController {
 
   /**
    * Method: GET
+   * URL: /api/prescriptions/medications?personId=&scope=active|stopped|external|history
+   * Purpose: Active / stopped / external / history medication lines for a patient
+   * Required permission: prescription:read
+   */
+  @Get('medications')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_READ)
+  async medications(
+    @Query('personId') personId?: string,
+    @Query('scope') scope?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.prescriptionsService.listMedications({
+      personId: personId ? Number(personId) : 0,
+      scope,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 100,
+    });
+    return { data };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/prescriptions/external?personId=
+   * Purpose: List external purchase prescriptions
+   * Required permission: prescription:read
+   */
+  @Get('external')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_READ)
+  async listExternal(
+    @Query('personId') personId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.prescriptionsService.listExternal({
+      personId: personId ? Number(personId) : undefined,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/prescriptions/external
+   * Purpose: Log an external drug purchase for a patient
+   * Required permission: prescription:create
+   */
+  @Post('external')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_CREATE)
+  async createExternal(
+    @Body() dto: CreateExternalPrescriptionDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const data = await this.prescriptionsService.createExternal(dto, user);
+    return { data };
+  }
+
+  /**
+   * Method: GET
    * URL: /api/prescriptions?q=&status=&personId=&page=&limit=
    * Purpose: List prescriptions for doctor history or pharmacy inbound queue
    * Required permission: prescription:read
@@ -60,6 +123,7 @@ export class PrescriptionsController {
   async list(
     @Query('q') q?: string,
     @Query('status') status?: string,
+    @Query('paymentStatus') paymentStatus?: string,
     @Query('personId') personId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -67,6 +131,7 @@ export class PrescriptionsController {
     const result = await this.prescriptionsService.list({
       q,
       status,
+      paymentStatus,
       personId: personId ? Number(personId) : undefined,
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 50,
@@ -108,12 +173,47 @@ export class PrescriptionsController {
 
   /**
    * Method: POST
+   * URL: /api/prescriptions/:id/items/:itemId/stop
+   * Purpose: Stop an active medication line
+   * Required permission: prescription:update
+   * Request body: { reason, comment? }
+   */
+  @Post(':id/items/:itemId/stop')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_UPDATE)
+  async stopItem(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() dto: StopPrescriptionItemDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const data = await this.prescriptionsService.stopItem(id, itemId, dto, user);
+    return { data };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/prescriptions/:id/refill
+   * Purpose: Clone a Sent/Dispensed Rx as a new Sent prescription
+   * Required permission: prescription:create
+   */
+  @Post(':id/refill')
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_CREATE)
+  async refill(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const data = await this.prescriptionsService.refill(id, user);
+    return { data };
+  }
+
+  /**
+   * Method: POST
    * URL: /api/prescriptions/:id/dispense
-   * Purpose: Dispense prescription (FEFO batch stock deduction + mark Dispensed)
+   * Purpose: Dispense prescription (FEFO batch stock deduction + mark Dispensed). Requires Paid, Waived, or Emergency payment status.
    * Required permission: pharmacy:dispense
    * Request body: DispensePrescriptionDto { items?: [{ itemId, quantity? }], pharmacyNotes? }
    * Response example: { data: { prescriptionId, rxNo, status: "Dispensed", dispensedBy, items, auditTrail } }
-   * Error cases: 400 insufficient stock / already dispensed, 401, 403, 404
+   * Error cases: 400 unpaid / insufficient stock / already dispensed, 401, 403, 404
    */
   @Post(':id/dispense')
   @RequirePermissions(PERMISSIONS.PHARMACY_DISPENSE)
@@ -123,6 +223,26 @@ export class PrescriptionsController {
     @CurrentUser() user: AuthUser,
   ) {
     const rx = await this.prescriptionsService.dispense(id, dto ?? {}, user);
+    return { data: rx };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/prescriptions/:id/emergency-dispense
+   * Purpose: Emergency unpaid dispense — records receiver staff name; leaves PAYMENT_STATUS=Emergency for later cashier collection
+   * Required permission: pharmacy:dispense
+   * Request body: { receivedBy, note?, items?, pharmacyNotes? }
+   * Response example: { data: { prescriptionId, paymentStatus: "Emergency", emergencyReceivedBy, status: "Dispensed", ... } }
+   * Error cases: 400 already paid / missing receivedBy / stock, 401, 403, 404
+   */
+  @Post(':id/emergency-dispense')
+  @RequirePermissions(PERMISSIONS.PHARMACY_DISPENSE)
+  async emergencyDispense(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: EmergencyDispensePrescriptionDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rx = await this.prescriptionsService.emergencyDispense(id, dto, user);
     return { data: rx };
   }
 

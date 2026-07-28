@@ -1,6 +1,7 @@
 // Clinical prescriptions — doctor writes, pharmacy reads/dispenses.
 // Patient demographics live on PERSONS; drugs live on DRUGS.
 // Soft status transitions only — never hard-delete clinical rows.
+// Pay-before-dispense: Unpaid blocked unless Emergency override (receiver recorded).
 
 model Prescriptions {
   PRESCRIPTION_ID   Int       @id @default(autoincrement())
@@ -12,6 +13,17 @@ model Prescriptions {
   URGENCY           String    @default("Routine") @db.VarChar(50)
   /// Unpaid | Paid | Waived | Emergency
   PAYMENT_STATUS    String    @default("Unpaid") @db.VarChar(50)
+  /// Cash | POS Card | Bank Transfer | Wallet
+  PAYMENT_CHANNEL   String?   @db.VarChar(50)
+  PAYMENT_REF       String?   @db.VarChar(100)
+  PAID_AT           DateTime?
+  PAID_BY           String?   @db.VarChar(100)
+  PAID_BY_ID        Int?
+  /// Staff/patient who received drugs on emergency dispense (unpaid bill remains)
+  EMERGENCY_RECEIVED_BY    String?   @db.VarChar(100)
+  EMERGENCY_RECEIVED_BY_ID Int?
+  EMERGENCY_DISPENSED_AT   DateTime?
+  EMERGENCY_NOTE           String?   @db.Text
   DIAGNOSIS         String?   @db.VarChar(500)
   ALLERGIES_NOTE    String?   @db.VarChar(500)
   CLINIC            String?   @db.VarChar(100)
@@ -52,11 +64,12 @@ model PrescriptionItems {
   DURATION        String?   @db.VarChar(100)
   QUANTITY        Int
   QTY_DISPENSED   Int       @default(0)
+  QTY_RETURNED    Int       @default(0)
   /// Internal Pharmacy | External Purchase | Patient Own Drug
   SOURCE          String    @default("Internal Pharmacy") @db.VarChar(50)
   INSTRUCTIONS    String?   @db.Text
   INDICATION      String?   @db.VarChar(500)
-  /// Active | Stopped | Cancelled
+  /// Active | Stopped | Cancelled | Dispensed
   LINE_STATUS     String    @default("Active") @db.VarChar(50)
   UNIT_PRICE      Decimal   @default(0) @db.Decimal(14, 2)
 

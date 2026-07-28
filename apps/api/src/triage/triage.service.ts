@@ -1,11 +1,11 @@
 import {
-  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { CardsService } from '../patients/cards.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { CreateTriageDto, UpdateTriageDto } from './dto/triage.dto';
 
@@ -25,6 +25,7 @@ export class TriageService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly cards: CardsService,
   ) {}
 
   async create(dto: CreateTriageDto, actor?: AuthUser) {
@@ -37,20 +38,7 @@ export class TriageService {
 
     // Workflow gate: registration card payment must be confirmed by a
     // cashier before Records can send the patient onwards.
-    const latestCard = await this.prisma.patientCards.findFirst({
-      where: { PERSON_ID: dto.personId },
-      orderBy: { CREATED_DATE: 'desc' },
-      select: { CARD_ID: true, CARD_NO: true, PAYMENT_STATUS: true },
-    });
-    if (latestCard?.PAYMENT_STATUS === 'Pending') {
-      throw new ConflictException({
-        message:
-          'Card payment is pending — the cashier must confirm payment before the patient can proceed',
-        cardId: latestCard.CARD_ID,
-        cardNo: latestCard.CARD_NO,
-        paymentStatus: latestCard.PAYMENT_STATUS,
-      });
-    }
+    await this.cards.assertPaymentCleared(dto.personId);
 
     const queueNo = await this.nextQueueNo();
     const bmi = calcBmi(dto.weightKg, dto.heightCm);

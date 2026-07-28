@@ -1,0 +1,84 @@
+// Clinical referrals: doctor request → Records route/allocate → department attend or admit.
+
+model ClinicalReferrals {
+  REFERRAL_ID            Int       @id @default(autoincrement())
+  REFERRAL_NO            String    @unique @db.VarChar(50)
+  PERSON_ID              Int
+  ENCOUNTER_ID           Int?
+  ADMISSION_ID           Int?
+  /// Internal | External
+  REFERRAL_KIND          String    @db.VarChar(30)
+  /// Outpatient | Inpatient
+  CARE_SETTING           String    @default("Outpatient") @db.VarChar(30)
+  /// Routine | Urgent | Emergency
+  PRIORITY               String    @default("Routine") @db.VarChar(30)
+  FROM_DEPARTMENT        String?   @db.VarChar(100)
+  TO_DEPARTMENT          String?   @db.VarChar(100)
+  TO_DOCTOR_USER_ID      Int?
+  TO_DOCTOR_LABEL        String?   @db.VarChar(150)
+  EXTERNAL_FACILITY      String?   @db.VarChar(255)
+  EXTERNAL_CONTACT       String?   @db.VarChar(150)
+  EXTERNAL_ADDRESS       String?   @db.VarChar(500)
+  REASON                 String    @db.Text
+  PROVISIONAL_DIAGNOSIS  String?   @db.Text
+  CLINICAL_SUMMARY       String?   @db.Text
+  SPECIFIC_QUESTION      String?   @db.Text
+  OUTCOME_NOTE           String?   @db.Text
+  /// Draft | Submitted | UnderReview | QueuedForDept | AwaitingBed | BedAllocated | Admitted | Accepted | InAttendance | Completed | ClearedExternal | Returned | Rejected | Cancelled
+  STATUS                 String    @default("Submitted") @db.VarChar(40)
+  REQUESTED_BY_USER_ID   Int?
+  ACKED_BY_USER_ID       Int?
+  ACKED_AT               DateTime?
+  ROUTED_BY_USER_ID      Int?
+  ROUTED_AT              DateTime?
+  ALLOCATED_BY_USER_ID   Int?
+  ALLOCATED_AT           DateTime?
+  ALLOCATED_WARD_ID      Int?
+  ALLOCATED_BED_ID       Int?
+  ACCEPTED_BY_USER_ID    Int?
+  ACCEPTED_AT            DateTime?
+  COMPLETED_BY_USER_ID   Int?
+  COMPLETED_AT           DateTime?
+  REJECTION_REASON       String?   @db.Text
+  RETURN_REASON          String?   @db.Text
+  CREATED_BY_ID          Int?
+  CREATED_BY             String?   @db.VarChar(100)
+  CREATED_DATE           DateTime?
+  UPDATED_BY_ID          Int?
+  UPDATED_BY             String?   @db.VarChar(100)
+  UPDATED_DATE           DateTime?
+
+  person       Persons                  @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  admission    Admissions?              @relation(fields: [ADMISSION_ID], references: [ADMISSION_ID])
+  allocatedWard Wards?                  @relation(fields: [ALLOCATED_WARD_ID], references: [WARD_ID])
+  allocatedBed  Beds?                   @relation(fields: [ALLOCATED_BED_ID], references: [BED_ID])
+  requestedBy   Users?                  @relation("ReferralRequestedBy", fields: [REQUESTED_BY_USER_ID], references: [USER_ID])
+  toDoctor      Users?                  @relation("ReferralToDoctor", fields: [TO_DOCTOR_USER_ID], references: [USER_ID])
+  events        ClinicalReferralEvents[]
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([TO_DEPARTMENT])
+  @@index([REFERRAL_KIND])
+  @@index([REQUESTED_BY_USER_ID])
+  @@index([CREATED_DATE])
+  @@map("CLINICAL_REFERRALS")
+}
+
+model ClinicalReferralEvents {
+  EVENT_ID       Int       @id @default(autoincrement())
+  REFERRAL_ID    Int
+  EVENT_TYPE     String    @db.VarChar(50)
+  ACTOR_USER_ID  Int?
+  ACTOR_LABEL    String?   @db.VarChar(150)
+  NOTE           String?   @db.Text
+  OLD_STATUS     String?   @db.VarChar(40)
+  NEW_STATUS     String?   @db.VarChar(40)
+  CREATED_DATE   DateTime  @default(now())
+
+  referral ClinicalReferrals @relation(fields: [REFERRAL_ID], references: [REFERRAL_ID])
+
+  @@index([REFERRAL_ID])
+  @@index([CREATED_DATE])
+  @@map("CLINICAL_REFERRAL_EVENTS")
+}

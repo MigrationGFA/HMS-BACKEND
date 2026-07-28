@@ -1,0 +1,40 @@
+// Hospital-level pharmacy alert thresholds and operational rules.
+// Singleton row (SETTINGS_ID = 1). Per-drug REORDER_LEVEL still overrides for low-stock.
+
+model PharmacySettings {
+  SETTINGS_ID Int @id @default(1)
+
+  /// Default reorder level applied when creating a new drug without an explicit value
+  DEFAULT_REORDER_LEVEL Int @default(50)
+
+  /// Days before expiry to flag "Expiring Soon" on inventory cards/lists
+  EXPIRING_SOON_DAYS Int @default(180)
+
+  /// Days before expiry for critical / urgent expiry alerts
+  EXPIRY_CRITICAL_DAYS Int @default(30)
+
+  /// Mid-window warning (e.g. expiry monitoring buckets)
+  EXPIRY_WARNING_DAYS Int @default(90)
+
+  /// Warn when receiving stock with expiry sooner than this many days
+  RECEIVE_STOCK_WARN_DAYS Int @default(180)
+
+  /// Batches created within this many days count as "recently received"
+  RECENTLY_RECEIVED_DAYS Int @default(7)
+
+  /// Y | N — require witness for controlled-drug dispense (policy flag)
+  CONTROLLED_REQUIRES_WITNESS String @default("Y") @db.VarChar(1)
+
+  /// Y | N — surface low-stock alerts on dashboard
+  LOW_STOCK_ALERT_ENABLED String @default("Y") @db.VarChar(1)
+
+  /// Y | N — surface expiry alerts on dashboard
+  EXPIRY_ALERT_ENABLED String @default("Y") @db.VarChar(1)
+
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+  CREATED_DATE  DateTime?
+
+  @@map("PHARMACY_SETTINGS")
+}

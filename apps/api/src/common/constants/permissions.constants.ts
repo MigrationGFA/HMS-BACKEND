@@ -21,12 +21,14 @@ export const PERMISSIONS = {
   TRIAGE_READ: 'triage:read',
   TRIAGE_UPDATE: 'triage:update',
 
-  // Admissions / wards / beds
+  // Admissions / wards / beds (Abdul-Azeez)
   ADMISSION_CREATE: 'admission:create',
   ADMISSION_READ: 'admission:read',
   ADMISSION_UPDATE: 'admission:update',
+  /** Cashier confirm payment for admission package bills */
+  ADMISSION_PAY: 'admission:pay',
 
-  // Nursing ward documentation
+  // Nursing ward documentation (Abdul-Azeez)
   NURSING_NOTE_CREATE: 'nursing-note:create',
   NURSING_NOTE_READ: 'nursing-note:read',
   NURSING_VITAL_CREATE: 'nursing-vital:create',
@@ -42,7 +44,7 @@ export const PERMISSIONS = {
   NURSING_FORM_CREATE: 'nursing-form:create',
   NURSING_FORM_READ: 'nursing-form:read',
 
-  // Nursing ops (Phases 10–12)
+  // Nursing ops (Phases 10–12) (Abdul-Azeez)
   NURSING_ORDER_CREATE: 'nursing-order:create',
   NURSING_ORDER_READ: 'nursing-order:read',
   NURSING_ORDER_UPDATE: 'nursing-order:update',
@@ -70,10 +72,30 @@ export const PERMISSIONS = {
   NURSING_REPORT_READ: 'nursing-report:read',
   NURSING_ANALYTICS_READ: 'nursing-analytics:read',
 
+  // Doctor consultation encounters (main)
+  ENCOUNTER_CREATE: 'encounter:create',
+  ENCOUNTER_READ: 'encounter:read',
+  ENCOUNTER_UPDATE: 'encounter:update',
+  ENCOUNTER_COMPLETE: 'encounter:complete',
+
+  // Clinical documentation notes
+  CLINICAL_NOTE_CREATE: 'clinical-note:create',
+  CLINICAL_NOTE_READ: 'clinical-note:read',
+  CLINICAL_NOTE_UPDATE: 'clinical-note:update',
+  CLINICAL_NOTE_SIGN: 'clinical-note:sign',
+  CLINICAL_NOTE_REVIEW: 'clinical-note:review',
+
+  // Structured diagnoses (ICD catalog + patient problem list)
+  DIAGNOSIS_CREATE: 'diagnosis:create',
+  DIAGNOSIS_READ: 'diagnosis:read',
+  DIAGNOSIS_UPDATE: 'diagnosis:update',
+
   // Clinical prescriptions
   PRESCRIPTION_CREATE: 'prescription:create',
   PRESCRIPTION_READ: 'prescription:read',
   PRESCRIPTION_UPDATE: 'prescription:update',
+  /** Cashier/billing confirm payment for doctor prescriptions */
+  PRESCRIPTION_PAY: 'prescription:pay',
 
   // Pharmacy (suppliers, drugs, procurement, inventory)
   PHARMACY_READ: 'pharmacy:read',
@@ -86,6 +108,84 @@ export const PERMISSIONS = {
   STOCK_RECEIVE: 'stock:receive',
   STOCK_ADJUST: 'stock:adjust',
   PHARMACY_DISPENSE: 'pharmacy:dispense',
+  /** Walk-in / OTC sales (request → cashier pay → dispense) */
+  PHARMACY_SALE_CREATE: 'pharmacy:sale-create',
+  PHARMACY_SALE_READ: 'pharmacy:sale-read',
+  PHARMACY_SALE_PAY: 'pharmacy:sale-pay',
+  /** Return of already-dispensed drugs */
+  PHARMACY_RETURN_CREATE: 'pharmacy:return-create',
+  PHARMACY_RETURN_READ: 'pharmacy:return-read',
+  /** Update hospital-level pharmacy thresholds / alert settings */
+  PHARMACY_SETTINGS_UPDATE: 'pharmacy:settings-update',
+
+  // Laboratory (catalog + doctor requests; cashier confirms payment)
+  LAB_READ: 'lab:read',
+  LAB_CREATE: 'lab:create',
+  LAB_UPDATE: 'lab:update',
+  /** Cashier/billing confirm payment for lab requests */
+  LAB_PAY: 'lab:pay',
+  /** Manage lab result templates (create/edit/deactivate) */
+  LAB_TEMPLATE_MANAGE: 'lab:template-manage',
+  /** Collect / reject specimens for paid lab requests */
+  LAB_COLLECT: 'lab:collect',
+  /** Enter / submit lab results */
+  LAB_RESULT: 'lab:result',
+  /** Validate, return or amend lab results */
+  LAB_VALIDATE: 'lab:validate',
+
+  // Blood bank (inventory + transfusion requests)
+  BLOOD_BANK_READ: 'blood-bank:read',
+  BLOOD_BANK_CREATE: 'blood-bank:create',
+  BLOOD_BANK_UPDATE: 'blood-bank:update',
+  BLOOD_BANK_ISSUE: 'blood-bank:issue',
+
+  // Imaging / radiology (catalog + doctor requests; cashier confirms payment)
+  IMAGING_READ: 'imaging:read',
+  IMAGING_CREATE: 'imaging:create',
+  IMAGING_UPDATE: 'imaging:update',
+  /** Cashier/billing confirm payment for imaging requests */
+  IMAGING_PAY: 'imaging:pay',
+
+  // Patient transfers (doctor request → nurse/records allocate → receive)
+  TRANSFER_CREATE: 'transfer:create',
+  TRANSFER_READ: 'transfer:read',
+  TRANSFER_UPDATE: 'transfer:update',
+  TRANSFER_ALLOCATE: 'transfer:allocate',
+  TRANSFER_RECEIVE: 'transfer:receive',
+
+  // Doctor emergency override (break-glass)
+  EMERGENCY_OVERRIDE_CREATE: 'emergency-override:create',
+  EMERGENCY_OVERRIDE_READ: 'emergency-override:read',
+  EMERGENCY_OVERRIDE_UPDATE: 'emergency-override:update',
+
+  // In-app notifications inbox
+  NOTIFICATION_READ: 'notification:read',
+
+  // Clinical referrals (doctor → Records/Nurse → department attend or admit)
+  REFERRAL_CREATE: 'referral:create',
+  REFERRAL_READ: 'referral:read',
+  REFERRAL_UPDATE: 'referral:update',
+  REFERRAL_ALLOCATE: 'referral:allocate',
+  REFERRAL_RECEIVE: 'referral:receive',
+
+  // Discharge drafts (doctor → cashier clearance → Records finalize)
+  DISCHARGE_CREATE: 'discharge:create',
+  DISCHARGE_READ: 'discharge:read',
+  DISCHARGE_UPDATE: 'discharge:update',
+  DISCHARGE_CLEAR_PAYMENT: 'discharge:clear-payment',
+  DISCHARGE_FINALIZE: 'discharge:finalize',
+
+  // Clinical certificates & reports
+  CERTIFICATE_CREATE: 'certificate:create',
+  CERTIFICATE_READ: 'certificate:read',
+  CERTIFICATE_UPDATE: 'certificate:update',
+  CERTIFICATE_SIGN: 'certificate:sign',
+  /** Admin/CMD only via FULL_ACCESS — approval-required document types */
+  CERTIFICATE_APPROVE: 'certificate:approve',
+
+  // Doctor-scoped clinical analytics / research
+  DOCTOR_ANALYTICS_READ: 'doctor-analytics:read',
+  DOCTOR_RESEARCH_WRITE: 'doctor-research:write',
 
   // Radiology / imaging / ECG
   RADIOLOGY_REQUEST_CREATE: 'radiology-request:create',
@@ -109,6 +209,39 @@ export const PERMISSIONS = {
 
   // Identity (staff user lookup — no password/credential access)
   USER_READ: 'user:read',
+
+  // Staff support tickets (shared header Support button + HR queue)
+  SUPPORT_CREATE: 'support:create',
+  SUPPORT_READ: 'support:read',
+  SUPPORT_UPDATE: 'support:update',
+
+  // Clinical pharmacy (DDI / allergy / safety worklist)
+  CLINICAL_PHARMACY_READ: 'clinical-pharmacy:read',
+  CLINICAL_PHARMACY_UPDATE: 'clinical-pharmacy:update',
+  CLINICAL_PHARMACY_MANAGE_RULES: 'clinical-pharmacy:manage-rules',
+
+  // Records file retrieval / archive / reports / analytics
+  RECORDS_FILE_READ: 'records-file:read',
+  RECORDS_FILE_CREATE: 'records-file:create',
+  RECORDS_FILE_UPDATE: 'records-file:update',
+  RECORDS_ARCHIVE_READ: 'records-archive:read',
+  RECORDS_ARCHIVE_CREATE: 'records-archive:create',
+  RECORDS_ARCHIVE_UPDATE: 'records-archive:update',
+  RECORDS_REPORT_READ: 'records-report:read',
+  RECORDS_REPORT_CREATE: 'records-report:create',
+  RECORDS_ANALYTICS_READ: 'records-analytics:read',
+  CASHIER_RECEIPT_READ: 'cashier:receipt-read',
+  CASHIER_REFUND_REQUEST: 'cashier:refund-request',
+  CASHIER_REFUND_APPROVE: 'cashier:refund-approve',
+  CASHIER_DISCOUNT_REQUEST: 'cashier:discount-request',
+  CASHIER_DISCOUNT_APPROVE: 'cashier:discount-approve',
+  CASHIER_SHIFT_OPEN: 'cashier:shift-open',
+  CASHIER_SHIFT_CLOSE: 'cashier:shift-close',
+  CASHIER_SHIFT_READ: 'cashier:shift-read',
+  CASHIER_SHIFT_APPROVE: 'cashier:shift-approve',
+  CASHIER_REPORT_READ: 'cashier:report-read',
+  CASHIER_SETTINGS_READ: 'cashier:settings-read',
+  CASHIER_SETTINGS_UPDATE: 'cashier:settings-update',
 } as const;
 
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -124,6 +257,11 @@ const FULL_ACCESS: PermissionName[] = Object.values(PERMISSIONS);
  * - read audit trail of registration activity
  * - look up staff users (identity search) — no role/credential management
  */
+const SUPPORT_SELF_PERMISSIONS: PermissionName[] = [
+  PERMISSIONS.SUPPORT_CREATE,
+  PERMISSIONS.SUPPORT_READ,
+];
+
 const RECORDS_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_CREATE,
   PERMISSIONS.PATIENT_READ,
@@ -132,17 +270,67 @@ const RECORDS_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.CARD_READ,
   PERMISSIONS.TRIAGE_CREATE,
   PERMISSIONS.TRIAGE_READ,
+  PERMISSIONS.TRIAGE_UPDATE,
+  PERMISSIONS.ENCOUNTER_READ,
+  PERMISSIONS.ADMISSION_READ,
+  PERMISSIONS.ADMISSION_CREATE,
+  PERMISSIONS.ADMISSION_UPDATE,
+  PERMISSIONS.TRANSFER_READ,
+  PERMISSIONS.TRANSFER_UPDATE,
+  PERMISSIONS.TRANSFER_ALLOCATE,
+  PERMISSIONS.NOTIFICATION_READ,
+  PERMISSIONS.REFERRAL_READ,
+  PERMISSIONS.REFERRAL_UPDATE,
+  PERMISSIONS.REFERRAL_ALLOCATE,
+  PERMISSIONS.DISCHARGE_READ,
+  PERMISSIONS.DISCHARGE_UPDATE,
+  PERMISSIONS.DISCHARGE_FINALIZE,
   PERMISSIONS.AUDIT_READ,
   PERMISSIONS.USER_READ,
+  ...SUPPORT_SELF_PERMISSIONS,
+  PERMISSIONS.RECORDS_FILE_READ,
+  PERMISSIONS.RECORDS_FILE_CREATE,
+  PERMISSIONS.RECORDS_FILE_UPDATE,
+  PERMISSIONS.RECORDS_ARCHIVE_READ,
+  PERMISSIONS.RECORDS_ARCHIVE_CREATE,
+  PERMISSIONS.RECORDS_ARCHIVE_UPDATE,
+  PERMISSIONS.RECORDS_REPORT_READ,
+  PERMISSIONS.RECORDS_REPORT_CREATE,
+  PERMISSIONS.RECORDS_ANALYTICS_READ,
 ];
 
 const CASHIER_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_READ,
   PERMISSIONS.CARD_READ,
   PERMISSIONS.CARD_CONFIRM_PAYMENT,
+<<<<<<< HEAD
   PERMISSIONS.RADIOLOGY_REQUEST_READ,
   PERMISSIONS.RADIOLOGY_REQUEST_UPDATE,
+=======
+  PERMISSIONS.PRESCRIPTION_READ,
+  PERMISSIONS.PRESCRIPTION_PAY,
+  PERMISSIONS.PHARMACY_SALE_READ,
+  PERMISSIONS.PHARMACY_SALE_PAY,
+  PERMISSIONS.LAB_READ,
+  PERMISSIONS.LAB_PAY,
+  PERMISSIONS.IMAGING_READ,
+  PERMISSIONS.IMAGING_PAY,
+  PERMISSIONS.ADMISSION_READ,
+  PERMISSIONS.ADMISSION_PAY,
+  PERMISSIONS.DISCHARGE_READ,
+  PERMISSIONS.DISCHARGE_CLEAR_PAYMENT,
+  PERMISSIONS.NOTIFICATION_READ,
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
   PERMISSIONS.AUDIT_READ,
+  PERMISSIONS.CASHIER_RECEIPT_READ,
+  PERMISSIONS.CASHIER_REFUND_REQUEST,
+  PERMISSIONS.CASHIER_DISCOUNT_REQUEST,
+  PERMISSIONS.CASHIER_SHIFT_OPEN,
+  PERMISSIONS.CASHIER_SHIFT_CLOSE,
+  PERMISSIONS.CASHIER_SHIFT_READ,
+  PERMISSIONS.CASHIER_REPORT_READ,
+  PERMISSIONS.CASHIER_SETTINGS_READ,
+  ...SUPPORT_SELF_PERMISSIONS,
 ];
 
 /**
@@ -164,12 +352,23 @@ const PHARMACY_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.STOCK_RECEIVE,
   PERMISSIONS.STOCK_ADJUST,
   PERMISSIONS.PHARMACY_DISPENSE,
+  PERMISSIONS.PHARMACY_SALE_CREATE,
+  PERMISSIONS.PHARMACY_SALE_READ,
+  PERMISSIONS.PHARMACY_RETURN_CREATE,
+  PERMISSIONS.PHARMACY_RETURN_READ,
+  PERMISSIONS.PHARMACY_SETTINGS_UPDATE,
   PERMISSIONS.AUDIT_READ,
+  ...SUPPORT_SELF_PERMISSIONS,
+  PERMISSIONS.CLINICAL_PHARMACY_READ,
+  PERMISSIONS.CLINICAL_PHARMACY_UPDATE,
+  PERMISSIONS.CLINICAL_PHARMACY_MANAGE_RULES,
 ];
 
+// Combined read permissions for clinical roles (both nursing and encounters)
 const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_READ,
   PERMISSIONS.TRIAGE_READ,
+  // Nursing read permissions (Abdul-Azeez)
   PERMISSIONS.ADMISSION_READ,
   PERMISSIONS.NURSING_NOTE_READ,
   PERMISSIONS.NURSING_VITAL_READ,
@@ -187,20 +386,41 @@ const CLINICAL_READ_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.NURSING_COMMS_READ,
   PERMISSIONS.NURSING_REPORT_READ,
   PERMISSIONS.NURSING_ANALYTICS_READ,
+  // Encounter read (main)
+  PERMISSIONS.ENCOUNTER_READ,
+  PERMISSIONS.CLINICAL_NOTE_READ,
+  PERMISSIONS.DIAGNOSIS_READ,
   PERMISSIONS.PRESCRIPTION_READ,
   /** Doctors need catalog lookup while building prescriptions. */
   PERMISSIONS.PHARMACY_READ,
+<<<<<<< HEAD
   PERMISSIONS.RADIOLOGY_STUDY_READ,
   PERMISSIONS.RADIOLOGY_REQUEST_READ,
   PERMISSIONS.RADIOLOGY_REPORT_READ,
   PERMISSIONS.ECG_READ,
+=======
+  /** Doctors need lab catalog while building lab requests. */
+  PERMISSIONS.LAB_READ,
+  /** Doctors need imaging catalog while building imaging requests. */
+  PERMISSIONS.IMAGING_READ,
+  PERMISSIONS.TRANSFER_READ,
+  PERMISSIONS.NOTIFICATION_READ,
+  PERMISSIONS.REFERRAL_READ,
+  PERMISSIONS.REFERRAL_RECEIVE,
+  PERMISSIONS.DISCHARGE_READ,
+  PERMISSIONS.CERTIFICATE_READ,
+  PERMISSIONS.DOCTOR_ANALYTICS_READ,
+  ...SUPPORT_SELF_PERMISSIONS,
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
 ];
 
+// Full clinical permissions (read + write for nursing and encounters)
 const CLINICAL_PERMISSIONS: PermissionName[] = [
   ...CLINICAL_READ_PERMISSIONS,
   PERMISSIONS.PATIENT_UPDATE,
   PERMISSIONS.TRIAGE_CREATE,
   PERMISSIONS.TRIAGE_UPDATE,
+  // Nursing write permissions (Abdul-Azeez)
   PERMISSIONS.ADMISSION_CREATE,
   PERMISSIONS.ADMISSION_UPDATE,
   PERMISSIONS.NURSING_NOTE_CREATE,
@@ -227,10 +447,53 @@ const CLINICAL_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.NURSING_COMMS_CREATE,
   PERMISSIONS.NURSING_COMMS_UPDATE,
   PERMISSIONS.NURSING_REPORT_CREATE,
+  // Encounter write permissions (main)
+  PERMISSIONS.ENCOUNTER_CREATE,
+  PERMISSIONS.ENCOUNTER_UPDATE,
+  PERMISSIONS.ENCOUNTER_COMPLETE,
+  PERMISSIONS.CLINICAL_NOTE_CREATE,
+  PERMISSIONS.CLINICAL_NOTE_UPDATE,
+  PERMISSIONS.CLINICAL_NOTE_SIGN,
+  PERMISSIONS.CLINICAL_NOTE_REVIEW,
+  PERMISSIONS.DIAGNOSIS_CREATE,
+  PERMISSIONS.DIAGNOSIS_UPDATE,
   PERMISSIONS.PRESCRIPTION_CREATE,
   PERMISSIONS.PRESCRIPTION_UPDATE,
+<<<<<<< HEAD
   PERMISSIONS.RADIOLOGY_REQUEST_CREATE,
   PERMISSIONS.ECG_CREATE,
+=======
+  PERMISSIONS.LAB_CREATE,
+  PERMISSIONS.LAB_UPDATE,
+  /** Ward/clinic staff may collect specimens for paid lab requests. */
+  PERMISSIONS.LAB_COLLECT,
+  PERMISSIONS.IMAGING_CREATE,
+  PERMISSIONS.IMAGING_UPDATE,
+  PERMISSIONS.TRANSFER_CREATE,
+  PERMISSIONS.TRANSFER_READ,
+  PERMISSIONS.TRANSFER_UPDATE,
+  PERMISSIONS.TRANSFER_ALLOCATE,
+  PERMISSIONS.TRANSFER_RECEIVE,
+  PERMISSIONS.EMERGENCY_OVERRIDE_CREATE,
+  PERMISSIONS.EMERGENCY_OVERRIDE_READ,
+  PERMISSIONS.EMERGENCY_OVERRIDE_UPDATE,
+  PERMISSIONS.NOTIFICATION_READ,
+  PERMISSIONS.REFERRAL_CREATE,
+  PERMISSIONS.REFERRAL_READ,
+  PERMISSIONS.REFERRAL_UPDATE,
+  PERMISSIONS.REFERRAL_ALLOCATE,
+  PERMISSIONS.REFERRAL_RECEIVE,
+  PERMISSIONS.DISCHARGE_CREATE,
+  PERMISSIONS.DISCHARGE_READ,
+  PERMISSIONS.DISCHARGE_UPDATE,
+  PERMISSIONS.CERTIFICATE_CREATE,
+  PERMISSIONS.CERTIFICATE_READ,
+  PERMISSIONS.CERTIFICATE_UPDATE,
+  PERMISSIONS.CERTIFICATE_SIGN,
+  PERMISSIONS.DOCTOR_ANALYTICS_READ,
+  PERMISSIONS.DOCTOR_RESEARCH_WRITE,
+  PERMISSIONS.AUDIT_READ,
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
 ];
 
 /**
@@ -243,15 +506,44 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
   [ROLES.CMD]: FULL_ACCESS,
   [ROLES.IT]: FULL_ACCESS,
 
+  /** HR queue: list all tickets + update status; may also submit own tickets */
+  [ROLES.HR]: [
+    ...SUPPORT_SELF_PERMISSIONS,
+    PERMISSIONS.SUPPORT_UPDATE,
+  ],
+
   [ROLES.RECORDS]: RECORDS_PERMISSIONS,
   [ROLES.CASHIER]: CASHIER_PERMISSIONS,
   [ROLES.FINANCE]: [
     PERMISSIONS.PATIENT_READ,
     PERMISSIONS.CARD_READ,
     PERMISSIONS.CARD_CONFIRM_PAYMENT,
+<<<<<<< HEAD
     PERMISSIONS.RADIOLOGY_REQUEST_READ,
     PERMISSIONS.RADIOLOGY_REQUEST_UPDATE,
+=======
+    PERMISSIONS.PRESCRIPTION_READ,
+    PERMISSIONS.PRESCRIPTION_PAY,
+    PERMISSIONS.PHARMACY_SALE_READ,
+    PERMISSIONS.PHARMACY_SALE_PAY,
+    PERMISSIONS.LAB_READ,
+    PERMISSIONS.LAB_PAY,
+    PERMISSIONS.IMAGING_READ,
+    PERMISSIONS.IMAGING_PAY,
+    PERMISSIONS.ADMISSION_READ,
+    PERMISSIONS.ADMISSION_PAY,
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
     PERMISSIONS.AUDIT_READ,
+    PERMISSIONS.CASHIER_RECEIPT_READ,
+    PERMISSIONS.CASHIER_REFUND_REQUEST,
+    PERMISSIONS.CASHIER_REFUND_APPROVE,
+    PERMISSIONS.CASHIER_DISCOUNT_REQUEST,
+    PERMISSIONS.CASHIER_DISCOUNT_APPROVE,
+    PERMISSIONS.CASHIER_SHIFT_READ,
+    PERMISSIONS.CASHIER_SHIFT_APPROVE,
+    PERMISSIONS.CASHIER_REPORT_READ,
+    PERMISSIONS.CASHIER_SETTINGS_READ,
+    PERMISSIONS.CASHIER_SETTINGS_UPDATE,
   ],
 
   [ROLES.DOCTOR]: CLINICAL_PERMISSIONS,
@@ -268,15 +560,30 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
   [ROLES.ICU]: CLINICAL_PERMISSIONS,
   [ROLES.LAB]: [
     PERMISSIONS.PATIENT_READ,
+    PERMISSIONS.LAB_READ,
+    PERMISSIONS.LAB_CREATE,
+    PERMISSIONS.LAB_UPDATE,
+    PERMISSIONS.LAB_TEMPLATE_MANAGE,
+    PERMISSIONS.LAB_COLLECT,
+    PERMISSIONS.LAB_RESULT,
+    PERMISSIONS.LAB_VALIDATE,
+    PERMISSIONS.BLOOD_BANK_READ,
+    PERMISSIONS.BLOOD_BANK_CREATE,
+    PERMISSIONS.BLOOD_BANK_UPDATE,
+    PERMISSIONS.BLOOD_BANK_ISSUE,
     PERMISSIONS.NURSING_ORDER_CREATE,
     PERMISSIONS.NURSING_ORDER_READ,
     PERMISSIONS.NURSING_SAMPLE_READ,
     PERMISSIONS.NURSING_SAMPLE_UPDATE,
+    ...SUPPORT_SELF_PERMISSIONS,
   ],
   [ROLES.RADIOLOGY]: [
     PERMISSIONS.PATIENT_READ,
+    PERMISSIONS.IMAGING_READ,
+    PERMISSIONS.IMAGING_UPDATE,
     PERMISSIONS.NURSING_ORDER_CREATE,
     PERMISSIONS.NURSING_ORDER_READ,
+<<<<<<< HEAD
     PERMISSIONS.RADIOLOGY_STUDY_READ,
     PERMISSIONS.RADIOLOGY_REQUEST_CREATE,
     PERMISSIONS.RADIOLOGY_REQUEST_READ,
@@ -293,8 +600,15 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.RADIOLOGY_FORMS_READ,
     PERMISSIONS.RADIOLOGY_FORMS_CREATE,
     PERMISSIONS.AUDIT_READ,
+=======
+    PERMISSIONS.NOTIFICATION_READ,
+    ...SUPPORT_SELF_PERMISSIONS,
   ],
-  [ROLES.PHARMACIST]: PHARMACY_PERMISSIONS,
+  [ROLES.PHARMACIST]: [
+    ...PHARMACY_PERMISSIONS,
+    PERMISSIONS.NOTIFICATION_READ,
+>>>>>>> b3ee75c5a30d46cb85fb1b68e838b334ca340a24
+  ],
 };
 
 export function permissionsForRoles(roles: string[]): Set<PermissionName> {

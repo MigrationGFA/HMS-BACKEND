@@ -1,0 +1,137 @@
+-- CreateSchema
+-- Laboratory catalog + doctor lab requests (pay-before-process)
+
+CREATE TABLE IF NOT EXISTS "LAB_TESTS" (
+    "LAB_TEST_ID" SERIAL NOT NULL,
+    "TEST_CODE" VARCHAR(50) NOT NULL,
+    "NAME" VARCHAR(255) NOT NULL,
+    "CATEGORY" VARCHAR(100) NOT NULL,
+    "SPECIMEN_TYPE" VARCHAR(100) NOT NULL,
+    "CONTAINER" VARCHAR(100),
+    "TURNAROUND" VARCHAR(50) NOT NULL,
+    "UNIT_PRICE" DECIMAL(14,2) NOT NULL,
+    "LOINC_CODE" VARCHAR(50),
+    "IS_PANEL" BOOLEAN NOT NULL DEFAULT false,
+    "STATUS" VARCHAR(50) NOT NULL DEFAULT 'Active',
+    "CREATED_BY_ID" INTEGER,
+    "CREATED_BY" VARCHAR(100),
+    "CREATED_DATE" TIMESTAMP(3),
+    "UPDATED_BY_ID" INTEGER,
+    "UPDATED_BY" VARCHAR(100),
+    "UPDATED_DATE" TIMESTAMP(3),
+
+    CONSTRAINT "LAB_TESTS_pkey" PRIMARY KEY ("LAB_TEST_ID")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "LAB_TESTS_TEST_CODE_key" ON "LAB_TESTS"("TEST_CODE");
+CREATE INDEX IF NOT EXISTS "LAB_TESTS_CATEGORY_idx" ON "LAB_TESTS"("CATEGORY");
+CREATE INDEX IF NOT EXISTS "LAB_TESTS_STATUS_idx" ON "LAB_TESTS"("STATUS");
+CREATE INDEX IF NOT EXISTS "LAB_TESTS_NAME_idx" ON "LAB_TESTS"("NAME");
+
+CREATE TABLE IF NOT EXISTS "LAB_REQUESTS" (
+    "LAB_REQUEST_ID" SERIAL NOT NULL,
+    "REQUEST_NO" VARCHAR(50) NOT NULL,
+    "PERSON_ID" INTEGER NOT NULL,
+    "ENCOUNTER_ID" INTEGER,
+    "DOCTOR_ID" INTEGER NOT NULL,
+    "PRIORITY" VARCHAR(50) NOT NULL DEFAULT 'Routine',
+    "CLINICAL_INDICATION" TEXT,
+    "CLINICAL_NOTES" TEXT,
+    "STATUS" VARCHAR(50) NOT NULL DEFAULT 'Sent',
+    "PAYMENT_STATUS" VARCHAR(50) NOT NULL DEFAULT 'Unpaid',
+    "PAYMENT_CHANNEL" VARCHAR(50),
+    "PAYMENT_REF" VARCHAR(100),
+    "PAID_AT" TIMESTAMP(3),
+    "PAID_BY" VARCHAR(100),
+    "TOTAL_AMOUNT" DECIMAL(14,2) NOT NULL DEFAULT 0,
+    "CREATED_BY_ID" INTEGER,
+    "CREATED_BY" VARCHAR(100),
+    "CREATED_DATE" TIMESTAMP(3),
+    "UPDATED_BY_ID" INTEGER,
+    "UPDATED_BY" VARCHAR(100),
+    "UPDATED_DATE" TIMESTAMP(3),
+
+    CONSTRAINT "LAB_REQUESTS_pkey" PRIMARY KEY ("LAB_REQUEST_ID")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "LAB_REQUESTS_REQUEST_NO_key" ON "LAB_REQUESTS"("REQUEST_NO");
+CREATE INDEX IF NOT EXISTS "LAB_REQUESTS_PERSON_ID_idx" ON "LAB_REQUESTS"("PERSON_ID");
+CREATE INDEX IF NOT EXISTS "LAB_REQUESTS_ENCOUNTER_ID_idx" ON "LAB_REQUESTS"("ENCOUNTER_ID");
+CREATE INDEX IF NOT EXISTS "LAB_REQUESTS_DOCTOR_ID_idx" ON "LAB_REQUESTS"("DOCTOR_ID");
+CREATE INDEX IF NOT EXISTS "LAB_REQUESTS_STATUS_idx" ON "LAB_REQUESTS"("STATUS");
+CREATE INDEX IF NOT EXISTS "LAB_REQUESTS_PAYMENT_STATUS_idx" ON "LAB_REQUESTS"("PAYMENT_STATUS");
+CREATE INDEX IF NOT EXISTS "LAB_REQUESTS_CREATED_DATE_idx" ON "LAB_REQUESTS"("CREATED_DATE");
+
+CREATE TABLE IF NOT EXISTS "LAB_REQUEST_ITEMS" (
+    "ITEM_ID" SERIAL NOT NULL,
+    "LAB_REQUEST_ID" INTEGER NOT NULL,
+    "LAB_TEST_ID" INTEGER NOT NULL,
+    "TEST_CODE" VARCHAR(50) NOT NULL,
+    "TEST_NAME" VARCHAR(255) NOT NULL,
+    "CATEGORY" VARCHAR(100),
+    "SPECIMEN_TYPE" VARCHAR(100),
+    "UNIT_PRICE" DECIMAL(14,2) NOT NULL,
+    "LINE_NOTES" TEXT,
+
+    CONSTRAINT "LAB_REQUEST_ITEMS_pkey" PRIMARY KEY ("ITEM_ID")
+);
+
+CREATE INDEX IF NOT EXISTS "LAB_REQUEST_ITEMS_LAB_REQUEST_ID_idx" ON "LAB_REQUEST_ITEMS"("LAB_REQUEST_ID");
+CREATE INDEX IF NOT EXISTS "LAB_REQUEST_ITEMS_LAB_TEST_ID_idx" ON "LAB_REQUEST_ITEMS"("LAB_TEST_ID");
+
+DO $$ BEGIN
+  ALTER TABLE "LAB_REQUESTS" ADD CONSTRAINT "LAB_REQUESTS_PERSON_ID_fkey"
+    FOREIGN KEY ("PERSON_ID") REFERENCES "PERSONS"("PERSON_ID") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "LAB_REQUESTS" ADD CONSTRAINT "LAB_REQUESTS_ENCOUNTER_ID_fkey"
+    FOREIGN KEY ("ENCOUNTER_ID") REFERENCES "ENCOUNTERS"("ENCOUNTER_ID") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "LAB_REQUESTS" ADD CONSTRAINT "LAB_REQUESTS_DOCTOR_ID_fkey"
+    FOREIGN KEY ("DOCTOR_ID") REFERENCES "USERS"("USER_ID") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "LAB_REQUEST_ITEMS" ADD CONSTRAINT "LAB_REQUEST_ITEMS_LAB_REQUEST_ID_fkey"
+    FOREIGN KEY ("LAB_REQUEST_ID") REFERENCES "LAB_REQUESTS"("LAB_REQUEST_ID") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "LAB_REQUEST_ITEMS" ADD CONSTRAINT "LAB_REQUEST_ITEMS_LAB_TEST_ID_fkey"
+    FOREIGN KEY ("LAB_TEST_ID") REFERENCES "LAB_TESTS"("LAB_TEST_ID") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Seed catalog from doctor TEST_CATALOG (prices NGN)
+INSERT INTO "LAB_TESTS" ("TEST_CODE", "NAME", "CATEGORY", "SPECIMEN_TYPE", "TURNAROUND", "UNIT_PRICE", "IS_PANEL", "STATUS", "CREATED_BY", "CREATED_DATE")
+VALUES
+  ('FBC', 'Full Blood Count', 'Hematology', 'EDTA Blood', '2 hrs', 4500, false, 'Active', 'SYSTEM', NOW()),
+  ('ESR', 'Erythrocyte Sedimentation Rate', 'Hematology', 'EDTA Blood', '1 hr', 2000, false, 'Active', 'SYSTEM', NOW()),
+  ('UE', 'U&E (Electrolytes, Urea, Creatinine)', 'Chemistry', 'Serum', '3 hrs', 7500, true, 'Active', 'SYSTEM', NOW()),
+  ('LFT', 'Liver Function Test', 'Chemistry', 'Serum', '4 hrs', 8500, true, 'Active', 'SYSTEM', NOW()),
+  ('TFT', 'Thyroid Function Test', 'Hormonal Assay', 'Serum', '6 hrs', 12000, true, 'Active', 'SYSTEM', NOW()),
+  ('LITH', 'Lithium Level', 'Psychiatric Monitoring', 'Serum', '4 hrs', 9500, false, 'Active', 'SYSTEM', NOW()),
+  ('VALP', 'Valproate Level', 'Psychiatric Monitoring', 'Serum', '4 hrs', 9500, false, 'Active', 'SYSTEM', NOW()),
+  ('CLOZ', 'Clozapine Monitoring Panel', 'Psychiatric Monitoring', 'EDTA Blood', '24 hrs', 15000, true, 'Active', 'SYSTEM', NOW()),
+  ('FBS', 'Fasting Blood Sugar', 'Chemistry', 'Fluoride Blood', '1 hr', 1500, false, 'Active', 'SYSTEM', NOW()),
+  ('RBS', 'Random Blood Sugar', 'Chemistry', 'Fluoride Blood', '30 min', 1500, false, 'Active', 'SYSTEM', NOW()),
+  ('HBA1C', 'HbA1c', 'Chemistry', 'EDTA Blood', '4 hrs', 6500, false, 'Active', 'SYSTEM', NOW()),
+  ('MRDT', 'Malaria RDT', 'Infectious Disease', 'Blood', '15 min', 2500, false, 'Active', 'SYSTEM', NOW()),
+  ('URI', 'Urinalysis', 'Urinalysis', 'Urine', '1 hr', 1800, false, 'Active', 'SYSTEM', NOW()),
+  ('UMCS', 'Urine MCS', 'Microbiology', 'Mid-stream Urine', '48 hrs', 6500, false, 'Active', 'SYSTEM', NOW()),
+  ('SMCS', 'Stool MCS', 'Stool Analysis', 'Stool', '48 hrs', 6500, false, 'Active', 'SYSTEM', NOW()),
+  ('TOX', 'Toxicology Screen', 'Toxicology', 'Urine', '6 hrs', 18000, true, 'Active', 'SYSTEM', NOW()),
+  ('HIV', 'HIV Screening', 'Serology', 'Serum', '1 hr', 3500, false, 'Active', 'SYSTEM', NOW()),
+  ('HBS', 'HBsAg', 'Serology', 'Serum', '2 hrs', 4000, false, 'Active', 'SYSTEM', NOW()),
+  ('HCV', 'HCV Antibody', 'Serology', 'Serum', '2 hrs', 4500, false, 'Active', 'SYSTEM', NOW()),
+  ('PT', 'Pregnancy Test', 'Pregnancy Test', 'Urine', '30 min', 2000, false, 'Active', 'SYSTEM', NOW()),
+  ('BG', 'Blood Grouping', 'Blood Bank / Cross Match', 'EDTA Blood', '1 hr', 3000, false, 'Active', 'SYSTEM', NOW()),
+  ('XM', 'Cross Matching', 'Blood Bank / Cross Match', 'EDTA Blood', '2 hrs', 8000, false, 'Active', 'SYSTEM', NOW())
+ON CONFLICT ("TEST_CODE") DO NOTHING;

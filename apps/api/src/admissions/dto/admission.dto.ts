@@ -50,6 +50,13 @@ export class CreateAdmissionDto {
   @IsString()
   @IsIn(['General', 'Close', 'Constant'])
   supervisionLevel?: string;
+
+  /** Link doctor admission request when Records allocates bed. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  admissionRequestId?: number;
 }
 
 export class TransferAdmissionDto {
@@ -86,6 +93,26 @@ export class CreateWardDto {
   @IsString()
   @MaxLength(50)
   wardType?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['General', 'SemiPrivate', 'Private', 'VIP', 'ICU'])
+  wardClass?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['Male', 'Female', 'Mixed'])
+  gender?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  dailyBedRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  admissionDepositDefault?: number;
 
   @IsOptional()
   @Type(() => Number)

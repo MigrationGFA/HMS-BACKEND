@@ -104,7 +104,8 @@ Returns a hello message from the default scaffold.
 | POST | `/auth/login` | Login with email/password | None |
 | POST | `/auth/refresh` | Rotate access token | None (refresh token body) |
 | POST | `/auth/logout` | Revoke refresh token (body only; access JWT optional) | None |
-| GET | `/auth/me` | Current user profile + roles | Bearer |
+| GET | `/auth/me` | Current user JWT identity + roles | Bearer |
+| POST | `/auth/change-password` | Change own password `{ currentPassword, newPassword }` | Bearer |
 
 #### `POST /auth/login`
 
@@ -315,11 +316,14 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/records/dashboard-stats` | Live summary cards for Patient Entry Engine **and** Records dashboard (`/dashboard/records`) — same metrics | `patient:read` |
+| GET | `/records/overview` | Composite Records Officer Overview (`/dashboard/records`) — KPIs, pending tasks, activity, arrivals, alerts | `patient:read` |
+| GET | `/records/dashboard-stats` | Live summary cards for Patient Entry Engine (`/hms/identity`) | `patient:read` |
 | GET | `/records/directory-stats` | Patient Directory summary cards | `patient:read` |
 | GET | `/records/directory` | Patient Directory list (`q`, `sex`, `insurance`, `page`, `limit`) | `patient:read` |
 | GET | `/records/audit-stats` | Records Audit Trail summary cards | `audit:read` |
 | GET | `/records/audit` | Records Audit Trail list (`q`, `type`, `status`, `page`, `limit`) | `audit:read` |
+| GET | `/records/arrivals` | Patient Arrival / Check-In list | `patient:read` |
+| POST | `/records/arrivals/route` | Route arrival to triage/consult/emergency/checkout | `triage:create` or `triage:update` |
 | POST | `/records/registrations` | Create PERSONS + pending PATIENT_CARDS after Next of Kin | `patient:create` |
 | GET | `/records/registrations` | Registration queue (`paymentStatus`, `q`, `page`, `limit`) | `card:read` |
 | GET | `/records/registrations/:personId` | Load person + card to continue registration | `patient:read` |
@@ -327,9 +331,82 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 | GET | `/records/persons/:personId/payment-status` | Check latest card payment for a person | `card:read` |
 | PATCH | `/records/registrations/:personId/complete` | Complete registration after payment | `patient:update` |
 
+#### `GET /api/records/overview`
+
+**Method:** GET  
+**URL:** `/api/records/overview?timezoneOffsetMinutes=&recentLimit=`  
+**Purpose:** Power Records Officer Overview (`/dashboard/records`) — today KPIs, directory signals, open queues, recent audit, today’s arrivals preview, and derived alerts.  
+**Required permission:** `patient:read`  
+**Request body:** none  
+
+**Query:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `timezoneOffsetMinutes` | number | `60` (WAT) | Client offset from UTC for “today” boundary |
+| `recentLimit` | number | `8` (max 30) | Size of recent activity / arrivals preview |
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "asOf": "2026-07-27T10:00:00.000Z",
+    "timezoneOffsetMinutes": 60,
+    "kpis": {
+      "totalToday": 42,
+      "newToday": 12,
+      "returningToday": 30,
+      "walkInToday": 10,
+      "emergencyToday": 2,
+      "pendingRegistration": 5,
+      "awaitingTriage": 8,
+      "awaitingConsultation": 11,
+      "totalPatients": 1200,
+      "incompleteProfiles": 3,
+      "duplicatesFlagged": 1,
+      "openFileRequests": 4,
+      "openAdmissionRequests": 2,
+      "openTransfers": 1,
+      "openReferrals": 0,
+      "dischargesPending": 1
+    },
+    "pendingTasks": {
+      "openFileRequests": 4,
+      "overdueFileRequests": 1,
+      "openAdmissionRequests": 2,
+      "openTransfers": 1,
+      "openReferrals": 0,
+      "dischargesPending": 1,
+      "archivesDueReview": 0
+    },
+    "recentActivity": [
+      {
+        "id": "42",
+        "actor": "Health Records",
+        "action": "Patient Created",
+        "timestamp": "2026-07-27T09:55:00.000Z",
+        "module": "Records",
+        "href": "/records/audit"
+      }
+    ],
+    "recentArrivals": [],
+    "alerts": [
+      {
+        "type": "warning",
+        "message": "5 registration card(s) awaiting payment",
+        "href": "/hms/identity"
+      }
+    ]
+  }
+}
+```
+
+**Error cases:** `401` Unauthorized, `403` Forbidden.
+
 #### `GET /api/records/dashboard-stats`
 
-**Purpose:** Power the 8 live statistic cards on Patient Entry Engine (`/hms/identity`) and Records Officer Overview (`/dashboard/records`). Same endpoint — cards are equivalent.
+**Purpose:** Power the 8 live statistic cards on Patient Entry Engine (`/hms/identity`). Records Officer Overview uses `GET /api/records/overview` instead.
 
 **Query:**
 
@@ -434,6 +511,97 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 **Required permission:** `audit:read`
 
+#### `GET /api/records/arrivals`
+
+**Purpose:** Patient Arrival / Check-In list for `/records/arrivals` — today's triage visits plus paid registrations not yet checked into triage.
+
+**Method:** `GET`
+
+**URL:** `/api/records/arrivals?q=&type=&routing=&page=&limit=&timezoneOffsetMinutes=`
+
+**Required permission:** `patient:read`
+
+**Request body:** none
+
+**Query:**
+- `q` — search arrival no, hospital no, or name
+- `type` — `Walk-In` | `Appointment` | `Referral` | `Emergency`
+- `routing` — e.g. `Awaiting Triage`, `Checked Out` (also accepts `checkedout`)
+- `page`, `limit` — pagination (default limit 50, max 200)
+- `timezoneOffsetMinutes` — local day bounds
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "asOf": "2026-07-17T14:00:00.000Z",
+    "summary": {
+      "total": 12,
+      "walkIn": 5,
+      "appointment": 4,
+      "referral": 1,
+      "emergency": 1,
+      "awaitingTriage": 3,
+      "awaitingConsultation": 2,
+      "checkedOut": 1
+    },
+    "items": [
+      {
+        "triageId": 41,
+        "personId": 132,
+        "arrivalNo": "Q-014",
+        "hospitalId": "FNPH ARO/2026/00132",
+        "name": "Adaeze Nwosu",
+        "type": "Appointment",
+        "clinic": "General OPD",
+        "arrival": "08:32",
+        "arrivalAt": "2026-07-17T07:32:00.000Z",
+        "visit": "Follow-up",
+        "routing": "Awaiting Triage",
+        "payment": "Paid",
+        "lastVisit": null,
+        "status": "Waiting"
+      }
+    ],
+    "meta": { "page": 1, "limit": 50, "total": 12 }
+  }
+}
+```
+
+**Error cases:** `401` unauthenticated, `403` missing `patient:read`
+
+#### `POST /api/records/arrivals/route`
+
+**Purpose:** Route an arrival to triage, consultation, emergency, or check out (creates/updates `TRIAGE`; audit `arrival:*`).
+
+**Method:** `POST`
+
+**URL:** `/api/records/arrivals/route`
+
+**Required permission:** `triage:create` **or** `triage:update`
+
+**Request body:**
+
+```json
+{
+  "personId": 132,
+  "triageId": 41,
+  "action": "triage",
+  "clinic": "General OPD"
+}
+```
+
+`action` ∈ `triage` | `consult` | `emergency` | `checkout`. `triageId` optional when creating a new check-in.
+
+**Response example:** same shape as an arrivals list item (updated routing/status).
+
+**Error cases:**
+- `400` invalid action, or checkout without an active check-in
+- `401` / `403`
+- `404` person or triage not found
+- `409` payment pending (triage create blocked)
+
 ---
 
 ### Cashier Card Payments (`/cashier/payments`)
@@ -470,19 +638,160 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 }
 ```
 
-**Error cases:** `400` validation, `401`, `403` missing `card:confirm-payment`, `404` card not found, `409` already Paid/Waived. Writes audit `card:payment-confirm`.
+**Error cases:** `400` validation, `401`, `403` missing `card:confirm-payment`, `404` card not found, `409` already Paid/Waived. Writes audit `card:payment-confirm`. Successful confirms also create an idempotent `CASHIER_PAYMENT_RECEIPTS` row (see Cashier Ops).
 
 ---
 
-### Users identity search (`/users`)
+### Cashier Ops — Receipts, Refunds, Discounts, Shifts (`/cashier`)
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
+| GET | `/cashier/receipts` | List capturable receipts (`q`, page); includes `refundableAmount` | `cashier:receipt-read` |
+| GET | `/cashier/refunds` | Refund list + KPI counts | `cashier:refund-request` |
+| POST | `/cashier/refunds` | Create partial/full refund or reversal | `cashier:refund-request` |
+| PATCH | `/cashier/refunds/:id/approve` | Approve → apply to receipt (`AMOUNTRefunded` / status); mark Paid | `cashier:refund-approve` |
+| PATCH | `/cashier/refunds/:id/reject` | Reject pending | `cashier:refund-approve` |
+| GET | `/cashier/discounts` | Discount list + KPIs | `cashier:discount-request` |
+| GET | `/cashier/discounts/eligible` | Unpaid domain bills for picker | `cashier:discount-request` |
+| POST | `/cashier/discounts` | Request PERCENT / FIXED / WAIVER | `cashier:discount-request` |
+| PATCH | `/cashier/discounts/:id/approve` | Apply waiver/discount on domain bill | `cashier:discount-approve` |
+| PATCH | `/cashier/discounts/:id/reject` | Reject | `cashier:discount-approve` |
+| GET | `/cashier/shifts/current` | Open shift for me + live totals | `cashier:shift-read` |
+| GET | `/cashier/shifts` | Shift history | `cashier:shift-read` |
+| POST | `/cashier/shifts/open` | Open shift `{ openingFloat }` | `cashier:shift-open` |
+| POST | `/cashier/shifts/:id/close` | Close `{ actualCash, note? }` → variance + TOTALS_JSON | `cashier:shift-close` |
+| PATCH | `/cashier/shifts/:id/approve` | Closed → Approved | `cashier:shift-approve` |
+
+#### `POST /api/cashier/refunds`
+
+**Purpose:** Request a partial or full refund against a captured receipt.
+
+**Request body:**
+
+```json
+{
+  "receiptId": 12,
+  "amount": 1500.5,
+  "kind": "REFUND",
+  "method": "Cash",
+  "reason": "Overpayment on pharmacy sale"
+}
+```
+
+`amount` must be `> 0` and `≤ receipt.amount − amountRefunded`. `kind` ∈ `REFUND | REVERSAL`. `method` ∈ `Cash | POS Card | Bank Transfer | Wallet`.
+
+**Response example:**
+
+```json
+{ "data": { "refundId": 3, "refundNo": "CRF-2026-0001", "status": "Pending" } }
+```
+
+**Error cases:** `400` invalid amount/reason, `401`, `403`, `404` receipt, `409` fully refunded. Audit: `cashier-refund:create`. Approve writes `cashier-refund:approve` and updates receipt to `PartiallyRefunded` or `Refunded`.
+
+#### `POST /api/cashier/discounts`
+
+**Purpose:** Request discount/waiver on an unpaid clinical bill.
+
+**Request body:**
+
+```json
+{
+  "sourceType": "lab",
+  "sourceId": 44,
+  "discKind": "WAIVER",
+  "category": "Welfare",
+  "reason": "Indigent patient approved by social work"
+}
+```
+
+`sourceType` ∈ `card | pharmacy | prescription | lab | admission | imaging`. `discKind` ∈ `PERCENT | FIXED | WAIVER` (`value` required for PERCENT/FIXED).
+
+**Error cases:** `400` validation / bill not unpaid, `401`, `403`, `404`. On approve, domain `PAYMENT_STATUS` set to `Waived` (full waiver) or payable reduced where amount fields exist. Audit: `cashier-discount:*`.
+
+#### `POST /api/cashier/shifts/open` / `…/:id/close`
+
+**Purpose:** Open a cashier shift with float; close with actual cash count. Totals sum receipts since `OPENED_AT` for the cashier user.
+
+**Close body:** `{ "actualCash": 85000, "note": "POS batch matched" }`
+
+**Error cases:** `400` closing another user’s shift, `401`, `403`, `404`, `409` already open/closed. Audit: `cashier-shift:open|close|approve`.
+
+#### `GET /api/cashier/reports`
+
+**Purpose:** Revenue dashboard from `CASHIER_PAYMENT_RECEIPTS` + outstanding unpaid bills.
+
+**Query:** `from`, `to` (optional ISO dates; default today).
+
+**Permission:** `cashier:report-read`
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "kpis": { "collected": 120000, "refunds": 1500, "receiptCount": 42, "outstanding": 88000, "discounted": 5000 },
+    "bySource": [{ "department": "Pharmacy", "amount": 40000 }],
+    "byChannel": [{ "channel": "Cash", "amount": 50000 }],
+    "outstandingItems": [{ "ref": "LAB-001", "patientName": "Ada", "department": "Laboratory", "amount": 3500 }]
+  }
+}
+```
+
+**Error cases:** `401`, `403`.
+
+#### `GET /api/cashier/receipts/verify?receiptNo=`
+
+**Purpose:** Lookup any receipt including fully `Refunded`. Writes audit `cashier-receipt:verify`.
+
+**Permission:** `cashier:receipt-read`
+
+**Error cases:** `400` missing `receiptNo`, `401`, `403`, `404`.
+
+#### `POST /api/cashier/receipts/:id/reprint`
+
+**Purpose:** Audit-only reprint (`cashier-receipt:reprint`); returns watermark flag from settings.
+
+**Permission:** `cashier:receipt-read`
+
+**Error cases:** `401`, `403`, `404`.
+
+#### `GET /api/cashier/audit` / `GET /api/cashier/audit/stats`
+
+**Purpose:** Cashier-scoped audits (`cashier-*` + payment confirm types) and today KPI counts.
+
+**Permission:** `audit:read`
+
+**Error cases:** `401`, `403`.
+
+#### `GET/PATCH /api/cashier/settings`
+
+**Purpose:** Hospital singleton payment-channel toggles + desk policy (`requireOpenShift`, `varianceTolerance`, `reprintWatermark`).
+
+**Permissions:** `cashier:settings-read` / `cashier:settings-update`
+
+**PATCH body (partial):** `{ "cashEnabled": true, "posEnabled": false, "requireOpenShift": false, "varianceTolerance": 100, "reprintWatermark": true }`
+
+**Error cases:** `400` validation, `401`, `403`. Audit: `cashier-settings:update`.
+
+---
+
+### Users identity + self profile (`/users`)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/users/me` | Own clinical/professional profile | authenticated JWT |
+| PATCH | `/users/me` | Update own profile fields | authenticated JWT |
 | GET | `/users` | Search staff users (`q`, `page`, `limit`) — no credentials exposed | `user:read` |
 
-**Response example:** `{ data: { items: [{ userId, userName, email, firstName, lastName, role, isAdmin, locked }], meta } }`
+**PATCH `/users/me` body:** `{ licenseNumber?, specialties?, subSpecialty?, qualifications?, departmentName?, clinicName?, consultationHours?, wardAssignment?, phoneNo?, firstName?, lastName? }`
 
-**Error cases:** `401`, `403` missing `user:read`.
+**Response example (me):** `{ data: { userId, email, licenseNumber, specialties, subSpecialty, clinicName, consultationHours, roles: ["DOCTOR"] } }`
+
+**Errors:** `400` validation; `401`; `403` (search); `404` user.
+
+**Audit:** `user:profile-update`. Password changes use `POST /auth/change-password` (`auth:change-password`).
+
+**Staff search response:** `{ data: { items: [{ userId, userName, email, firstName, lastName, role, isAdmin, locked }], meta } }`
 
 ---
 
@@ -550,22 +859,106 @@ Nurse-facing facade over **Triage** + latest **PATIENT_CARDS** payment status. S
 
 ### Admissions (`/admissions`)
 
-Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`.
+Inpatient wards, beds, and admissions. Prisma: `WARDS`, `BEDS`, `ADMISSIONS`. Ward list includes `gender` (Male|Female|Mixed), `dailyBedRate`, `wardClass`, free/occupied bed counts.
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/admissions/wards` | List wards with bed counts | `admission:read` |
-| POST | `/admissions/wards` | Create ward (optional `bedCount`) | `admission:create` |
-| GET | `/admissions/beds` | List beds (`wardId`, `status`) | `admission:read` |
-| GET | `/admissions` | List admissions (`status`, `wardId`, `q`, `page`, `limit`) | `admission:read` |
+| GET | `/admissions/billing-items` | Admission package catalogue (Active items) | `admission:read` |
+| GET | `/admissions/wards?status=&personSex=&q=` | List wards with free/occupied/total bed counts; `personSex` returns Male/Female + Mixed | `admission:read` |
+| POST | `/admissions/wards` | Create ward (`wardClass?`, `gender?`, rates?, `bedCount?`) | `admission:create` |
+| GET | `/admissions/beds` | List beds (`wardId`, `status=AVAILABLE\|OCCUPIED|…`) | `admission:read` |
+| GET | `/admissions` | List admissions (`status` supports comma-separated values, `wardId`, `q`, `page`, `limit`) | `admission:read` |
 | GET | `/admissions/stats` | `active`, `availableBeds`, `dischargeOrdered`, `constantSupervision` | `admission:read` |
 | GET | `/admissions/:id` | Admission detail + person | `admission:read` |
-| POST | `/admissions` | Admit person to bed (occupies bed) | `admission:create` |
+| POST | `/admissions` | Admit person to bed; auto-posts Unpaid admission package bill | `admission:create` |
 | PATCH | `/admissions/:id/transfer` | `{ bedId }` — free old bed (`CLEANING`), occupy new | `admission:update` |
 | PATCH | `/admissions/:id/order-discharge` | `{ reason? }` → `DISCHARGE_ORDERED` | `admission:update` |
-| PATCH | `/admissions/:id/complete-discharge` | → `DISCHARGED`, bed `CLEANING` | `admission:update` |
+| PATCH | `/admissions/:id/complete-discharge` | → `DISCHARGED`, bed `CLEANING` (prefer `PATCH /discharge-drafts/:id/finalize`) | `discharge:finalize` |
 
-**Audit:** `admission:create`, `admission:transfer`, `admission:order-discharge`, `admission:discharge`.
+**GET `/admissions/wards` response:** `{ data: { items: [{ wardId, code, name, gender, wardClass, availableBeds, totalBeds, occupiedBeds, dailyBedRate, … }] } }`
+
+**Standard testing inventory (after `20260721160000_standard_wards_beds`):** Active wards `MGEN`, `FGEN`, `MIXG`, `MVIP`, `FVIP`, `GEN`, `PRIV`, `SEMI`, `VIP`, `ICU`, `W1C` — each with beds `01`–`20` (`AVAILABLE` until assigned). Admit marks bed `OCCUPIED`.
+
+**POST `/admissions/wards` body:** `{ code, name, wardType?, wardClass?, gender?, dailyBedRate?, admissionDepositDefault?, bedCount? }`
+
+**POST `/admissions` body:** `{ personId, wardId, bedId, admissionRequestId?, admissionType?, diagnosis?, … }` — optional `admissionRequestId` marks the request `Admitted` and links the bill.
+
+**Response example (admit):** `{ data: { admissionId, status: "ADMITTED", admissionBill: { admissionBillId, billNo, totalAmount, paymentStatus: "Unpaid", lines: […] } } }`
+
+**Audit:** `admission:create`, `admission-bill:create`, `admission:transfer`, `admission:order-discharge`, `admission:discharge`.
+
+### Admission requests (`/admission-requests`)
+
+Doctor-initiated **pending admission queue** (no payment fields, no bed assignment). Bed admit remains `POST /admissions`. Prisma: `ADMISSION_REQUESTS`. Statuses: `Draft` | `Submitted` | `UnderReview` | `Approved` | `Rejected` | `Cancelled` | `Admitted`.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| POST | `/admission-requests` | Create/submit request (`asDraft` → Draft, else Submitted) | `admission:create` |
+| GET | `/admission-requests` | List (`scope=mine\|all`, `status`, `personId`, `q`, `page`, `limit`) | `admission:read` |
+| GET | `/admission-requests/:id` | Detail + person + ward | `admission:read` |
+| PATCH | `/admission-requests/:id` | Update draft / cancel / Approve / Reject / UnderReview | `admission:update` |
+
+**Request body (POST):** `personId` (required), optional `encounterId`, `wardId`, `wardPreference`, `priority` (`Routine`\|`Urgent`\|`Emergency`), `priorityReason` (required if not Routine), `admissionType`, `estimatedLos`, clinical/risk fields, consent, `asDraft`. **No** `paymentCategory` / Cash / NHIA / HMO.
+
+**Response example:**
+```json
+{
+  "data": {
+    "admissionRequestId": 1,
+    "requestNo": "AR-2026-0001",
+    "personId": 42,
+    "status": "Submitted",
+    "priority": "Urgent",
+    "provisionalDiagnosis": "…",
+    "person": { "personId": 42, "hospitalNo": "FNPH-…", "firstName": "…" },
+    "ward": { "wardId": 1, "name": "Male Acute Ward" }
+  }
+}
+```
+
+**Errors:** `400` validation / missing clinical fields / `scope=mine` without auth; `404` person, ward, or request.
+
+**Audit:** `admission-request:create`, `admission-request:update`.
+
+### Admission bills (`/admission-bills`)
+
+Auto-priced admission package invoices (mirror lab unpaid → paid). Prisma: `ADMISSION_BILLING_ITEMS`, `ADMISSION_BILLS`, `ADMISSION_BILL_LINES`. Created on admit (package catalogue + Day-1 bed rate + optional deposit). Cashier never edits unit prices.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/admission-bills?paymentStatus=&personId=&admissionId=&q=&page=&limit=` | List bills | `admission:read` |
+| GET | `/admission-bills/:id` | Detail + snapshotted lines | `admission:read` |
+| GET | `/cashier/payments/admission-bills?paymentStatus=Unpaid` | Cashier unpaid queue | `admission:pay` |
+| POST | `/cashier/payments/admission-bills/:id/confirm` | Confirm payment `{ paymentChannel, paymentRef? }` | `admission:pay` |
+| GET | `/cashier/payments/imaging-requests?paymentStatus=Unpaid` | Cashier unpaid imaging requests | `imaging:pay` |
+| POST | `/cashier/payments/imaging-requests/:id/confirm` | Confirm imaging payment `{ paymentChannel, paymentRef? }` | `imaging:pay` |
+
+**POST confirm body:** `{ paymentChannel: "Cash"|"POS Card"|"Bank Transfer"|"Online Card"|"Wallet", paymentRef?: string }`
+
+**Response example:**
+```json
+{
+  "data": {
+    "admissionBillId": 1,
+    "billNo": "AB-2026-0001",
+    "personId": 42,
+    "admissionId": 10,
+    "totalAmount": 66500,
+    "paymentStatus": "Paid",
+    "paymentChannel": "Cash",
+    "lines": [
+      { "itemCode": "ADM-FEE", "description": "Admission Fee", "qty": 1, "unitPrice": 5000, "lineTotal": 5000 }
+    ],
+    "person": { "personId": 42, "hospitalNo": "FNPH-…", "firstName": "…" }
+  }
+}
+```
+
+**Errors:** `400` already paid/waived; `401`; `403`; `404` bill not found.
+
+**Audit:** `admission-bill:create`, `admission-bill:pay`.
+
+**Deploy note:** apply migration `20260721120000_admission_billing` via `npx prisma migrate deploy` (same as LIS).
 
 ---
 
@@ -626,13 +1019,7 @@ Orders, tasks, MAR, samples, shifts, handover, ICU, messaging, reports, analytic
 
 ### Bridge routes (interim — ADR-012)
 
-Lab still bridges to nursing-ops until a dedicated laboratory domain lands. Prescriptions and pharmacy dispense are real modules (see below).
-
-| Method | Path | Description | Permission |
-|--------|------|-------------|------------|
-| GET/POST | `/laboratory/requests` | Lab orders → nursing orders | `nursing-order:read\|create` |
-| GET | `/laboratory/samples` | Same as nursing samples | `nursing-sample:read` |
-| POST | `/laboratory/samples/:id/collect` | Collect via lab facade | `nursing-sample:update` |
+The former lab→nursing bridge is retired: `/laboratory/*` is now a dedicated laboratory domain (see [Laboratory](#laboratory-laboratory)). Nursing keeps its own `/nursing/samples` flow. Prescriptions and pharmacy dispense are real modules (see below).
 
 
 ### Pharmacy Suppliers (`/pharmacy/suppliers`)
@@ -670,18 +1057,398 @@ Drugs a supplier supplies are referenced by **drug ID** (from the drug catalog),
 
 ---
 
+### Diagnoses (`/diagnoses`)
+
+ICD/DSM catalog + patient problem list. Prisma: `DIAGNOSIS_CODES`, `PATIENT_DIAGNOSES`. No hard delete.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/diagnoses/catalog?q=&system=&category=` | Search Active catalog | `diagnosis:read` |
+| GET | `/diagnoses/stats?personId=` | KPI counts | `diagnosis:read` |
+| GET | `/diagnoses?personId=&status=&type=&tab=&q=&page=&limit=` | List patient diagnoses | `diagnosis:read` |
+| GET | `/diagnoses/:id` | Detail | `diagnosis:read` |
+| POST | `/diagnoses` | Add diagnosis (`personId`, `diagnosisCodeId` or `code`+`name`, type/status…) | `diagnosis:create` |
+| PATCH | `/diagnoses/:id` | Update / resolve / rule-out / mark chronic | `diagnosis:update` |
+
+**POST body example:** `{ "personId": 42, "diagnosisCodeId": 1, "type": "Primary", "severity": "Moderate", "certainty": "Confirmed", "clinic": "OPC" }`
+
+**Response example:** `{ data: { patientDiagnosisId, code, name, type, status, personId, isPsychiatric, … } }`
+
+**Errors:** `400` missing code/name; `404` person/diagnosis; `401`; `403`.
+
+**Audit:** `diagnosis:create`, `diagnosis:update`.
+
+---
+
+### Clinical Documentation (`/clinical-notes`)
+
+Structured doctor clinical notes for `/dashboard/doctor/clinical/documentation`. Patient search uses existing `GET /api/patients?q=`. Soft-void only — signed notes are immutable (use addendum later).
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/clinical-notes/templates` | Note templates + required fields | `clinical-note:read` |
+| GET | `/clinical-notes/summary` | KPI counts (drafts, reviews, signed this month) | `clinical-note:read` |
+| GET | `/clinical-notes` | List notes (`q`, `status`, `noteType`, `personId`, `mine`, `page`, `limit`) | `clinical-note:read` |
+| POST | `/clinical-notes` | Create draft note | `clinical-note:create` |
+| GET | `/clinical-notes/:id` | Note detail + fields + patient | `clinical-note:read` |
+| GET | `/clinical-notes/:id/versions` | Immutable version history | `clinical-note:read` |
+| PATCH | `/clinical-notes/:id` | Autosave draft (`version`, `idempotencyKey`, `fields`) | `clinical-note:update` |
+| POST | `/clinical-notes/:id/submit` | Submit for consultant review | `clinical-note:update` |
+| POST | `/clinical-notes/:id/sign` | Review and Sign (locks note) | `clinical-note:sign` |
+| POST | `/clinical-notes/:id/approve` | Consultant approve (+ sign) | `clinical-note:review` |
+| POST | `/clinical-notes/:id/return` | Return for correction (`{ reason }`) | `clinical-note:review` |
+| POST | `/clinical-notes/:id/void` | Soft-void draft | `clinical-note:update` |
+
+#### `POST /api/clinical-notes`
+
+**Purpose:** Create a draft clinical documentation note for a registered patient.
+
+**Required permission:** `clinical-note:create`
+
+**Request body:**
+```json
+{
+  "personId": 42,
+  "noteType": "SOAP Note",
+  "clinic": "OPC",
+  "priority": "Routine",
+  "fields": { "Subjective": "", "Objective": "", "Assessment": "", "Plan": "" }
+}
+```
+
+**Response example:** `{ data: { clinicalNoteId, noteNo: "CN-2026-0001", status: "Draft", version: 1, fields, patient } }`
+
+**Errors:** `400` validation, `401`, `403`, `404` person not found.
+
+#### `PATCH /api/clinical-notes/:id`
+
+**Purpose:** Autosave draft fields with optimistic locking.
+
+**Required permission:** `clinical-note:update`
+
+**Request body:** `{ version?, idempotencyKey?, fields?, noteType?, clinic?, priority?, changeSummary? }`
+
+**Response example:** `{ data: { clinicalNoteId, version: 2, status: "In Progress", fields } }`
+
+**Errors:** `400` not editable / signed, `401`, `403`, `404`, `409` version conflict.
+
+#### `POST /api/clinical-notes/:id/sign`
+
+**Purpose:** Explicit Review and Sign — locks the note (does not auto-sign on save).
+
+**Required permission:** `clinical-note:sign`
+
+**Request body:** `{ attestation? }`
+
+**Response example:** `{ data: { status: "Signed", signedBy, signedAt } }`
+
+**Errors:** `400` already signed/voided, `401`, `403`, `404`.
+
+Patient search for this page: `GET /api/patients?q=&page=&limit=` (`patient:read`) — search by name, hospital no, phone, NHIA, NIN.
+
+---
+
+### Doctor Encounters (`/encounters`)
+
+Payment-gated consultation queue for `/dashboard/doctor/clinical/workspace`. Queue source is today's `TRIAGE` with status `Triage Completed` or `Sent to Consultation`.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/encounters/consultation-queue` | Waiting queue (`q`, `clinic`, `priority`, `page`, `limit`, `timezoneOffsetMinutes`) | `encounter:read` |
+| GET | `/encounters/active` | Logged-in doctor's in-progress encounters | `encounter:read` |
+| GET | `/encounters/completed` | Logged-in doctor's consultations completed today | `encounter:read` |
+| GET | `/encounters/follow-ups` | Follow-up list for workspace (`q`, `clinic`, `status`, `from`, `to`, `mine`) | `encounter:read` |
+| POST | `/encounters/follow-ups` | Schedule a follow-up appointment | `encounter:complete` |
+| PATCH | `/encounters/follow-ups/:id` | Update follow-up (status Attended/Cancelled, reschedule) | `encounter:update` |
+| GET | `/encounters/patients/:personId/clinical-summary` | Aggregated demographics, vitals, allergies, meds, past notes (`triageId?`) | `encounter:read` |
+| GET | `/encounters/patients/:personId/notes` | Paginated encounter notes timeline | `encounter:read` |
+| POST | `/encounters/start` | Start consult from triage (`{ triageId, clinic? }`) | `encounter:create` |
+| GET | `/encounters/:id` | Encounter detail + person + triage vitals | `encounter:read` |
+| PATCH | `/encounters/:id` | Draft note autosave (`version`, `idempotencyKey`, full note fields) | `encounter:update` |
+| POST | `/encounters/:id/complete` | Complete consultation (`{ outcome?, followUpDate?, … }`) | `encounter:complete` |
+
+#### `GET /api/encounters/consultation-queue`
+
+**Purpose:** Doctor waiting list after Records routes patients to consultation.
+
+**Required permission:** `encounter:read`
+
+**Request body:** none
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "asOf": "2026-07-17T15:00:00.000Z",
+    "summary": { "waiting": 4, "paymentBlocked": 1, "canStart": 3 },
+    "items": [
+      {
+        "triageId": 41,
+        "personId": 132,
+        "queueNo": "Q-014",
+        "name": "Adaeze Nwosu",
+        "mrn": "FNPH ARO/2026/00132",
+        "age": 34,
+        "sex": "F",
+        "clinic": "OPC",
+        "visit": "New",
+        "arrival": "08:32",
+        "waitMinutes": 18,
+        "wait": "18 mins",
+        "priority": "Routine",
+        "paymentStatus": "Paid",
+        "paymentCleared": true,
+        "vitalsStatus": "Captured",
+        "vitals": {
+          "status": "Captured",
+          "bloodPressure": "128/82",
+          "temperatureC": 36.8,
+          "pulseBpm": 88,
+          "respiratoryRate": 18,
+          "spo2Pct": 98,
+          "weightKg": 72,
+          "heightCm": 168,
+          "bmi": 25.5,
+          "notes": null
+        },
+        "lastVisit": "2026-07-01",
+        "canStart": true,
+        "triageStatus": "Sent to Consultation"
+      }
+    ],
+    "meta": { "page": 1, "limit": 50, "total": 4 }
+  }
+}
+```
+
+**Error cases:** `401`, `403`
+
+#### `GET /api/encounters/patients/:personId/clinical-summary`
+
+**Purpose:** Patient clinical context for queue eye-view and active consultation panels (demographics, payment, current visit vitals, allergies, active meds, previous diagnoses, history snippets, recent doctor notes). Empty sections return empty arrays/nulls — never mock data.
+
+**Required permission:** `encounter:read`
+
+**Query:** `triageId` (optional — scopes current visit/vitals)
+
+**Request body:** none
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "personId": 132,
+    "demographics": {
+      "name": "Adaeze Nwosu",
+      "mrn": "FNPH ARO/2026/00132",
+      "age": 34,
+      "sex": "F",
+      "bloodGroup": "O+",
+      "phone": "0803…",
+      "nextOfKin": { "name": "…", "relationship": "Spouse", "phone": "…" }
+    },
+    "payment": { "status": "Paid", "display": "Paid", "cleared": true, "cardNo": "CARD-…" },
+    "currentVisit": { "triageId": 41, "queueNo": "Q-014", "clinic": "OPC", "priority": "Routine" },
+    "vitals": { "status": "Captured", "bloodPressure": "128/82", "pulseBpm": 88 },
+    "allergies": [],
+    "activeMeds": [],
+    "previousDiagnoses": [],
+    "historySnippets": {
+      "pastMedicalHistory": "",
+      "drugHistory": "",
+      "allergyHistory": "",
+      "familyHistory": "",
+      "socialHistory": ""
+    },
+    "recentNotes": [],
+    "lastVisit": null
+  }
+}
+```
+
+**Error cases:** `401`, `403`, `404` person not found
+
+#### `GET /api/encounters/patients/:personId/notes`
+
+**Purpose:** Paginated doctor encounter notes timeline (workspace View more + Doctor Note Timeline).
+
+**Required permission:** `encounter:read`
+
+**Query:** `page`, `limit`
+
+**Request body:** none
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "encounterId": 9,
+        "status": "Completed",
+        "doctorName": "Dr Ada",
+        "clinic": "OPC",
+        "startedAt": "2026-07-10T09:00:00.000Z",
+        "completedAt": "2026-07-10T09:28:00.000Z",
+        "outcome": "Discharge",
+        "summary": "CC: Headache · Assessment: Tension headache",
+        "note": {
+          "chiefComplaint": "Headache",
+          "history": "…",
+          "pastMedicalHistory": "…",
+          "drugHistory": "…",
+          "allergyHistory": "…",
+          "familyHistory": "…",
+          "socialHistory": "…",
+          "examination": "…",
+          "assessment": "…",
+          "plan": "…",
+          "followUpPlan": "…"
+        }
+      }
+    ],
+    "meta": { "page": 1, "limit": 20, "total": 1 }
+  }
+}
+```
+
+**Error cases:** `401`, `403`, `404` person not found
+
+#### `POST /api/encounters/start`
+
+**Purpose:** Start consultation; creates `ENCOUNTERS` and sets triage to `In Consultation`.
+
+**Required permission:** `encounter:create`
+
+**Request body:**
+
+```json
+{ "triageId": 41, "clinic": "OPC" }
+```
+
+**Response example:** `{ data: { encounterId, status: "In Consultation", version: 1, patient, note, doctorName } }`
+
+**Error cases:**
+- `400` triage not awaiting consultation
+- `401` / `403`
+- `404` triage not found
+- `409` card payment Pending, or encounter already started for triage
+
+#### `PATCH /api/encounters/:id`
+
+**Purpose:** Autosave draft clinical notes with optimistic locking.
+
+**Required permission:** `encounter:update`
+
+**Request body:** `{ version?, idempotencyKey?, chiefComplaint?, history?, examination?, assessment?, plan?, pastMedicalHistory?, drugHistory?, allergyHistory?, familyHistory?, socialHistory?, followUpPlan? }`
+
+**Error cases:** `400` not in consultation, `409` version conflict
+
+#### `POST /api/encounters/:id/complete`
+
+**Purpose:** Complete an active consultation. When `outcome` is Follow-up (or `followUpDate` is sent), creates a `FOLLOW_UPS` row.
+
+**Required permission:** `encounter:complete`
+
+**Request body:**
+
+```json
+{
+  "outcome": "Follow-up",
+  "followUpDate": "2026-07-25",
+  "followUpClinic": "OPC",
+  "followUpTime": "09:30",
+  "followUpPriority": "Routine",
+  "followUpReason": "Review after sertraline titration"
+}
+```
+
+**Response example:** `{ data: { encounterId, status: "Completed", outcome, completedAt, … } }`
+
+**Error cases:** `400` not in consultation / missing follow-up date, `401`, `403`, `404`
+
+#### `GET /api/encounters/follow-ups`
+
+**Purpose:** List follow-ups for the clinical workspace Follow-Up tab (default: this week → +14 days). Display status is derived: `Scheduled` | `Due Today` | `Missed` | `Attended` | `Cancelled`.
+
+**Required permission:** `encounter:read`
+
+**Query:** `q`, `clinic`, `status`, `from`, `to`, `page`, `limit`, `timezoneOffsetMinutes`, `mine=1` (only the logged-in doctor)
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "summary": { "thisWeek": 3, "dueToday": 1, "missed": 0, "scheduled": 2, "attended": 0 },
+    "items": [
+      {
+        "id": 12,
+        "personId": 132,
+        "name": "Ada Nwosu",
+        "mrn": "FNPH/132",
+        "clinic": "OPC",
+        "prevDx": "MDD",
+        "date": "2026-07-25",
+        "status": "Scheduled"
+      }
+    ],
+    "meta": { "page": 1, "limit": 50, "total": 3, "from": "2026-07-13", "to": "2026-07-27" }
+  }
+}
+```
+
+**Error cases:** `401`, `403`
+
+#### `POST /api/encounters/follow-ups`
+
+**Purpose:** Schedule a follow-up from the workspace dialog (linked to a patient / optional encounter).
+
+**Required permission:** `encounter:complete`
+
+**Request body:** `{ personId, scheduledDate, clinic?, scheduledTime?, priority?, prevDx?, reason?, reminder?, encounterId? }`
+
+**Response example:** `{ data: { id, name, mrn, date, status: "Scheduled" } }`
+
+**Error cases:** `400` invalid date / encounter mismatch, `401`, `403`, `404`
+
+#### `PATCH /api/encounters/follow-ups/:id`
+
+**Purpose:** Mark attended/cancelled or reschedule.
+
+**Required permission:** `encounter:update`
+
+**Request body:** `{ status?: "Scheduled"|"Attended"|"Cancelled", scheduledDate?, scheduledTime?, clinic?, priority?, reason? }`
+
+**Error cases:** `400`, `401`, `403`, `404`
+
+---
+
 ### Clinical Prescriptions (`/prescriptions`)
 
 Doctor creates/sends prescriptions; pharmacy lists inbound (`status=Sent`). Drugs must exist in the catalog (`DRUGS`). Patient is referenced by `PERSON_ID` only.
 
 | Method | Path | Purpose | Permission |
 |--------|------|---------|------------|
-| POST | `/prescriptions` | Create prescription (`send: true` → pharmacy queue) | `prescription:create` |
-| GET | `/prescriptions` | List (`q`, `status`, `personId`, `page`, `limit`) | `prescription:read` |
+| POST | `/prescriptions` | Create prescription (`send: true` → pharmacy queue; `send: false` → Draft) | `prescription:create` |
+| GET | `/prescriptions` | List (`q`, `status` comma-list, `paymentStatus`, `personId`, `page`, `limit`) | `prescription:read` |
+| GET | `/prescriptions/medications?personId=&scope=active\|stopped\|external\|history` | Active/stopped/external/history medication lines | `prescription:read` |
+| GET | `/prescriptions/external?personId=` | List external purchase logs | `prescription:read` |
+| POST | `/prescriptions/external` | Log external purchase `{ personId, drugName, dose, frequency, … }` | `prescription:create` |
 | GET | `/prescriptions/by-rx/:rxNo` | Detail by Rx number (e.g. `RX-2026-0001`) + audit trail | `prescription:read` |
 | GET | `/prescriptions/:id` | Detail by numeric id + audit trail | `prescription:read` |
-| POST | `/prescriptions/:id/dispense` | Dispense (FEFO stock deduct, mark Dispensed, audit) | `pharmacy:dispense` |
+| POST | `/prescriptions/:id/items/:itemId/stop` | Stop line `{ reason, comment? }` → `LINE_STATUS=Stopped` | `prescription:update` |
+| POST | `/prescriptions/:id/refill` | Clone Sent/Dispensed as new Sent Rx | `prescription:create` |
+| POST | `/prescriptions/:id/dispense` | Dispense after Paid/Waived/Emergency (FEFO + audit) | `pharmacy:dispense` |
+| POST | `/prescriptions/:id/emergency-dispense` | Emergency unpaid dispense; records receiver; leaves Emergency bill | `pharmacy:dispense` |
 | PATCH | `/prescriptions/:id` | Update status / payment / pharmacy notes | `prescription:update` |
+
+**Static routes** `medications` and `external` are declared before `:id`.
+
+**Audit:** `prescription:stop-item`, `prescription:refill`, `prescription:external`
 
 #### `POST /api/prescriptions`
 
@@ -748,7 +1515,30 @@ Omit `items` to dispense full remaining quantity on all internal-pharmacy lines.
 
 **Response:** `{ data: { prescriptionId, rxNo, status: "Dispensed", dispensedBy, items, auditTrail } }`
 
-**Errors:** `400` insufficient stock / already dispensed, `401`, `403` missing `pharmacy:dispense`, `404`
+**Errors:** `400` unpaid (must pay or use emergency-dispense) / insufficient stock / already dispensed, `401`, `403` missing `pharmacy:dispense`, `404`
+
+#### `POST /api/prescriptions/:id/emergency-dispense`
+
+**Purpose:** Clinically necessary dispense before payment. Sets `PAYMENT_STATUS=Emergency`, stores `EMERGENCY_RECEIVED_BY` / note / timestamp, then runs FEFO dispense. Bill remains collectible at cashier/billing until paid.
+
+**Permission:** `pharmacy:dispense`
+
+**Request body:**
+
+```json
+{
+  "receivedBy": "Nurse Ama — Ward 3",
+  "note": "Stat antibiotics — patient unstable",
+  "pharmacyNotes": "Counselled",
+  "items": [{ "itemId": 1, "quantity": 10 }]
+}
+```
+
+**Response:** `{ data: { prescriptionId, paymentStatus: "Emergency", emergencyReceivedBy, status: "Dispensed", ... } }`
+
+**Errors:** `400` already paid/waived / missing receivedBy / stock, `401`, `403`, `404`
+
+**Audit:** `pharmacy:emergency-dispense`
 
 ---
 
@@ -817,6 +1607,408 @@ Positive `qty` adds to the newest batch; negative deducts FEFO (earliest-expiry 
 
 ---
 
+### Pharmacy Walk-In Sales (`/pharmacy/walk-in`)
+
+OTC / walk-in sales are **not** clinical prescriptions. Flow: pharmacist creates request (Unpaid) → cashier confirms payment → pharmacist dispenses (FEFO stock).
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| POST | `/pharmacy/walk-in` | Create walk-in request (Awaiting Payment) | `pharmacy:sale-create` |
+| GET | `/pharmacy/walk-in` | List sales (`status`, `paymentStatus`, `q`, `page`, `limit`) | `pharmacy:sale-read` |
+| GET | `/pharmacy/walk-in/by-no/:saleNo` | Detail by `WS-YYYY-####` | `pharmacy:sale-read` |
+| GET | `/pharmacy/walk-in/:id` | Detail by id | `pharmacy:sale-read` |
+| POST | `/pharmacy/walk-in/:id/dispense` | Dispense after Paid (FEFO batches) | `pharmacy:dispense` |
+| PATCH | `/pharmacy/walk-in/:id/cancel` | Cancel unpaid / not-dispensing sale | `pharmacy:sale-create` |
+| GET | `/cashier/payments/pharmacy-sales` | Cashier unpaid walk-in queue | `pharmacy:sale-read` |
+| POST | `/cashier/payments/pharmacy-sales/:saleId/confirm` | Confirm payment (unlocks dispense) | `pharmacy:sale-pay` |
+| GET | `/cashier/payments/prescriptions` | Cashier unpaid/emergency Rx bills (`paymentStatus` default `Unpaid,Emergency`) | `prescription:read` |
+| POST | `/cashier/payments/prescriptions/:id/confirm` | Confirm Rx payment | `prescription:pay` |
+
+#### `POST /api/pharmacy/walk-in`
+
+**Purpose:** Create walk-in request. Does **not** collect money or dispense. Resolves/creates `PERSONS` (patient-centric).
+
+**Request body:**
+
+```json
+{
+  "personId": 12,
+  "items": [{ "drugId": 3, "quantity": 20 }],
+  "preferredPaymentChannel": "Cash",
+  "notes": "OTC analgesics"
+}
+```
+
+Or for a new customer: `{ "customerName": "Ada Obi", "phone": "0803…", "items": [...] }`.
+
+**Response:** `{ data: { saleId, saleNo: "WS-2026-0001", status: "Awaiting Payment", paymentStatus: "Unpaid", total, items, person } }`
+
+**Errors:** `400` validation / insufficient stock, `401`, `403`, `404` person
+
+**Audit:** `pharmacy:sale-create`
+
+#### `POST /api/cashier/payments/pharmacy-sales/:saleId/confirm`
+
+**Purpose:** Cashier marks sale Paid — pharmacist may then dispense.
+
+**Request body:** `{ "paymentChannel": "Cash", "paymentRef": "POS-991" }`
+
+**Response:** `{ data: { saleId, paymentStatus: "Paid", status: "Paid", paidBy, paidAt } }`
+
+**Errors:** `400` already paid / cancelled, `401`, `403`, `404`
+
+**Audit:** `pharmacy:sale-pay`
+
+#### `POST /api/pharmacy/walk-in/:id/dispense`
+
+**Purpose:** Dispense only when `paymentStatus = Paid`. Deducts `DRUG_BATCHES` FEFO.
+
+**Errors:** `400` unpaid / insufficient stock / already dispensed, `401`, `403`, `404`
+
+**Audit:** `pharmacy:sale-dispense`
+
+---
+
+---
+
+### Pharmacy Operations Dashboard (`/pharmacy`)
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/dashboard` | KPI cards, charts, live alerts for `/pharmacy` | `pharmacy:read` |
+| GET | `/pharmacy/analytics` | Operational analytics for `/pharmacy/analytics` | `pharmacy:read` |
+| GET | `/pharmacy/expiry` | Expiry monitoring for `/dashboard/pharmacy/expiry` | `pharmacy:read` |
+| POST | `/pharmacy/expiry/batches/:batchId/quarantine` | Quarantine batch | `stock:adjust` |
+| GET | `/pharmacy/inpatient` | Inpatient ward dispensing queue (active admissions + Rx) | `pharmacy:read` |
+| GET | `/pharmacy/reports/catalog` | Available operational report types | `pharmacy:read` |
+| GET | `/pharmacy/reports/:type` | Generate report rows + summary | `pharmacy:read` |
+| GET | `/pharmacy/audit` | Pharmacy-scoped audit trail + embedded stats | `audit:read` |
+| GET | `/pharmacy/audit/stats` | Pharmacy audit summary cards | `audit:read` |
+
+#### `GET /api/pharmacy/dashboard?timezoneOffsetMinutes=60`
+
+**Purpose:** Pharmacy operations dashboard KPIs, charts, and live alerts.
+
+**Required permission:** `pharmacy:read`
+
+**Request body:** none
+
+**Response example:**
+```json
+{
+  "data": {
+    "asOf": "2026-07-17T12:00:00.000Z",
+    "kpis": {
+      "prescriptionsToday": 12,
+      "pendingPrescriptions": 4,
+      "dispensedToday": 7,
+      "revenueToday": 125000,
+      "lowStock": 3,
+      "outOfStock": 1,
+      "expiringSoon": 5,
+      "expired": 0,
+      "pendingPurchaseOrders": 2,
+      "inpatientWardRequests": 8,
+      "drugReturns": 1,
+      "emergencyDispenses": 0,
+      "auditAlerts": 0,
+      "controlledDrugBalance": 42
+    },
+    "charts": {
+      "rxTrend": [{ "d": "Mon", "rx": 5 }],
+      "salesTrend": [{ "d": "Mon", "v": 12000 }],
+      "fastMoving": [{ "name": "Paracetamol", "qty": 40 }],
+      "slowMoving": [],
+      "stockValue": [{ "name": "Analgesic", "v": 500000 }],
+      "monthlyRevenue": [{ "m": "Jul", "v": 1.2, "amount": 1200000 }],
+      "expiryRisk": [{ "name": "< 30 days", "value": 2, "color": "#ef4444" }]
+    },
+    "alerts": [{ "tone": "amber", "title": "Low stock", "count": 3, "to": "/pharmacy/inventory?filter=low" }]
+  }
+}
+```
+
+**Error cases:** `401` unauthorized, `403` missing permission
+
+#### `GET /api/pharmacy/inpatient?q=&wardId=&status=&page=&limit=`
+
+**Purpose:** Inpatient pharmacy queue — active admissions joined to pending/dispensed prescriptions. MAR administration stays in Nursing.
+
+**Required permission:** `pharmacy:read`
+
+**Query:** `status` = `all` | `awaiting` | `awaiting-pharmacy` | `awaiting-payment` | `dispensed` | `no-rx`
+
+**Response example:**
+```json
+{
+  "data": {
+    "summary": { "admitted": 10, "awaitingPharmacy": 3, "awaitingPayment": 2, "dispensed": 4, "noPrescription": 1 },
+    "wards": [{ "wardId": 1, "wardName": "Male Med" }],
+    "items": [{
+      "admissionId": 1,
+      "patientName": "Ada Okafor",
+      "wardName": "Male Med",
+      "bedNo": "B12",
+      "rxNo": "RX-2026-001",
+      "queueStatus": "Awaiting Pharmacy",
+      "paymentStatus": "Paid"
+    }],
+    "meta": { "page": 1, "limit": 50, "total": 1 }
+  }
+}
+```
+
+**Error cases:** `401`, `403` (empty queue if ADMISSION table unavailable)
+
+#### `GET /api/pharmacy/reports/catalog`
+
+**Purpose:** List supported pharmacy report types.
+
+**Required permission:** `pharmacy:read`
+
+**Response example:** `{ "data": { "items": [{ "type": "revenue", "label": "Revenue Report", "description": "…" }] } }`
+
+**Error cases:** `401`, `403`
+
+#### `GET /api/pharmacy/reports/:type?from=&to=&page=&limit=`
+
+**Purpose:** Generate operational report (`daily-prescriptions`, `monthly-prescriptions`, `drug-utilization`, `controlled-drugs`, `revenue`, `inventory`, `expiry`, `returns`).
+
+**Required permission:** `pharmacy:read`
+
+**Response example:** `{ "data": { "type": "revenue", "from": "…", "to": "…", "summary": {}, "columns": [], "items": [], "meta": {} } }`
+
+**Error cases:** `400` unknown report type, `401`, `403`
+
+#### `GET /api/pharmacy/audit?q=&category=&status=&from=&to=&page=&limit=&timezoneOffsetMinutes=`
+
+**Purpose:** Pharmacy-scoped audit trail (dispense, stock, procurement, payments, returns, emergency).
+
+**Required permission:** `audit:read`
+
+**Response example:**
+```json
+{
+  "data": {
+    "items": [{
+      "auditId": 1,
+      "time": "2026-07-17T10:00:00.000Z",
+      "officer": "Pharm A",
+      "action": "pharmacy:dispense",
+      "patient": "Ada Okafor",
+      "module": "Dispensing",
+      "status": "Success"
+    }],
+    "meta": { "page": 1, "limit": 50, "total": 1 },
+    "stats": { "totalToday": 4, "dispenses": 2, "emergencies": 0, "stockEvents": 1, "returns": 0, "overrides": 0 }
+  }
+}
+```
+
+**Error cases:** `401`, `403`
+
+#### `GET /api/pharmacy/audit/stats?timezoneOffsetMinutes=60`
+
+**Purpose:** Summary cards for pharmacy audit trail.
+
+**Required permission:** `audit:read`
+
+**Response example:** `{ "data": { "totalToday": 4, "dispenses": 2, "emergencies": 0, "stockEvents": 1, "returns": 0, "overrides": 0 } }`
+
+**Error cases:** `401`, `403`
+
+---
+
+### Pharmacy Expiry Monitoring (`/pharmacy/expiry`)
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/expiry` | Batch expiry buckets + table for `/dashboard/pharmacy/expiry` | `pharmacy:read` |
+| POST | `/pharmacy/expiry/batches/:batchId/quarantine` | Soft-quarantine a batch | `stock:adjust` |
+
+#### `GET /api/pharmacy/expiry?bucket=&q=&page=&limit=`
+
+**Purpose:** Drug expiry monitoring by batch using pharmacy settings thresholds.
+
+**Required permission:** `pharmacy:read`
+
+**Query:** `bucket` = `all` | `expired` | `critical` | `warning` | `soon`
+
+**Response example:**
+```json
+{
+  "data": {
+    "summary": { "expired": 2, "critical": 3, "warning": 5, "soon": 8, "total": 18, "quarantined": 1, "valueAtRisk": 45000 },
+    "thresholds": { "expiryCriticalDays": 30, "expiryWarningDays": 90, "expiringSoonDays": 180 },
+    "items": [{
+      "batchId": 12,
+      "drugName": "Amoxicillin",
+      "batchNo": "B-100",
+      "qtyAvailable": 40,
+      "daysLeft": 12,
+      "bucket": "critical",
+      "status": "Available",
+      "valueAtRisk": 8000
+    }],
+    "meta": { "page": 1, "limit": 50, "total": 18 }
+  }
+}
+```
+
+**Error cases:** `400` invalid bucket, `401`, `403`
+
+#### `POST /api/pharmacy/expiry/batches/:batchId/quarantine`
+
+**Purpose:** Quarantine an at-risk or expired batch (status → Quarantined). Audits `stock:quarantine`.
+
+**Required permission:** `stock:adjust`
+
+**Request body:** none
+
+**Response example:** `{ "data": { "batchId": 12, "drugName": "Amoxicillin", "batchNo": "B-100", "status": "Quarantined" } }`
+
+**Error cases:** `400` already quarantined / no stock, `401`, `403`, `404`
+
+---
+
+### Pharmacy Analytics (`/pharmacy/analytics`)
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/analytics` | Operational analytics for `/pharmacy/analytics` | `pharmacy:read` |
+
+#### `GET /api/pharmacy/analytics?from=&to=&timezoneOffsetMinutes=`
+
+**Purpose:** Revenue, dispense volume, inventory health, controlled usage, returns, procurement snapshot and charts.
+
+**Required permission:** `pharmacy:read`
+
+**Request body:** none
+
+**Response example:**
+```json
+{
+  "data": {
+    "asOf": "2026-07-17T12:00:00.000Z",
+    "from": "…",
+    "to": "…",
+    "kpis": {
+      "revenue": 1250000,
+      "prescriptionsDispensed": 40,
+      "walkInDispensed": 12,
+      "emergencyDispenses": 1,
+      "lowStock": 4,
+      "expired": 1,
+      "controlledBalance": 22
+    },
+    "charts": {
+      "revenueTrend": [{ "d": "Mon", "v": 12000 }],
+      "topDispensed": [{ "name": "Paracetamol", "qty": 80, "value": 4000 }],
+      "channelMix": [{ "name": "Cash", "value": 50000 }],
+      "inventoryHealth": [{ "name": "Low", "value": 4, "color": "#f59e0b" }],
+      "expiryRisk": [{ "name": "< 30 days", "value": 2, "color": "#ef4444" }]
+    }
+  }
+}
+```
+
+**Error cases:** `401`, `403`
+
+---
+
+### Pharmacy Billing (`/pharmacy/billing`)
+
+Aggregates doctor prescriptions and walk-in sales (no separate Invoice tables).
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/billing/summary` | Cards: paid/pending counts, channel revenue | `pharmacy:sale-read` |
+| GET | `/pharmacy/billing/bills` | Unified bill list (`q`, `paymentStatus`, `type`, `page`, `limit`) | `pharmacy:sale-read` |
+| POST | `/pharmacy/billing/bills/:type/:id/confirm` | Confirm payment (`type` = `prescription` \| `walk_in`) | `pharmacy:sale-pay` **or** `prescription:pay` |
+
+#### `GET /api/pharmacy/billing/summary`
+
+**Response example:** `{ data: { paidCount, pendingCount, channelTotals: { Cash, "POS Card", … }, revenueTotal } }`
+
+#### `POST /api/pharmacy/billing/bills/:type/:id/confirm`
+
+**Request body:** `{ "paymentChannel": "Cash", "paymentRef": "optional" }`
+
+**Errors:** `400` already paid / unknown type, `401`, `403`, `404`
+
+---
+
+### Pharmacy Returns (`/pharmacy/returns`)
+
+Return already-dispensed Rx or walk-in lines; restores stock to `DRUG_BATCHES`; increments `QTY_RETURNED`.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/returns/summary` | Today/week cards | `pharmacy:return-read` |
+| GET | `/pharmacy/returns` | List returns | `pharmacy:return-read` |
+| GET | `/pharmacy/returns/lookup?q=` | Lookup dispensed Rx/sale + returnable lines | `pharmacy:return-read` |
+| POST | `/pharmacy/returns` | Commit return | `pharmacy:return-create` |
+
+#### `POST /api/pharmacy/returns`
+
+**Request body:**
+
+```json
+{
+  "sourceType": "prescription",
+  "sourceId": 12,
+  "items": [{ "sourceItemId": 34, "quantity": 5 }],
+  "reason": "Patient allergy — unused tablets",
+  "returnedByRole": "Nurse",
+  "returnedByName": "Ama Mensah"
+}
+```
+
+**Response:** `{ data: { returnId, returnNo, totalValue, items } }`
+
+**Errors:** `400` qty exceeds returnable / not dispensed, `401`, `403`, `404`
+
+**Audit:** `pharmacy:return`
+
+---
+
+### Pharmacy Settings (`/pharmacy/settings`)
+
+Hospital-level alert thresholds (singleton). Inventory “Expiring Soon” / recently received use these values.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/pharmacy/settings` | Load thresholds and alert flags | `pharmacy:read` |
+| PATCH | `/pharmacy/settings` | Update thresholds | `pharmacy:settings-update` |
+
+#### `GET /api/pharmacy/settings`
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "defaultReorderLevel": 50,
+    "expiringSoonDays": 180,
+    "expiryCriticalDays": 30,
+    "expiryWarningDays": 90,
+    "receiveStockWarnDays": 180,
+    "recentlyReceivedDays": 7,
+    "controlledRequiresWitness": true,
+    "lowStockAlertEnabled": true,
+    "expiryAlertEnabled": true
+  }
+}
+```
+
+#### `PATCH /api/pharmacy/settings`
+
+**Request body:** partial of the fields above.
+
+**Audit:** `pharmacy:settings-update`
+
+---
+
 ### Pharmacy Procurement (`/pharmacy/procurement`)
 
 Workflow: **Purchase Request** (`Pending Approval` → `Approved`/`Rejected`) → **Purchase Order** (`Pending Approval` → `Approved` → `Sent` → `Delivered`) → **Receive stock** (creates a **GRN** + drug batches).
@@ -824,20 +2016,74 @@ Workflow: **Purchase Request** (`Pending Approval` → `Approved`/`Rejected`) �
 | Method | Path | Purpose | Permission |
 |--------|------|---------|------------|
 | GET | `/pharmacy/procurement/stats` | Dashboard cards: open PRs, active POs, monthly spend, pending deliveries | `pharmacy:read` |
+| GET | `/pharmacy/procurement/history` | History tab cards + completed/cancelled/partial POs with GRN aggregates | `pharmacy:read` |
 | POST | `/pharmacy/procurement/requests` | Create purchase request (auto `PR-YYYY-###`) | `procurement:create` |
 | GET | `/pharmacy/procurement/requests` | List PRs (`status`, `q`, `page`, `limit`) | `pharmacy:read` |
 | PATCH | `/pharmacy/procurement/requests/:id/approve` | Approve PR | `procurement:approve` |
 | PATCH | `/pharmacy/procurement/requests/:id/reject` | Reject PR (reason required) | `procurement:approve` |
 | POST | `/pharmacy/procurement/orders` | Create purchase order with items (auto `PO-YYYY-###`) | `procurement:create` |
-| GET | `/pharmacy/procurement/orders` | List POs (`status`, `supplierId`, `q`, `page`, `limit`) | `pharmacy:read` |
+| GET | `/pharmacy/procurement/orders` | List POs (`status`, `approvalStatus`, `deliveryStatus`, `q`, `page`, `limit`) | `pharmacy:read` |
+| GET | `/pharmacy/procurement/orders/receivable` | POs eligible for Receive Stock (Approved + Not Sent/Sent/Partial) | `pharmacy:read` |
 | GET | `/pharmacy/procurement/orders/:id` | PO detail incl. items | `pharmacy:read` |
 | PATCH | `/pharmacy/procurement/orders/:id/approve` | Approve PO | `procurement:approve` |
 | PATCH | `/pharmacy/procurement/orders/:id/reject` | Reject PO (reason required) | `procurement:approve` |
 | PATCH | `/pharmacy/procurement/orders/:id/send` | Mark PO sent to supplier | `procurement:create` |
-| POST | `/pharmacy/procurement/receive` | Receive stock → GRN + drug batches (optionally against a PO) | `stock:receive` |
+| POST | `/pharmacy/procurement/receive` | Receive stock → GRN + available drug batches (stock qty increases) | `stock:receive` |
 | GET | `/pharmacy/procurement/grns` | List goods received notes | `pharmacy:read` |
 
+#### `GET /api/pharmacy/procurement/orders/receivable`
+
+**Purpose:** Dropdown source for Receive Stock — approved POs not yet fully delivered (includes Approved + Not Sent so Accept can run without a separate Send).
+
+**Response:** `{ data: { items: [{ poId, poNo, supplierName, items, deliveryStatus, ... }], meta } }`
+
+**Errors:** `401`, `403`
+
+#### `GET /api/pharmacy/procurement/history`
+
+**Purpose:** Procurement History tab — summary cards plus paginated completed / cancelled / partially delivered POs with GRN aggregates.
+
+**Query:** `q`, `status` (`Completed` \| `Cancelled` \| `Partially Delivered` \| `all`), `page`, `limit`
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "cards": {
+      "completedOrders": 12,
+      "cancelledOrders": 2,
+      "partiallyDelivered": 3,
+      "grnCount": 40,
+      "completedValue": 1250000,
+      "receivedValue": 980000,
+      "totalDamagedQty": 15,
+      "totalAcceptedQty": 42000
+    },
+    "items": [
+      {
+        "poId": 4,
+        "poNo": "PO-2026-0004",
+        "supplierName": "Emzor Pharma Ltd",
+        "status": "Completed",
+        "qtyOrdered": 1000,
+        "qtyReceived": 1000,
+        "qtyAccepted": 995,
+        "qtyDamaged": 5,
+        "grnCount": 2,
+        "total": 32000
+      }
+    ],
+    "meta": { "page": 1, "limit": 50, "total": 17 }
+  }
+}
+```
+
+**Errors:** `401`, `403`
+
 #### `POST /api/pharmacy/procurement/receive`
+
+**Purpose:** Pharmacist receives goods. Creates GRN + `DRUG_BATCHES` row with `QTY_AVAILABLE = accepted` (catalog stock is the sum of available batches). PO must be **Approved**. First receipt against `Not Sent` auto-marks delivery `Sent`. Receiver is always the authenticated user.
 
 **Request body (one call per drug batch received):**
 
@@ -853,16 +2099,17 @@ Workflow: **Purchase Request** (`Pending Approval` → `Approved`/`Rejected`) �
   "qtyDamaged": 0,
   "unitCost": 32,
   "sellingPrice": 50,
-  "location": "Store B",
-  "receivedBy": "Pharm. Ada Obi"
+  "location": "A-1"
 }
 ```
 
-`poId` is optional (direct receipts from the inventory page are allowed). Each receipt creates a GRN + a `DRUG_BATCHES` row and increases available stock by the accepted quantity (`qtyReceived - qtyDamaged`); receiving against a PO marks it `Delivered`.
+**Response:** `{ data: { grnId, grnNo, drugName, batchNo, qtyAccepted, receivedBy, ... } }`
 
-**Response 201:** `{ data: { grnId, grnNo: "GRN-YYYY-###", poId, drugId, drugName, batchNo, qtyReceived, qtyAccepted, expiryDate, receivedBy, receivedAt } }`
+**Errors:** `400` not approved / over-receipt / damaged > received / drug not on PO, `401`, `403` missing `stock:receive`
 
-**Errors:** `400` validation, `401`, `403` missing `stock:receive`, `404` PO or drug not found, `409` PO not in a receivable state. Writes audit `stock:receive`.
+**Audit:** `stock:receive`
+
+`poId` is optional for direct receipts from inventory. Receiving against a PO updates delivery to `Partial` or `Delivered`/`Completed`.
 
 **Audit:** every pharmacy mutation writes to `AUDITS` with the acting user — `supplier:create|update`, `drug:create|update`, `procurement:request-create|approved|rejected`, `procurement:po-create|approved|rejected|send`, `stock:receive`, `stock:adjust`.
 
@@ -872,9 +2119,127 @@ Workflow: **Purchase Request** (`Pending Approval` → `Approved`/`Rejected`) �
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/audit/logs` | Query audit logs | JWT |
+| GET | `/audit/logs` | Query audit logs (`type` supports prefix `transfer:*`, `emergency:*`, …) | `audit:read` |
+| GET | `/audit/stats` | KPI counts: total, today, emergencyOverrides, noteEdits, prescriptionChanges, flagged | `audit:read` |
 
-Query params: `type` (`person:create`, `triage:create`, `triage:update`, …), `personId`, `userId`, `page`, `limit`
+Query params for logs: `type`, `personId`, `userId`, `page`, `limit`  
+Query params for stats: `timezoneOffsetMinutes`
+
+---
+
+### Emergency Override (`/emergency-override`)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/emergency-override/board` | KPIs + inpatient/emergency board patients | `emergency-override:read` |
+| GET | `/emergency-override/sessions` | List override sessions | `emergency-override:read` |
+| POST | `/emergency-override/sessions` | Start break-glass session | `emergency-override:create` |
+| PATCH | `/emergency-override/sessions/:id/end` | End active session | `emergency-override:update` |
+| GET | `/emergency-override/alerts` | List critical alerts | `emergency-override:read` |
+| POST | `/emergency-override/alerts` | Create alert | `emergency-override:create` |
+| PATCH | `/emergency-override/alerts/:id/ack` | Acknowledge alert | `emergency-override:update` |
+| GET | `/emergency-override/admissions` | Recent admissions | `emergency-override:read` |
+| GET | `/emergency-override/referrals` | Emergency-priority referrals | `emergency-override:read` |
+| GET | `/emergency-override/medications` | Stat / emergency Rx lines | `emergency-override:read` |
+
+**Audit:** `emergency:override-start`, `emergency:override-end`, `emergency:alert-create`, `emergency:alert-ack`
+
+---
+
+### Support requests (`/support-requests`)
+
+Shared staff support tickets (Pharmacy, Doctor, Cashier, Records, Laboratory header Support button → HR queue).
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| POST | `/support-requests` | Create ticket `{ issueType, description, module? }` | `support:create` |
+| GET | `/support-requests` | List (`mine=true` forces own; HR/admin with `support:update` see all by default; filters `status`, `q`, `page`, `limit`) | `support:read` |
+| GET | `/support-requests/:id` | Detail (owner or HR/admin) | `support:read` |
+| PATCH | `/support-requests/:id` | Update status / resolve note `{ status, resolvedNote? }` | `support:update` |
+
+**Issue types:** `Profile Change` \| `Complaint` \| `Technical Issue`  
+**Statuses:** `Open` \| `In Progress` \| `Resolved` \| `Closed`  
+**Modules (optional):** `pharmacy` \| `doctor` \| `cashier` \| `records` \| `laboratory` \| `other`  
+**Request numbers:** `SR-YYYY-####`  
+**Audit:** `support:create`, `support:update`
+
+**Create response example:**
+```json
+{
+  "data": {
+    "requestId": 1,
+    "requestNo": "SR-2026-0001",
+    "staffName": "Ada Pharmacist",
+    "issueType": "Technical Issue",
+    "description": "Cannot open dispense queue",
+    "module": "pharmacy",
+    "status": "Open"
+  }
+}
+```
+
+**Error cases:** 400 validation / closed reopen; 401; 403 (missing permission or non-owner detail); 404
+
+---
+
+### Clinical Pharmacy (`/clinical-pharmacy`)
+
+Pharmacist safety worklist: configurable interaction rules, structured allergies, check engine, override / notify doctor.
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/clinical-pharmacy/alerts` | Worklist + KPIs (`status`, `severity`, `type`, `q`, page) | `clinical-pharmacy:read` |
+| GET | `/clinical-pharmacy/alerts/:id` | Alert detail | `clinical-pharmacy:read` |
+| POST | `/clinical-pharmacy/check` | `{ personId, drugIds?, prescriptionId? }` run engine + upsert Open alerts | `clinical-pharmacy:read` |
+| POST | `/clinical-pharmacy/alerts/:id/override` | `{ reason }` | `clinical-pharmacy:update` |
+| POST | `/clinical-pharmacy/alerts/:id/notify` | `{ note? }` → in-app notify prescribing doctor | `clinical-pharmacy:update` |
+| PATCH | `/clinical-pharmacy/alerts/:id/close` | Close alert | `clinical-pharmacy:update` |
+| GET/POST | `/clinical-pharmacy/rules` | List / create rules | `clinical-pharmacy:manage-rules` |
+| PATCH | `/clinical-pharmacy/rules/:id` | Update rule | `clinical-pharmacy:manage-rules` |
+| GET | `/clinical-pharmacy/allergies?personId=` | Patient allergies | `clinical-pharmacy:read` |
+| POST | `/clinical-pharmacy/allergies` | Create allergy | `clinical-pharmacy:update` |
+| PATCH | `/clinical-pharmacy/allergies/:id` | Update allergy | `clinical-pharmacy:update` |
+
+**Alert numbers:** `CPA-YYYY-####`  
+**Audit:** `clinical-pharmacy:check|override|notify|close`
+
+---
+
+### Records ops — file retrieval / archive / reports / analytics (`/records`)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/records/file-requests` | Retrieval worklist + KPIs | `records-file:read` |
+| GET | `/records/file-requests/:id` | Detail + events | `records-file:read` |
+| POST | `/records/file-requests` | Create `{ personId, department, reason, dueDate?, requestedBy? }` | `records-file:create` |
+| PATCH | `/records/file-requests/:id/status` | `{ status, note?, location? }` | `records-file:update` |
+| GET | `/records/archives` | Archive catalog + KPIs | `records-archive:read` |
+| POST | `/records/archives` | Archive person | `records-archive:create` |
+| POST | `/records/archives/:id/restore` | Restore | `records-archive:update` |
+| PATCH | `/records/archives/:id` | Extend retention / access | `records-archive:update` |
+| POST | `/records/archives/:id/access-request` | Log access request | `records-archive:update` |
+| GET | `/records/reports/summary` | Reports page KPI strip | `records-report:read` |
+| GET | `/records/reports/snapshots` | Saved snapshots | `records-report:read` |
+| POST | `/records/reports/generate` | `{ reportType, from, to, department? }` | `records-report:create` |
+| GET | `/records/analytics` | KPIs + trends/demographics/operations (`range`) | `records-analytics:read` |
+
+**Audit:** `records-file:create|status`, `records-archive:create|restore|update|access-request`, `records-report:generate`
+
+---
+
+### Doctor Research (`/doctor/research`)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/doctor/research/summary` | Research KPI bag (0 when empty) | `doctor-analytics:read` |
+| GET | `/doctor/research/diagnoses` | Diagnosis aggregates | `doctor-analytics:read` |
+| GET | `/doctor/research/admissions-by-ward` | Ward admission aggregates | `doctor-analytics:read` |
+| GET | `/doctor/research/drug-utilization` | Drug utilization | `doctor-analytics:read` |
+| GET/POST | `/doctor/research/registry` | List / create registry entries | read / `doctor-research:write` |
+| GET/POST | `/doctor/research/trials` | List / create trials | read / `doctor-research:write` |
+| PATCH | `/doctor/research/trials/:id` | Update trial | `doctor-research:write` |
+| GET/POST | `/doctor/research/audit-projects` | List / create audit projects | read / `doctor-research:write` |
+| PATCH | `/doctor/research/audit-projects/:id` | Update audit project | `doctor-research:write` |
 
 ---
 
@@ -903,14 +2268,575 @@ Realtime queue state is also pushed via Socket.IO (see [WORKFLOWS.md](./WORKFLOW
 
 ---
 
-### Lab (`/lab`)
+### Imaging / Radiology requests (`/radiology/imaging`)
+
+Priced study catalog + doctor imaging requests (pay-before-process). Doctor create always sets `PAYMENT_STATUS=Unpaid`. Radiology Accept / Schedule blocked until Paid/Waived.
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/lab/orders` | List lab orders | `lab:read` |
-| POST | `/lab/orders` | Create lab order | `lab:create` |
-| GET | `/lab/orders/:id` | Get order detail | `lab:read` |
-| PATCH | `/lab/orders/:id/results` | Submit results | `lab:update` |
+| GET | `/radiology/imaging/studies?modality=&status=&q=` | Priced catalog | `imaging:read` |
+| GET | `/radiology/imaging/reports?personId=&critical=&status=&page=&limit=` | List reports (Draft\|Released; critical=true) | `imaging:read` |
+| GET | `/radiology/imaging/reports/:id` | Report detail | `imaging:read` |
+| POST | `/radiology/imaging/reports` | Create/release report `{ imagingRequestId, findings?, impression?, critical?, status? }` | `imaging:update` |
+| POST | `/radiology/imaging/reports/:id/acknowledge` | Doctor ack critical finding | `imaging:read` |
+| POST | `/radiology/imaging/requests` | Create request (always Unpaid) | `imaging:create` |
+| GET | `/radiology/imaging/requests?paymentStatus=&workQueue=&q=` | List (`workQueue=true` → Paid only) | `imaging:read` |
+| GET | `/radiology/imaging/requests/:id` | Detail | `imaging:read` |
+| PATCH | `/radiology/imaging/requests/:id` | Accept/Reject/Schedule (Accept needs Paid) | `imaging:update` |
+| POST | `/radiology/imaging/requests/:id/cancel` | Cancel if unpaid | `imaging:update` |
+| GET | `/cashier/payments/imaging-requests` | Cashier unpaid queue | `imaging:pay` |
+| POST | `/cashier/payments/imaging-requests/:id/confirm` | Confirm payment | `imaging:pay` |
+
+**Audit:** `imaging:report-create`, `imaging:report-critical-ack`
+
+**POST `/radiology/imaging/requests` body:** `{ personId, encounterId?, priority?, clinicalIndication?, clinicalNotes?, contrast?, source?, items: [{ studyId, lineNotes? }] }`
+
+**Response:** `{ data: { imagingRequestId, requestNo, paymentStatus: "Unpaid", totalAmount, paymentCleared, processingLocked, items, person } }`
+
+---
+
+### Patient transfers (`/transfers`)
+
+Multi-role ward/unit transfer workflow. Doctor never selects a bed — only destination preference, reason, urgency. Records **or** Nurse allocate ward+bed (`RESERVED`). Location/occupancy updates only when receiving ward confirms arrival (calls shared admissions bed-move helper). Theatre / RadiologyEscort types are stubs (rejected on create).
+
+**Permissions:** `transfer:create` (Doctor), `transfer:read`, `transfer:update` (prepare/depart/reject/cancel), `transfer:allocate` (Records/Nurse), `transfer:receive` (accept/confirm-arrival). Admin/CMD: all.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| POST | `/transfers` | Doctor create/submit (no bed) | `transfer:create` |
+| GET | `/transfers?scope=mine\|ward\|all&status=&personId=&q=&page=&limit=` | List transfers | `transfer:read` |
+| GET | `/transfers/:id` | Detail + events | `transfer:read` |
+| PATCH | `/transfers/:id/prepare` | Current ward ack/ready `{ note?, ready? }` | `transfer:update` |
+| PATCH | `/transfers/:id/allocate` | Reserve bed `{ wardId, bedId, note? }` | `transfer:allocate` |
+| PATCH | `/transfers/:id/accept` | Receiving nurse accept | `transfer:receive` |
+| PATCH | `/transfers/:id/depart` | Current nurse InTransit `{ handoverNotes? }` | `transfer:update` |
+| PATCH | `/transfers/:id/confirm-arrival` | Complete + occupy bed / update location | `transfer:receive` |
+| PATCH | `/transfers/:id/reject` | Reject `{ reason }` | `transfer:update` |
+| PATCH | `/transfers/:id/cancel` | Cancel if not completed | `transfer:update` |
+
+**POST `/transfers` body:**
+```json
+{
+  "personId": 42,
+  "admissionId": 10,
+  "transferType": "WardToWard",
+  "priority": "Urgent",
+  "toWardId": 3,
+  "toWardPreference": "ICU",
+  "reason": "Deteriorating — needs closer monitoring",
+  "clinicalNotes": "…",
+  "skipPrepare": false
+}
+```
+
+**Response example:**
+```json
+{
+  "data": {
+    "transferId": 1,
+    "transferNo": "XFR-2026-0001",
+    "status": "Submitted",
+    "transferType": "WardToWard",
+    "priority": "Urgent",
+    "allocatedBedId": null,
+    "person": { "personId": 42, "firstName": "…", "hospitalNo": "…" },
+    "events": [{ "eventType": "transfer:create", "newStatus": "Submitted" }]
+  }
+}
+```
+
+**Errors:** `400` invalid type/admission mismatch/no admission when required; `401`; `403`; `404` person/ward/transfer/bed; `409` illegal status transition / bed not AVAILABLE.
+
+**Audit:** `transfer:create|prepare|allocate|accept|depart|complete|reject|cancel` (+ `admission:transfer` on confirm when bed occupied).
+
+**Statuses:** `Draft` → `Submitted` → `NursePreparing` → `AwaitingBed` → `BedReserved` → `ReceivingAccepted` → `InTransit` → `Completed` (+ `Rejected` / `Cancelled`).
+
+**Frontend:** Doctor `/dashboard/doctor/clinical/transfers`; Nurse `/dashboard/nurse/transfers`; Records `/records/transfers`. Clear FE mock keys when `VITE_USE_API` on.
+
+**Deploy:** migration `20260721180000_patient_transfers` via `npx prisma migrate deploy`.
+
+---
+
+### Clinical referrals (`/referrals`)
+
+Multi-role clinical referral workflow. Doctor never selects a bed — only Internal/External destination, priority, and clinical reason. **Records** owns the operational queue. **Records or Nurse** allocate ward+AVAILABLE bed for inpatient internal referrals. Outpatient path: department/doctor Accept → Attend → Complete. External path: Records clear only (no bed occupy). Admit reuses `AdmissionsService.admit` and links `ADMISSION_ID`.
+
+**Permissions:** `referral:create` (Doctor), `referral:read`, `referral:update` (ack/route/request-bed/clear/return/reject/cancel), `referral:allocate` (Records/Nurse allocate+admit), `referral:receive` (accept/attend/complete). Admin/CMD: all.
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| POST | `/referrals` | Doctor create/submit (no bed) | `referral:create` |
+| GET | `/referrals?scope=mine\|inbound\|all&status=&kind=&toDepartment=&careSetting=&personId=&q=&page=&limit=` | List referrals | `referral:read` |
+| GET | `/referrals/:id` | Detail + events | `referral:read` |
+| PATCH | `/referrals/:id/ack` | Records acknowledge → UnderReview `{ note? }` | `referral:update` |
+| PATCH | `/referrals/:id/route` | Route to dept → QueuedForDept `{ toDepartment?, toDoctorUserId?, toDoctorLabel?, note? }` | `referral:update` |
+| PATCH | `/referrals/:id/request-bed` | Mark inpatient need → AwaitingBed `{ note? }` | `referral:update` |
+| PATCH | `/referrals/:id/allocate` | Reserve bed `{ wardId, bedId, note? }` → BedAllocated | `referral:allocate` |
+| PATCH | `/referrals/:id/admit` | Confirm admit via admissions → Admitted `{ note? }` | `referral:allocate` |
+| PATCH | `/referrals/:id/accept` | Destination accept → Accepted `{ note? }` | `referral:receive` |
+| PATCH | `/referrals/:id/attend` | Start attendance → InAttendance `{ note? }` | `referral:receive` |
+| PATCH | `/referrals/:id/complete` | Complete `{ outcomeNote? }` | `referral:receive` |
+| PATCH | `/referrals/:id/clear-external` | External clearance → ClearedExternal `{ note? }` | `referral:update` |
+| PATCH | `/referrals/:id/return` | Return for info `{ reason }` | `referral:update` |
+| PATCH | `/referrals/:id/reject` | Reject `{ reason }` | `referral:update` |
+| PATCH | `/referrals/:id/cancel` | Cancel if not terminal `{ reason? }` | `referral:update` |
+
+**POST `/referrals` body:**
+```json
+{
+  "personId": 1,
+  "referralKind": "Internal",
+  "careSetting": "Outpatient",
+  "priority": "Routine",
+  "fromDepartment": "OPC",
+  "toDepartment": "Psychology",
+  "toDoctorLabel": "Dr. Example",
+  "reason": "Specialist review needed",
+  "provisionalDiagnosis": "…",
+  "clinicalSummary": "…",
+  "specificQuestion": "…"
+}
+```
+
+**Response example:**
+```json
+{
+  "data": {
+    "referralId": 1,
+    "referralNo": "REF-2026-0001",
+    "referralKind": "Internal",
+    "status": "Submitted",
+    "person": { "personId": 1, "firstName": "…", "hospitalNo": "…" },
+    "events": [{ "eventType": "referral:create", "newStatus": "Submitted" }]
+  }
+}
+```
+
+**Errors:** `400` missing destination/facility, external+bed, allocate mismatch; `401`; `403`; `404` person/referral/bed; `409` illegal status transition / bed not AVAILABLE.
+
+**Audit:** `referral:create|ack|route|request-bed|allocate|admit|accept|attend|complete|clear-external|return|reject|cancel` (+ `admission:create` on admit).
+
+**Notifications:** `ReferralRequested`, `ReferralRouted`, `ReferralAccepted`, `ReferralCompleted`, `ReferralRejected`.
+
+**Frontend:** Doctor `/dashboard/doctor/clinical/referrals` (+ consultation sheet); Records `/records/referrals` (+ arrivals deep-link `?id=`); Nurse `/dashboard/nurse/referrals`. Clear FE mock keys `fnph_doc_referral_*` when `VITE_USE_API` on.
+
+**Deploy:** migration `20260721190000_clinical_referrals` via `npx prisma migrate deploy`.
+
+### Discharge drafts (`/discharge-drafts`)
+
+Doctor clinical discharge draft → Cashier payment clearance (all unpaid domain bills) → Records finalize (bed release). Prisma: `DISCHARGE_DRAFTS`, `DISCHARGE_DRAFT_EVENTS` (migration `20260721200000_discharge_drafts`). Statuses: `Draft` | `Submitted` | `AwaitingPayment` | `PaymentCleared` | `Discharged` | `Returned` | `Cancelled`.
+
+Legacy empty `/api/discharge` returns **403** and points clients to `/api/discharge-drafts`.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| POST | `/discharge-drafts` | Create draft for an admission | `discharge:create` |
+| GET | `/discharge-drafts?scope=mine\|queue\|all&status=&personId=&admissionId=&q=&page=&limit=` | List drafts | `discharge:read` |
+| GET | `/discharge-drafts/:id` | Detail + events + payment snapshot | `discharge:read` |
+| GET | `/discharge-drafts/:id/payment-status` | Aggregate unpaid bills for draft person | `discharge:read` |
+| PATCH | `/discharge-drafts/:id` | Update clinical fields (Draft/Returned only) | `discharge:update` |
+| PATCH | `/discharge-drafts/:id/submit` | Submit → `AwaitingPayment` + `order-discharge` on admission | `discharge:update` |
+| PATCH | `/discharge-drafts/:id/clear-payment` | Cashier marks `PaymentCleared` when unpaid count = 0 | `discharge:clear-payment` |
+| PATCH | `/discharge-drafts/:id/return` | Return to doctor `{ reason }` | `discharge:update` |
+| PATCH | `/discharge-drafts/:id/finalize` | Records final → `Discharged` + `completeDischarge` (bed `CLEANING`) | `discharge:finalize` |
+| PATCH | `/discharge-drafts/:id/cancel` | Cancel if not finalized `{ reason? }` | `discharge:update` |
+
+**POST `/discharge-drafts` body:**
+```json
+{
+  "admissionId": 12,
+  "dischargeType": "Normal Discharge",
+  "admissionDiagnosis": "…",
+  "finalDiagnosis": "…",
+  "clinicalSummary": "…",
+  "treatmentGiven": "…",
+  "dischargeMedications": "…",
+  "followUpPlan": "…",
+  "riskSafetyNotes": "…"
+}
+```
+
+**Response example (create/list item):**
+```json
+{
+  "data": {
+    "draftId": 1,
+    "draftNo": "DSD-2026-0001",
+    "personId": 42,
+    "admissionId": 12,
+    "status": "Draft",
+    "person": { "personId": 42, "hospitalNo": "FNPH-…", "firstName": "…" },
+    "admission": { "admissionId": 12, "status": "ADMITTED", "ward": { "name": "Male Acute" } }
+  }
+}
+```
+
+**Payment status response:** `{ data: { unpaidCount, unpaidTotal, items: [{ domain, id, ref, amount, status }] } }` — domains include admission bills, lab, imaging, prescriptions, pharmacy walk-in sales.
+
+**Errors:** `400` validation / wrong status transition / unpaid remain on clear or finalize; `401`/`403`; `404` draft/admission; `409` conflict (duplicate open draft, admission not orderable).
+
+**Audit:** `discharge:create`, `discharge:update`, `discharge:submit`, `discharge:clear-payment`, `discharge:return`, `discharge:finalize`, `discharge:cancel`. Notifications: `DischargeSubmitted` | `PaymentCleared` | `Discharged` | `Returned`.
+
+**RBAC:** Doctor `discharge:create|read|update`; Cashier `discharge:read|clear-payment`; Records `discharge:read|update|finalize`; Admin/CMD all.
+
+**Frontend:** Doctor `/dashboard/doctor/clinical/discharge`; Cashier Clinical Payments `?tab=discharge`; Records `/records/discharge`. Clear FE mock keys `fnph_doc_discharge_*`, `fnph_doc_board_*` (except watchlist), `fnph_doc_wardround_*`, `fnph_doc_patient_dir_*` when `VITE_USE_API` on. Related boards: `/dashboard/doctor/clinical/{patients,active,ward-round}` use live patients/admissions/encounters/clinical-notes.
+
+**Deploy:** migration `20260721200000_discharge_drafts` via `npx prisma migrate deploy`.
+
+### Doctor clinical overview (`/doctor`)
+
+Operational workstation snapshot for `/dashboard/doctor/clinical` (today’s queue + open work counts). Distinct from historical `/doctor/analytics`.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/doctor/overview?timezoneOffsetMinutes=&queueLimit=` | KPIs, consultation queue preview, tab hints | `encounter:read` |
+
+**Response example:**
+```json
+{
+  "data": {
+    "asOf": "2026-07-24T12:00:00.000Z",
+    "doctorUserId": 1,
+    "kpis": {
+      "patientsWaiting": 14,
+      "patientsWaitingSubtitle": "8 GMPC + 6 OPC",
+      "activeConsultations": 3,
+      "pendingLabResults": 9,
+      "pendingImaging": 4,
+      "admissionRequests": 5,
+      "urgentAdmissionRequests": 2,
+      "wardRoundPatients": 38,
+      "wardCount": 4,
+      "referralsReceived": 6,
+      "referralsReceivedPending": 2,
+      "referralsSent": 4,
+      "referralsSentAccepted": 1,
+      "dischargesPending": 3,
+      "emergencyCases": 2,
+      "criticalAlerts": 0
+    },
+    "queue": [
+      {
+        "triageId": 1,
+        "personId": 10,
+        "name": "Tope Adeyemi (M, 34)",
+        "status": "Ready",
+        "statusTone": "green",
+        "mode": "OPC",
+        "canStart": true
+      }
+    ],
+    "tabHints": {
+      "activeCount": 3,
+      "followUpCount": 7,
+      "admittedCount": 38,
+      "referralsReceived": 6,
+      "referralsSent": 4,
+      "pendingLab": 9,
+      "pendingImaging": 4,
+      "dischargesPending": 3
+    }
+  }
+}
+```
+
+**Error cases:** `401` Unauthorized, `403` Forbidden.
+
+**Frontend:** `DocOverview` at `/dashboard/doctor/clinical` via `src/lib/api/doctorOverview.ts` (shows 0 / empty when no data).
+
+### Doctor analytics (`/doctor`)
+
+Doctor-scoped clinical aggregates for Reports & Analytics. Scoped to `@CurrentUser()` (encounters `DOCTOR_ID`, Rx `PRESCRIBED_BY_ID`, lab/imaging doctor/creator, referrals requested/received, discharge drafts requested, follow-ups, clinical notes author, diagnoses `CREATED_BY_ID`).
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/doctor/analytics?from=&to=&clinic=&timezoneOffsetMinutes=` | KPIs, charts, tables, patients, admission, referrals | `doctor-analytics:read` |
+
+**Response example:**
+```json
+{
+  "data": {
+    "from": "…",
+    "to": "…",
+    "kpis": {
+      "consultations": 12,
+      "patients": 10,
+      "diagnoses": 8,
+      "procedures": 0,
+      "admissions": 2,
+      "referrals": 3,
+      "prescriptions": 15,
+      "investigations": 9,
+      "discharges": 1,
+      "followUps": 4,
+      "telemedicine": 0,
+      "critical": 2,
+      "avgConsultMinutes": 38,
+      "pendingNotes": 3
+    },
+    "charts": {
+      "consultationTrend": [{ "date": "2026-07-01", "count": 2 }],
+      "patientsByClinic": [{ "clinic": "OPC", "count": 5 }],
+      "prescriptionVolume": [],
+      "referralTrend": []
+    },
+    "tables": {
+      "consultations": [],
+      "diagnoses": [],
+      "prescriptions": [],
+      "investigations": []
+    },
+    "patients": {
+      "newCount": 3,
+      "returningCount": 7,
+      "ageBands": [],
+      "paymentMix": []
+    },
+    "admission": {
+      "admissions": 2,
+      "discharges": 1,
+      "avgLosDays": 4.5,
+      "pendingDrafts": 1,
+      "wardDistribution": []
+    },
+    "referrals": {
+      "sent": 3,
+      "received": 1,
+      "completed": 1,
+      "pending": 2,
+      "external": 1
+    }
+  }
+}
+```
+
+**Errors:** `401`, `403`.
+
+**Notes:** `procedures` and `telemedicine` always `0` (not tracked). Admissions KPI counts `ADMISSION_REQUESTS` by requesting doctor (not bed admissions created by Records).
+
+### Clinical certificates (`/clinical-certificates`)
+
+Template store + issued clinical certificates/reports. Prisma: `CERTIFICATE_TEMPLATES`, `CLINICAL_CERTIFICATES`, `CLINICAL_CERTIFICATE_EVENTS` (migration `20260722120000_doctor_profile_and_certificates`). Statuses: `Draft` | `PendingSignature` | `PendingApproval` | `Issued` | `Expired` | `Cancelled`.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/clinical-certificates/templates` | Active template list | `certificate:read` |
+| GET | `/clinical-certificates/templates/:id` | Template + field schema | `certificate:read` |
+| GET | `/clinical-certificates/summary` | KPI counts (mine) | `certificate:read` |
+| GET | `/clinical-certificates?scope=mine&status=&personId=&q=&page=&limit=` | List | `certificate:read` |
+| GET | `/clinical-certificates/:id` | Detail + events | `certificate:read` |
+| POST | `/clinical-certificates` | Create draft `{ personId, templateId, fields?, layout?, validityUntil? }` | `certificate:create` |
+| PATCH | `/clinical-certificates/:id` | Update draft fields | `certificate:update` |
+| PATCH | `/clinical-certificates/:id/submit-sign` | Draft → `PendingSignature` | `certificate:update` or `certificate:sign` |
+| PATCH | `/clinical-certificates/:id/sign` | Sign → `Issued` or `PendingApproval` | `certificate:sign` |
+| PATCH | `/clinical-certificates/:id/approve` | Approve → `Issued` | `certificate:approve` |
+| PATCH | `/clinical-certificates/:id/cancel` | Cancel non-issued `{ reason? }` | `certificate:update` |
+
+**Errors:** `400` inactive template; `401`/`403`; `404` person/template/certificate; `409` illegal status transition.
+
+**Audit:** `certificate:create`, `certificate:update`, `certificate:submit-sign`, `certificate:sign`, `certificate:approve`, `certificate:cancel`.
+
+**RBAC:** Doctor `certificate:create|read|update|sign` + `doctor-analytics:read`; Admin/CMD/IT/Super Admin also `certificate:approve` via FULL_ACCESS.
+
+**Seed:** `seedCertificateTemplates()` upserts all 16 DOC_TYPES (`npm run prisma:seed`).
+
+**Deploy:** migration `20260722120000_doctor_profile_and_certificates` via `npx prisma migrate deploy`.
+
+---
+
+### Notifications (`/notifications`)
+
+Shared in-app inbox (transfer events and future clinical alerts).
+
+| Method | Path | Purpose | Permission |
+|--------|------|---------|------------|
+| GET | `/notifications?unreadOnly=&page=&limit=` | My inbox | `notification:read` |
+| GET | `/notifications/stats` | `{ unread }` badge count | `notification:read` |
+| PATCH | `/notifications/:id/read` | Mark read | `notification:read` |
+| POST | `/notifications/:id/ack` | Acknowledge | `notification:read` |
+| POST | `/notifications/read-all` | Mark all read | `notification:read` |
+
+**Response example:** `{ data: { items: [{ notificationId, type, title, body, linkPath, isRead, createdAt }], meta } }`
+
+**Errors:** `401`; `403`; `404` notification not owned by user.
+
+**Audit filter:** `GET /api/audit/logs?type=transfer:*` supports prefix (`*` or trailing `:`) for transfer audit rows.
+
+---
+
+### Laboratory (`/laboratory`)
+
+Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample collection → result entry → validation → amendment). Payment is cashier-owned (`PAYMENT_STATUS` defaults to **Unpaid**). Lab staff **see unpaid requests** with limited detail (`processingLocked`); sample/result processing unlocks after **Paid/Waived**.
+
+`LAB_REQUESTS.LAB_STATUS` drives the LIS work queues: `AwaitingCollection → Collected → ResultDraft → AwaitingValidation → Validated → PendingRevalidation` (amend) `→ Validated` (revalidate).
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/laboratory/overview?timezoneOffsetMinutes=&recentLimit=` | Dashboard KPIs, recent activity, STAT alerts, pending tasks | `lab:read` |
+| GET | `/laboratory/staff?q=&limit=` | Search staff for lab pickers (transfer, CAPA) | `lab:read` |
+| GET | `/laboratory/drug-screens?status=&personId=&q=` | List urine drug screens (+ drug catalog) | `lab:read` |
+| GET | `/laboratory/drug-screens/:id` | Drug screen detail + result lines | `lab:read` |
+| POST | `/laboratory/drug-screens` | Create draft `{ personId, drugCodes[], labRequestId? }` | `lab:create` |
+| POST | `/laboratory/drug-screens/:id/collect` | Sample collect `{ sampleNo?, sampleType?, collectedAt? }` | `lab:collect` |
+| PATCH | `/laboratory/drug-screens/:id/results` | Upsert drug results `{ results: [{ drugCode, result, remarks? }] }` | `lab:result` |
+| POST | `/laboratory/drug-screens/:id/submit` | Submit for validation | `lab:result` |
+| POST | `/laboratory/drug-screens/:id/validate` | Validate screen | `lab:validate` |
+| POST | `/laboratory/drug-screens/:id/reject` | Reject `{ reason }` | `lab:validate` |
+| GET | `/laboratory/cultures?status=&personId=&q=` | List cultures + KPI counts | `lab:read` |
+| GET | `/laboratory/cultures/:id` | Culture detail + sensitivities | `lab:read` |
+| POST | `/laboratory/cultures` | Create culture + sensitivity matrix | `lab:create` |
+| PATCH | `/laboratory/cultures/:id` | Update organism / status / matrix | `lab:update` |
+| GET | `/laboratory/reports` | List report snapshots | `lab:read` |
+| POST | `/laboratory/reports/generate` | Aggregate + persist snapshot `{ reportType, from, to, title? }` | `lab:read` |
+| GET | `/laboratory/reports/:id` | Snapshot detail + payload | `lab:read` |
+| GET | `/laboratory/sfa?status=&personId=&q=` | List seminal fluid analyses + KPIs | `lab:read` |
+| GET | `/laboratory/sfa/:id` | SFA detail | `lab:read` |
+| POST | `/laboratory/sfa` | Create draft SFA `{ personId, …fields? }` | `lab:create` |
+| PATCH | `/laboratory/sfa/:id` | Update SFA fields | `lab:result` |
+| POST | `/laboratory/sfa/:id/submit` | Submit for validation | `lab:result` |
+| POST | `/laboratory/sfa/:id/validate` | Validate SFA | `lab:validate` |
+| POST | `/laboratory/sfa/:id/reject` | Reject `{ reason }` | `lab:validate` |
+| GET | `/laboratory/analytics/summary?from=&to=&timezoneOffsetMinutes=` | Live analytics (revenue, tests, avg TAT, top tests, workload) | `lab:read` |
+| GET | `/laboratory/specimens?status=&personId=&q=` | Specimen tracking list + KPIs | `lab:read` |
+| GET | `/laboratory/specimens/:id` | Specimen detail + chain-of-custody events | `lab:read` |
+| POST | `/laboratory/specimens` | Register specimen `{ personId, testLabel, … }` | `lab:create` |
+| PATCH | `/laboratory/specimens/:id/transfer` | Transfer `{ toLocation, reason?, staffLabel? }` | `lab:update` |
+| PATCH | `/laboratory/specimens/:id/status` | Status update `{ status, reason?, location? }` | `lab:update` |
+| GET | `/laboratory/microbiology?status=&q=` | Micro worklist over cultures + micro KPIs | `lab:read` |
+| GET | `/laboratory/microbiology/:id` | Culture detail for micro | `lab:read` |
+| POST | `/laboratory/microbiology` | Create culture (delegate) | `lab:create` |
+| PATCH | `/laboratory/microbiology/:id` | Update culture | `lab:update` |
+| POST | `/laboratory/microbiology/:id/validate` | Mark culture Final | `lab:validate` |
+| GET | `/laboratory/histopathology?stage=&personId=&q=` | Histopathology cases + stage KPIs | `lab:read` |
+| GET | `/laboratory/histopathology/:id` | Case detail | `lab:read` |
+| POST | `/laboratory/histopathology` | Register case `{ personId, specimenType, … }` | `lab:create` |
+| PATCH | `/laboratory/histopathology/:id` | Update report fields (not Released) | `lab:result` |
+| POST | `/laboratory/histopathology/:id/advance` | Next stage `{ stage? }` | `lab:update` |
+| POST | `/laboratory/histopathology/:id/release` | Release (requires diagnosis) | `lab:validate` |
+| GET | `/laboratory/qc?freq=&result=&q=` | QC runs + passed/failed KPIs | `lab:read` |
+| GET | `/laboratory/qc/:id` | QC run detail | `lab:read` |
+| POST | `/laboratory/qc` | Create QC run | `lab:create` |
+| PATCH | `/laboratory/qc/:id` | Update QC run | `lab:update` |
+| POST | `/laboratory/qc/:id/capa` | Upsert CAPA | `lab:update` |
+| GET | `/laboratory/tests?q=&category=&status=` | Lab test catalog | `lab:read` |
+| GET | `/laboratory/tests/:id` | Test detail | `lab:read` |
+| POST | `/laboratory/tests` | Create catalog entry | `lab:update` |
+| PATCH | `/laboratory/tests/:id` | Update price/status | `lab:update` |
+| POST | `/laboratory/requests` | Create+send request (always Unpaid; `source` Doctor\|WalkIn) | `lab:create` |
+| GET | `/laboratory/requests?personId=&encounterId=&status=&paymentStatus=&source=&labStatus=&workQueue=` | List requests | `lab:read` |
+| GET | `/laboratory/requests/:id` | Detail + items + person | `lab:read` |
+| POST | `/laboratory/requests/:id/cancel` | Cancel if unpaid | `lab:update` |
+| POST | `/laboratory/requests/:id/collect` | Collect specimens (creates `LAB_SAMPLES`, `LAB_STATUS=Collected`) | `lab:collect` |
+| POST | `/laboratory/requests/:id/results` | Save/submit results `{ action: draft\|submit, items }` | `lab:result` |
+| GET | `/laboratory/samples?status=&q=&page=&limit=` | LIS sample worklist | `lab:read` |
+| POST | `/laboratory/samples/:id/reject` | Reject sample `{ reason }` (request back to AwaitingCollection) | `lab:collect` |
+| GET | `/laboratory/results?status=&requestId=&personId=&critical=&q=&page=&limit=` | Result worklist (`critical=true` → CRITICAL_FLAG=Y) | `lab:read` |
+| GET | `/laboratory/results/:id` | Result detail (values, template, request, person) | `lab:read` |
+| GET | `/laboratory/results/:id/versions` | Immutable version history | `lab:read` |
+| POST | `/laboratory/results/:id/acknowledge` | Doctor ack critical result | `lab:read` |
+| POST | `/laboratory/results/:id/validate` | Validate result (all validated → request Validated) | `lab:validate` |
+| POST | `/laboratory/results/:id/return` | Return to bench `{ reason }` (back to Draft) | `lab:validate` |
+| POST | `/laboratory/results/:id/amend` | Amend validated result `{ values, comment?, reason }` → PendingRevalidation | `lab:validate` |
+| GET | `/laboratory/templates?q=&category=&status=` | Result templates | `lab:read` |
+| GET | `/laboratory/templates/:id` | Template detail | `lab:read` |
+| POST | `/laboratory/templates` | Create template `{ name, category, description?, fields[] }` | `lab:template-manage` |
+| PATCH | `/laboratory/templates/:id` | Update template (fields/name/status; deactivate = `status: Inactive`) | `lab:template-manage` |
+| GET | `/laboratory/history?personId=&from=&to=&q=&page=&limit=` | Patient longitudinal lab history (requests + items + latest result) | `lab:read` |
+| GET | `/laboratory/blood-bank/summary` | Blood bank KPI counts + stock by group | `blood-bank:read` |
+| GET | `/laboratory/blood-bank/donors?q=&status=` | List blood donors | `blood-bank:read` |
+| POST | `/laboratory/blood-bank/donors` | Create donor `{ fullName, phone, address?, bloodGroup?, notes? }` | `blood-bank:create` |
+| GET | `/laboratory/blood-bank/donors/:id` | Donor detail | `blood-bank:read` |
+| PATCH | `/laboratory/blood-bank/donors/:id` | Update / soft deactivate `{ status: Inactive }` | `blood-bank:update` |
+| GET | `/laboratory/blood-bank/doctors?q=` | Search doctors/clinical staff for assignment (no `user:read`) | `blood-bank:read` |
+| GET | `/laboratory/blood-bank/issue-history?q=` | Issued unit ↔ patient assignment history | `blood-bank:read` |
+| GET | `/laboratory/blood-bank/units?status=&bloodGroup=&q=` | Inventory list | `blood-bank:read` |
+| POST | `/laboratory/blood-bank/units` | Add unit `{ unitNo, bloodGroup, component, expiryDate, donorId?, doctorId?, … }` | `blood-bank:create` |
+| PATCH | `/laboratory/blood-bank/units/:id` | Update status / quarantine (Issued→Available **blocked**) | `blood-bank:update` |
+| GET | `/laboratory/blood-bank/requests?status=&q=` | Transfusion request queue | `blood-bank:read` |
+| POST | `/laboratory/blood-bank/requests` | New request `{ personId, bloodGroup, unitsRequested, department, doctorId?, … }` | `blood-bank:create` |
+| GET | `/laboratory/blood-bank/requests/:id` | Detail + immutable events | `blood-bank:read` |
+| PATCH | `/laboratory/blood-bank/requests/:id/start-crossmatch` | → Crossmatching | `blood-bank:update` |
+| PATCH | `/laboratory/blood-bank/requests/:id/crossmatch` | Record `{ result, bloodUnitId?, notes? }` | `blood-bank:update` |
+| PATCH | `/laboratory/blood-bank/requests/:id/issue` | Issue up to `UNITS_REQUESTED` `{ bloodUnitId?, bloodUnitIds?, notes? }` (FEFO if omitted) | `blood-bank:issue` |
+| PATCH | `/laboratory/blood-bank/requests/:id/reject` | Reject `{ reason }` | `blood-bank:update` |
+| PATCH | `/laboratory/blood-bank/requests/:id/complete` | Mark Issued → Completed | `blood-bank:update` |
+| GET | `/laboratory/blood-bank/crossmatches` | Crossmatch history | `blood-bank:read` |
+| GET | `/cashier/payments/lab-requests?paymentStatus=Unpaid` | Cashier unpaid queue | `lab:pay` |
+| POST | `/cashier/payments/lab-requests/:id/confirm` | Confirm payment `{ paymentChannel, paymentRef? }` | `lab:pay` |
+| GET | `/cashier/payments/admission-bills?paymentStatus=Unpaid` | Cashier unpaid admission packages | `admission:pay` |
+| POST | `/cashier/payments/admission-bills/:id/confirm` | Confirm admission payment `{ paymentChannel, paymentRef? }` | `admission:pay` |
+
+**POST `/laboratory/requests` body:** `{ personId, encounterId?, priority?: "Routine"|"Urgent"|"Stat", clinicalIndication?, clinicalNotes?, source?: "Doctor"|"WalkIn", items: [{ testId, lineNotes? }] }`
+
+**POST `/laboratory/requests/:id/results` body:** `{ action: "draft"|"submit", items: [{ requestItemId, templateId?, values: { fieldKey: value }, comment? }] }` — upserts one `LAB_RESULTS` row per request item and writes a `LAB_RESULT_VERSIONS` snapshot; sets `LAB_STATUS` to `ResultDraft`/`AwaitingValidation`. 400 if not Collected or unpaid.
+
+**Template `fields[]` items:** `{ key, label, type: "number"|"text"|"select"|"multiselect", unit?, ref?, options?, critical?, required? }` — keys must be unique per template.
+
+**List rules:** `workQueue=true` forces `paymentStatus in (Paid,Waived)` and default `status=Sent` (ready-to-process subset). LAB role otherwise lists unpaid too. Responses include `paymentCleared`, `processingLocked` and `labStatus`. For LAB + unpaid, clinical indication/notes, prices, phone, and DOB are redacted.
+
+**Audit:** `lab:test-create|test-update|request-create|request-cancel|pay|template-create|template-update|sample-collect|sample-reject|result-save|result-submit|result-validate|result-return|result-amend` · `lab-drug-screen:*` · `lab-culture:*` · `lab-report:generate` · `lab-sfa:*` · `lab-specimen:*` · `lab-histo:*` · `lab-qc:*` · `blood-bank:unit-create|unit-update|request-create|crossmatch-start|crossmatch-record|issue|reject|complete|donor-create|donor-update`.
+
+**History response:** `{ data: { patient, items: [{ requestId, requestNo, testName, category, requestedAt, paymentStatus, labStatus, resultId, resultSummary, validatedAt }], meta } }` — requires `personId`.
+
+**Blood bank notes:** Unit statuses `Available|Reserved|Issued|Expired|Quarantine`. Request statuses `Pending|Crossmatching|Issued|Rejected|Completed`. Request numbers `BR-YYYY-####`. Events in `BLOOD_REQUEST_EVENTS` are append-only.
+
+**Response example:** `{ data: { labRequestId, requestNo: "LR-2026-0001", source: "WalkIn", paymentStatus: "Unpaid", paymentCleared: false, processingLocked: true, status: "Sent", labStatus: "AwaitingCollection", totalAmount, items, person } }`
+
+**Errors:** 400 invalid/inactive tests, encounter mismatch, already-paid cancel, unpaid collect/results, wrong LIS state (e.g. validate a Draft, amend a non-Validated result), duplicate field keys, missing blood stock / incompatible issue; 401; 403; 404 patient/request/sample/result/template/unit.
+
+#### Laboratory specialty extensions (SFA / Analytics / Specimens / Microbiology)
+
+**Drug-screen list KPIs:** `GET /laboratory/drug-screens` also returns `kpis: { draft, inProgress, validated, rejected, total }` (counts over soft-deleted-filtered rows matching filters).
+
+**SFA — `POST /laboratory/sfa`**
+- **Purpose:** Create draft seminal fluid analysis (patient-centric; optional `labRequestId`; no cashier gate).
+- **Permission:** `lab:create`
+- **Body:** `{ personId, labRequestId?, volumeMl?, colour?, viscosity?, liquefactionMin?, ph?, countMMl?, motilityPct?, morphologyPct?, pusCells?, rbc?, epithelial?, interpretation? }`
+- **Response:** `{ data: { sfaId, sfaNo: "SFA-YYYY-####", status: "Draft", person, …fields } }`
+- **Errors:** 400 invalid fields; 404 person; 401; 403
+
+**SFA lifecycle:** `PATCH /:id` (`lab:result`) while Draft/Submitted → `POST /:id/submit` → `POST /:id/validate` or `POST /:id/reject` `{ reason }` (`lab:validate`). Statuses: `Draft|Submitted|Validated|Rejected`. Audit: `lab-sfa:*`. Soft delete only.
+
+**Analytics — `GET /laboratory/analytics/summary`**
+- **Purpose:** Live aggregates (not persisted) for date range.
+- **Permission:** `lab:read`
+- **Query:** `from`, `to` (ISO dates), optional `timezoneOffsetMinutes`
+- **Response:** `{ data: { revenue, testsCompleted, avgTatHours, criticalOrStatCount, topTests: [{ name, count }], workloadByCategory: [{ category, count }] } }`
+- **Errors:** 400 bad date range; 401; 403
+
+**Specimens — `POST /laboratory/specimens`**
+- **Purpose:** Register tracking specimen (chain-of-custody domain; distinct from `LAB_SAMPLES`).
+- **Permission:** `lab:create`
+- **Body:** `{ personId, testLabel, collectedBy?, location?, labRequestId?, labSampleId? }`
+- **Response:** `{ data: { specimenId, specimenNo: "SPC-YYYY-####", status: "In Transit"|…, events: […] } }`
+- **Transfer:** `PATCH /:id/transfer` `{ toLocation, reason?, staffLabel? }` → status In Transit + immutable event (`lab:update`)
+- **Status:** `PATCH /:id/status` `{ status: "Received"|"Rejected"|"Lost"|"Delayed"|"Completed", reason?, location? }` + event (`lab:update`)
+- **Errors:** 400 invalid status transition; 404 specimen/person; 401; 403. Never hard-delete. Audit: `lab-specimen:*`.
+
+**Microbiology — wraps `LAB_CULTURES`**
+- **Purpose:** Workbench KPIs (Pending / Positive / Negative / Awaiting Validation / Completed) over existing cultures; create/patch/validate delegate to culture service.
+- **Permission:** list/detail `lab:read`; create `lab:create`; patch `lab:update`; validate `lab:validate`
+- **Validate:** `POST /laboratory/microbiology/:id/validate` → culture status Final
+- **Response (list):** `{ data: { items: […cultures with microStatus], kpis: { pending, positive, negative, awaitingValidation, completed, total }, meta } }`
+- **Errors:** same as cultures (400/404/401/403). Culture & Sensitivity page remains on `/laboratory/cultures`.
+
+**Histopathology — `POST /laboratory/histopathology`**
+- **Purpose:** Register histopathology case (stage Received).
+- **Permission:** `lab:create`
+- **Body:** `{ personId, specimenType: "Biopsy"|"Surgical Specimens"|"Cytology"|"Special Stains", site?, gross?, micro?, diagnosis?, grade? }`
+- **Response:** `{ data: { caseId, caseNo: "HST-YYYY-####", stage: "Received", patientName, … } }`
+- **Lifecycle:** `PATCH /:id` (`lab:result`) → `POST /:id/advance` (`lab:update`) → `POST /:id/release` (`lab:validate`, requires diagnosis). Soft delete only. Audit: `lab-histo:*`.
+- **Errors:** 400 released edit / missing diagnosis; 404; 401; 403
+
+**QC — `POST /laboratory/qc`**
+- **Purpose:** Log quality-control run.
+- **Permission:** `lab:create`
+- **Body:** `{ analyte, instrument, level: "L1"|"L2"|"L3", expected, observed, result: "Passed"|"Failed", freq: "Daily"|"Weekly"|"Monthly"|"Calibration", runDate? }`
+- **Response:** `{ data: { qcRunId, runNo: "QC-YYYY-####", …, capaStatus } }`
+- **CAPA:** `POST /:id/capa` `{ corrective, preventive, assignedTo, targetDate?, capaStatus? }` (`lab:update`). Audit: `lab-qc:*`.
+- **Errors:** 400 invalid date; 404; 401; 403
+
+**Lab Config (tests):** Use existing `POST/PATCH /laboratory/tests` (`lab:update`) to create/edit catalog entries shown on `/dashboard/laboratory/config`.
 
 ---
 

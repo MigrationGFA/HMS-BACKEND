@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { AuthUser } from './types/auth-user.type';
 
@@ -68,5 +69,25 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser) {
     return { data: user };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/auth/change-password
+   * Purpose: Change password for the authenticated user
+   * Required permission: valid access JWT
+   * Request body: { currentPassword, newPassword }
+   * Response example: { data: { success: true } }
+   * Error cases: 400 same password, 401 wrong current / invalid session
+   * Audit: auth:change-password
+   */
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const data = await this.authService.changePassword(user.id, dto, user);
+    return { data };
   }
 }

@@ -1,0 +1,80 @@
+// Structured clinical diagnoses (ICD/DSM catalog + patient problem list)
+
+model DiagnosisCodes {
+  DIAGNOSIS_CODE_ID Int       @id @default(autoincrement())
+  CODE              String    @unique @db.VarChar(40)
+  DSM_CODE          String?   @db.VarChar(40)
+  /// ICD-11 | DSM-5 | Local
+  SYSTEM            String    @default("ICD-11") @db.VarChar(20)
+  NAME              String    @db.VarChar(255)
+  CATEGORY          String?   @db.VarChar(100)
+  DESCRIPTION       String?   @db.Text
+  SYMPTOMS          String?   @db.Text
+  KEYWORDS          String?   @db.Text
+  IS_PSYCHIATRIC    Boolean   @default(false)
+  /// Active | Inactive
+  STATUS            String    @default("Active") @db.VarChar(30)
+  CREATED_BY        String?   @db.VarChar(100)
+  CREATED_DATE      DateTime?
+  UPDATED_BY        String?   @db.VarChar(100)
+  UPDATED_DATE      DateTime?
+
+  @@index([SYSTEM])
+  @@index([CATEGORY])
+  @@index([STATUS])
+  @@index([IS_PSYCHIATRIC])
+  @@map("DIAGNOSIS_CODES")
+}
+
+model PatientDiagnoses {
+  PATIENT_DIAGNOSIS_ID Int       @id @default(autoincrement())
+  PERSON_ID            Int
+  ENCOUNTER_ID         Int?
+  CODE                 String    @db.VarChar(40)
+  DSM_CODE             String?   @db.VarChar(40)
+  /// ICD-11 | DSM-5 | Local
+  SYSTEM               String    @default("ICD-11") @db.VarChar(20)
+  NAME                 String    @db.VarChar(255)
+  /// Primary | Secondary | Differential | Provisional | Confirmed | Ruled out
+  TYPE                 String    @default("Primary") @db.VarChar(40)
+  /// Mild | Moderate | Severe
+  SEVERITY             String?   @db.VarChar(30)
+  /// Active | Chronic | Resolved | In remission
+  STATUS               String    @default("Active") @db.VarChar(40)
+  /// Suspected | Probable | Confirmed
+  CERTAINTY            String?   @db.VarChar(30)
+  ONSET_DATE           DateTime?
+  NOTES                String?   @db.Text
+  CLINIC               String?   @db.VarChar(50)
+  ON_PROBLEM_LIST      Boolean   @default(true)
+  IS_PSYCHIATRIC       Boolean   @default(false)
+  REASON_CONSIDERED    String?   @db.Text
+  SUPPORTING_FINDINGS  String?   @db.Text
+  AGAINST_FINDINGS     String?   @db.Text
+  CONTROL_STATUS       String?   @db.VarChar(50)
+  LAST_REVIEW          DateTime?
+  NEXT_REVIEW          DateTime?
+  RISK_LEVEL           String?   @db.VarChar(40)
+  LINKED_SYMPTOMS      String?   @db.Text
+  LINKED_LAB           String?   @db.Text
+  LINKED_IMAGING       String?   @db.Text
+  LINKED_RX            String?   @db.Text
+  CLOSED_REASON        String?   @db.Text
+  CLOSED_BY            String?   @db.VarChar(150)
+  CLOSED_DATE          DateTime?
+  CREATED_BY_ID        Int?
+  UPDATED_BY_ID        Int?
+  CREATED_BY           String?   @db.VarChar(100)
+  CREATED_DATE         DateTime?
+  UPDATED_BY           String?   @db.VarChar(100)
+  UPDATED_DATE         DateTime?
+
+  person Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([TYPE])
+  @@index([IS_PSYCHIATRIC])
+  @@index([CREATED_DATE])
+  @@map("PATIENT_DIAGNOSES")
+}

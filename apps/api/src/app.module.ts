@@ -21,8 +21,11 @@ import { QueuesModule } from './queues/queues.module';
 
 // Clinical & care
 import { ClinicalModule } from './clinical/clinical.module';
+import { DoctorModule } from './doctor/doctor.module';
 import { NursingModule } from './nursing/nursing.module';
 import { AdmissionsModule } from './admissions/admissions.module';
+import { TransfersModule } from './transfers/transfers.module';
+import { EmergencyOverrideModule } from './emergency-override/emergency-override.module';
 import { DischargeModule } from './discharge/discharge.module';
 import { PsychiatryModule } from './psychiatry/psychiatry.module';
 import { AlliedHealthModule } from './allied-health/allied-health.module';
@@ -53,6 +56,8 @@ import { SuperAdminModule } from './super-admin/super-admin.module';
 import { GovernanceModule } from './governance/governance.module';
 import { AdministrationModule } from './administration/administration.module';
 import { HrModule } from './hr/hr.module';
+import { SupportRequestsModule } from './support-requests/support-requests.module';
+import { ClinicalPharmacyModule } from './clinical-pharmacy/clinical-pharmacy.module';
 
 @Module({
   imports: [
@@ -79,8 +84,11 @@ import { HrModule } from './hr/hr.module';
 
     // Clinical & care
     ClinicalModule,
+    DoctorModule,
     NursingModule,
     AdmissionsModule,
+    TransfersModule,
+    EmergencyOverrideModule,
     DischargeModule,
     PsychiatryModule,
     AlliedHealthModule,
@@ -110,6 +118,8 @@ import { HrModule } from './hr/hr.module';
     GovernanceModule,
     AdministrationModule,
     HrModule,
+    SupportRequestsModule,
+    ClinicalPharmacyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

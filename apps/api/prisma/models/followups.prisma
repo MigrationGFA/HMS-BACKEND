@@ -1,0 +1,37 @@
+// Doctor-scheduled follow-up visits — created on consultation complete
+// or via explicit schedule. Soft status only — never hard-delete.
+
+model FollowUps {
+  FOLLOW_UP_ID   Int       @id @default(autoincrement())
+  PERSON_ID      Int
+  ENCOUNTER_ID   Int?
+  DOCTOR_ID      Int
+  CLINIC         String?   @db.VarChar(100)
+  /// Scheduled calendar date (date-only intent; store as midnight UTC)
+  SCHEDULED_DATE DateTime  @db.Date
+  SCHEDULED_TIME String?   @db.VarChar(20)
+  /// Routine | Urgent
+  PRIORITY       String    @default("Routine") @db.VarChar(50)
+  /// Scheduled | Attended | Cancelled
+  STATUS         String    @default("Scheduled") @db.VarChar(50)
+  PREV_DX        String?   @db.VarChar(500)
+  REASON         String?   @db.Text
+  REMINDER       String?   @db.VarChar(50)
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+
+  person    Persons    @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  encounter Encounters? @relation(fields: [ENCOUNTER_ID], references: [ENCOUNTER_ID])
+  doctor    Users      @relation("FollowUpDoctor", fields: [DOCTOR_ID], references: [USER_ID])
+
+  @@index([PERSON_ID])
+  @@index([DOCTOR_ID])
+  @@index([SCHEDULED_DATE])
+  @@index([STATUS])
+  @@index([ENCOUNTER_ID])
+  @@map("FOLLOW_UPS")
+}
