@@ -647,7 +647,12 @@ export class LaboratoryService {
     if (!actor?.id) {
       throw new BadRequestException('Authenticated user required');
     }
-    const source = dto.source === 'WalkIn' ? 'WalkIn' : 'Doctor';
+    const source =
+      dto.source === 'WalkIn'
+        ? 'WalkIn'
+        : dto.source === 'OPC'
+          ? 'OPC'
+          : 'Doctor';
     const person = await this.prisma.persons.findUnique({
       where: { PERSON_ID: dto.personId },
       select: { PERSON_ID: true },

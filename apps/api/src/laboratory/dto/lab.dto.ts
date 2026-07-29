@@ -140,7 +140,7 @@ export class CreateLabRequestDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['Doctor', 'WalkIn'])
+  @IsIn(['Doctor', 'WalkIn', 'OPC'])
   source?: string;
 
   @IsArray()

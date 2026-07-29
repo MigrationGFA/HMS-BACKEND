@@ -23,6 +23,7 @@ const CASHIER_AUDIT_TYPES = [
   'lab:pay',
   'admission-bill:pay',
   'imaging:pay',
+  'opc:pay',
 ] as const;
 
 const SOURCE_DEPT: Record<string, string> = {
@@ -32,6 +33,7 @@ const SOURCE_DEPT: Record<string, string> = {
   lab: 'Laboratory',
   admission: 'Admission',
   imaging: 'Imaging',
+  opc: 'Psychiatric OPC',
 };
 
 function yn(v: boolean): string {
@@ -468,7 +470,7 @@ export class CashierService {
   /* ---- Discounts ---- */
 
   async listEligibleBills() {
-    const [cards, sales, rx, labs, adms, imgs] = await Promise.all([
+    const [cards, sales, rx, labs, adms, imgs, opcs] = await Promise.all([
       this.prisma.patientCards.findMany({
         where: { PAYMENT_STATUS: 'Pending' },
         take: 40,
@@ -560,6 +562,21 @@ export class CashierService {
           },
         },
       }),
+      this.prisma.opcVisits.findMany({
+        where: { BILLING_STATUS: 'Unpaid' },
+        take: 40,
+        orderBy: { CHECK_IN_AT: 'desc' },
+        include: {
+          person: {
+            select: {
+              FIRST_NAME: true,
+              MIDDLE_NAME: true,
+              LAST_NAME: true,
+              HOSPITAL_NO: true,
+            },
+          },
+        },
+      }),
     ]);
 
     const items: {
@@ -640,6 +657,17 @@ export class CashierService {
         patientName: personName(i.person),
         amount: dec(i.TOTAL_AMOUNT ?? 0),
         department: 'Imaging',
+      });
+    }
+    for (const o of opcs) {
+      items.push({
+        sourceType: 'opc',
+        sourceId: o.OPC_VISIT_ID,
+        sourceRef: o.VISIT_NO,
+        personId: o.PERSON_ID,
+        patientName: personName(o.person),
+        amount: dec(o.CONSULT_AMOUNT ?? 0),
+        department: 'Psychiatric OPC',
       });
     }
     return { items };
@@ -872,6 +900,25 @@ export class CashierService {
         amount: dec(i.TOTAL_AMOUNT ?? 0),
       };
     }
+    if (sourceType === 'opc') {
+      const o = await this.prisma.opcVisits.findUnique({
+        where: { OPC_VISIT_ID: sourceId },
+        include: {
+          person: {
+            select: { FIRST_NAME: true, MIDDLE_NAME: true, LAST_NAME: true },
+          },
+        },
+      });
+      if (!o || o.BILLING_STATUS !== 'Unpaid') {
+        throw new BadRequestException('OPC consult not unpaid');
+      }
+      return {
+        personId: o.PERSON_ID,
+        patientName: personName(o.person),
+        sourceRef: o.VISIT_NO,
+        amount: dec(o.CONSULT_AMOUNT ?? 0),
+      };
+    }
     throw new BadRequestException('Invalid source type');
   }
 
@@ -990,7 +1037,16 @@ export class CashierService {
         where: { IMAGING_REQUEST_ID: sourceId },
         data: {
           PAYMENT_STATUS: 'Waived',
-          UPDATED_BY: label,
+          UPDATED_DATE: now,
+        },
+      });
+      return;
+    }
+    if (sourceType === 'opc') {
+      await tx.opcVisits.update({
+        where: { OPC_VISIT_ID: sourceId },
+        data: {
+          BILLING_STATUS: 'Waived',
           UPDATED_DATE: now,
         },
       });

@@ -111,6 +111,10 @@ model Persons {
   labSfaAnalyses            LabSfaAnalyses[]
   labSpecimenTracking       LabSpecimenTracking[]
   labHistopathologyCases    LabHistopathologyCases[]
+  opcVisits                 OpcVisits[]
+  opcAssessments            OpcAssessments[]
+  opcRiskAssessments        OpcRiskAssessments[]
+  opcNotes                  OpcNotes[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])
