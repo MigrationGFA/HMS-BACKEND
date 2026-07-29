@@ -59,10 +59,15 @@ model ImagingRequests {
   UPDATED_DATE       DateTime?
 
   person  Persons               @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  encounter Encounters?         @relation(fields: [ENCOUNTER_ID], references: [ENCOUNTER_ID])
+  doctor  Users?                @relation("ImagingRequestDoctor", fields: [DOCTOR_ID], references: [USER_ID])
   items   ImagingRequestItems[]
   reports RadiologyReports[]
+  imagingReports ImagingReports[]
 
   @@index([PERSON_ID])
+  @@index([ENCOUNTER_ID])
+  @@index([DOCTOR_ID])
   @@index([STATUS])
   @@index([PAYMENT_STATUS])
   @@index([SOURCE])

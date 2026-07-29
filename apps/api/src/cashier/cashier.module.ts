@@ -5,6 +5,7 @@ import { ClinicalModule } from '../clinical/clinical.module';
 import { LaboratoryModule } from '../laboratory/laboratory.module';
 import { AdmissionsModule } from '../admissions/admissions.module';
 import { RadiologyModule } from '../radiology/radiology.module';
+import { PsychiatryModule } from '../psychiatry/psychiatry.module';
 import { AuditModule } from '../audit/audit.module';
 import { CashierController } from './cashier.controller';
 import { PaymentsController } from './payments.controller';
@@ -18,6 +19,7 @@ import { CashierService } from './cashier.service';
     LaboratoryModule,
     AdmissionsModule,
     RadiologyModule,
+    PsychiatryModule,
     AuditModule,
   ],
   controllers: [CashierController, PaymentsController],

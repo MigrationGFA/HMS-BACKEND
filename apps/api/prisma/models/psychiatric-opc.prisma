@@ -1,0 +1,105 @@
+// Psychiatric Outpatient Clinic (OPC) — visits, assessments, risk, notes
+
+model OpcVisits {
+  OPC_VISIT_ID    Int       @id @default(autoincrement())
+  VISIT_NO        String    @unique @db.VarChar(40)
+  PERSON_ID       Int
+  /// New | Follow-up | Emergency | Review
+  VISIT_TYPE      String    @db.VarChar(40)
+  /// Cash | NHIS | HMO | Staff | Free
+  PAYER           String    @default("Cash") @db.VarChar(40)
+  /// Normal | Urgent | Emergency | Crisis
+  PRIORITY        String    @default("Normal") @db.VarChar(20)
+  /// WAITING | WITH_NURSE | WITH_DOCTOR | AWAITING_LAB | AWAITING_PHARMACY | REFERRED | FOR_ADMISSION | COMPLETED | CANCELLED
+  STATUS          String    @default("WAITING") @db.VarChar(40)
+  ASSIGNED_DOCTOR String?   @db.VarChar(120)
+  CLINIC          String?   @db.VarChar(120)
+  REASON          String?   @db.Text
+  /// Unpaid | Paid | Waived | NotBilled
+  BILLING_STATUS  String    @default("NotBilled") @db.VarChar(20)
+  CONSULT_AMOUNT  Decimal   @default(7500) @db.Decimal(18, 2)
+  PAID_AT         DateTime?
+  PAID_BY         String?   @db.VarChar(120)
+  PAYMENT_CHANNEL String?   @db.VarChar(40)
+  PAYMENT_REF     String?   @db.VarChar(100)
+  CHECK_IN_AT     DateTime  @default(now())
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(120)
+  CREATED_DATE    DateTime  @default(now())
+  UPDATED_DATE    DateTime?
+  AUDIT_JSON      String?   @db.Text
+
+  person          Persons              @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  assessments     OpcAssessments[]
+  riskAssessments OpcRiskAssessments[]
+  notes           OpcNotes[]
+
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([CHECK_IN_AT])
+  @@index([BILLING_STATUS])
+  @@map("OPC_VISITS")
+}
+
+model OpcAssessments {
+  ASSESSMENT_ID Int      @id @default(autoincrement())
+  PERSON_ID     Int
+  OPC_VISIT_ID  Int?
+  TYPE          String   @db.VarChar(60)
+  VALUES_JSON   String   @db.Text
+  SUMMARY       String?  @db.Text
+  CREATED_BY    String?  @db.VarChar(120)
+  CREATED_DATE  DateTime @default(now())
+
+  person Persons    @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  visit  OpcVisits? @relation(fields: [OPC_VISIT_ID], references: [OPC_VISIT_ID])
+
+  @@index([PERSON_ID])
+  @@index([OPC_VISIT_ID])
+  @@map("OPC_ASSESSMENTS")
+}
+
+model OpcRiskAssessments {
+  RISK_ID         Int      @id @default(autoincrement())
+  PERSON_ID       Int
+  OPC_VISIT_ID    Int?
+  SELF_HARM       String   @db.VarChar(20)
+  HARM_TO_OTHERS  String   @db.VarChar(20)
+  ABSCONDING      String   @db.VarChar(20)
+  NEGLECT         String   @db.VarChar(20)
+  SUBSTANCE       String   @db.VarChar(20)
+  VULNERABLE_FLAG Boolean  @default(false)
+  CRISIS_ALERT    Boolean  @default(false)
+  SAFETY_PLAN     String?  @db.Text
+  CREATED_BY      String?  @db.VarChar(120)
+  CREATED_DATE    DateTime @default(now())
+
+  person Persons    @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  visit  OpcVisits? @relation(fields: [OPC_VISIT_ID], references: [OPC_VISIT_ID])
+
+  @@index([PERSON_ID])
+  @@index([OPC_VISIT_ID])
+  @@map("OPC_RISK_ASSESSMENTS")
+}
+
+model OpcNotes {
+  NOTE_ID        Int       @id @default(autoincrement())
+  PERSON_ID      Int
+  OPC_VISIT_ID   Int?
+  TYPE           String    @db.VarChar(60)
+  CONTENT        String    @db.Text
+  /// DRAFT | FINAL
+  STATUS         String    @default("DRAFT") @db.VarChar(20)
+  CONFIDENTIAL   Boolean   @default(false)
+  CREATED_BY     String?   @db.VarChar(120)
+  CREATED_BY_ID  Int?
+  CREATED_DATE   DateTime  @default(now())
+  UPDATED_DATE   DateTime?
+
+  person Persons    @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  visit  OpcVisits? @relation(fields: [OPC_VISIT_ID], references: [OPC_VISIT_ID])
+
+  @@index([PERSON_ID])
+  @@index([OPC_VISIT_ID])
+  @@map("OPC_NOTES")
+}
