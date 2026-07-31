@@ -27,6 +27,8 @@ import { ConfirmAdmissionBillPaymentDto } from '../admissions/dto/admission-bill
 import { RadiologyService } from '../radiology/radiology.service';
 import { ConfirmImagingRequestPaymentDto } from '../radiology/dto/imaging.dto';
 import { CashierService } from './cashier.service';
+import { PsychiatryService } from '../psychiatry/psychiatry.service';
+import { PayOpcConsultationDto } from '../psychiatry/dto/psychiatric-opc.dto';
 
 function personLabel(person?: {
   firstName?: string | null;
@@ -52,6 +54,7 @@ export class PaymentsController {
     private readonly admissionBills: AdmissionBillsService,
     private readonly radiologyService: RadiologyService,
     private readonly cashierService: CashierService,
+    private readonly psychiatryService: PsychiatryService,
   ) {}
 
   /**
@@ -395,5 +398,55 @@ export class PaymentsController {
       user,
     });
     return { data: request };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/cashier/payments/opc-consults?q=&page=&limit=
+   * Purpose: Cashier queue — unpaid psychiatric OPC consultations
+   * Required permission: opc:read
+   */
+  @Get('opc-consults')
+  @RequirePermissions(PERMISSIONS.OPC_READ)
+  async listOpcConsultPayments(
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.psychiatryService.listUnpaidConsults({
+      q,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/cashier/payments/opc-consults/:id/pay
+   * Purpose: Confirm psychiatric OPC consultation payment
+   * Required permission: opc:update
+   * Request body: { channel, paymentRef? }
+   */
+  @Post('opc-consults/:id/pay')
+  @RequirePermissions(PERMISSIONS.OPC_UPDATE)
+  async payOpcConsult(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: PayOpcConsultationDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const visit = await this.psychiatryService.payConsultation(id, dto, user);
+    await this.cashierService.recordReceipt({
+      sourceType: 'opc',
+      sourceId: visit.visitId,
+      personId: visit.personId,
+      amount: visit.consultAmount,
+      channel: dto.channel,
+      paymentRef: dto.paymentRef,
+      patientName: personLabel(visit.person),
+      sourceRef: visit.visitNo,
+      user,
+    });
+    return { data: visit };
   }
 }

@@ -1,0 +1,207 @@
+// Radiology / imaging RIS: study catalog, requests, reports, ECG, equipment
+
+model ImagingStudies {
+  IMAGING_STUDY_ID Int       @id @default(autoincrement())
+  STUDY_CODE       String    @unique @db.VarChar(40)
+  NAME             String    @db.VarChar(255)
+  /// X-Ray | Ultrasound | CT Scan | MRI | ECG | EEG | Mammography | Fluoroscopy | Echocardiography | Portable
+  MODALITY         String    @db.VarChar(40)
+  BODY_REGION      String?   @db.VarChar(120)
+  TURNAROUND       String?   @db.VarChar(80)
+  UNIT_PRICE       Decimal   @default(0) @db.Decimal(18, 2)
+  /// Links to Master Service Catalog (source of truth for GENERAL_PRICE).
+  SERVICE_ID       Int?
+  /// Active | Inactive
+  STATUS           String    @default("Active") @db.VarChar(20)
+  CREATED_DATE     DateTime  @default(now())
+  UPDATED_DATE     DateTime?
+
+  masterService MasterServices?     @relation(fields: [SERVICE_ID], references: [SERVICE_ID])
+  items         ImagingRequestItems[]
+
+  @@index([MODALITY])
+  @@index([STATUS])
+  @@index([SERVICE_ID])
+  @@map("IMAGING_STUDIES")
+}
+
+model ImagingRequests {
+  IMAGING_REQUEST_ID Int       @id @default(autoincrement())
+  REQUEST_NO         String    @unique @db.VarChar(40)
+  PERSON_ID          Int
+  ENCOUNTER_ID       Int?
+  DOCTOR_ID          Int?
+  NURSING_ORDER_ID   Int?      @unique
+  /// Doctor | WalkIn | Ward | Emergency | Nursing | OPC
+  SOURCE             String    @default("Doctor") @db.VarChar(40)
+  /// Routine | Urgent | Emergency | Stat
+  PRIORITY           String    @default("Routine") @db.VarChar(20)
+  CLINICAL_INDICATION String?  @db.Text
+  CLINICAL_NOTES     String?   @db.Text
+  CONTRAST           String?   @db.VarChar(80)
+  /// Sent | Accepted | Rejected | Cancelled | Scheduled | InProgress | Completed | Reported | Verified | Released
+  STATUS             String    @default("Sent") @db.VarChar(40)
+  /// Unpaid | Paid | Waived
+  PAYMENT_STATUS     String    @default("Unpaid") @db.VarChar(20)
+  PAYMENT_CHANNEL    String?   @db.VarChar(40)
+  PAYMENT_REF        String?   @db.VarChar(100)
+  PAID_AT            DateTime?
+  PAID_BY            String?   @db.VarChar(120)
+  TOTAL_AMOUNT       Decimal   @default(0) @db.Decimal(18, 2)
+  REJECTION_REASON   String?   @db.Text
+  SCHEDULED_AT       DateTime?
+  SCHEDULED_ROOM     String?   @db.VarChar(80)
+  STARTED_AT         DateTime?
+  COMPLETED_AT       DateTime?
+  STUDY_UID          String?   @db.VarChar(120)
+  EQUIPMENT_ID       Int?
+  PREP_JSON          String?   @db.Text
+  SAFETY_JSON        String?   @db.Text
+  CREATED_BY_ID      Int?
+  CREATED_BY         String?   @db.VarChar(120)
+  CREATED_DATE       DateTime  @default(now())
+  UPDATED_DATE       DateTime?
+
+  person  Persons               @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  encounter Encounters?         @relation(fields: [ENCOUNTER_ID], references: [ENCOUNTER_ID])
+  doctor  Users?                @relation("ImagingRequestDoctor", fields: [DOCTOR_ID], references: [USER_ID])
+  items   ImagingRequestItems[]
+  reports RadiologyReports[]
+  imagingReports ImagingReports[]
+
+  @@index([PERSON_ID])
+  @@index([ENCOUNTER_ID])
+  @@index([DOCTOR_ID])
+  @@index([STATUS])
+  @@index([PAYMENT_STATUS])
+  @@index([SOURCE])
+  @@index([CREATED_DATE])
+  @@map("IMAGING_REQUESTS")
+}
+
+model ImagingRequestItems {
+  ITEM_ID            Int      @id @default(autoincrement())
+  IMAGING_REQUEST_ID Int
+  IMAGING_STUDY_ID   Int
+  STUDY_CODE         String   @db.VarChar(40)
+  STUDY_NAME         String   @db.VarChar(255)
+  MODALITY           String   @db.VarChar(40)
+  BODY_REGION        String?  @db.VarChar(120)
+  UNIT_PRICE         Decimal  @default(0) @db.Decimal(18, 2)
+  LINE_NOTES         String?  @db.Text
+
+  request ImagingRequests @relation(fields: [IMAGING_REQUEST_ID], references: [IMAGING_REQUEST_ID], onDelete: Cascade)
+  study   ImagingStudies  @relation(fields: [IMAGING_STUDY_ID], references: [IMAGING_STUDY_ID])
+
+  @@index([IMAGING_REQUEST_ID])
+  @@index([IMAGING_STUDY_ID])
+  @@map("IMAGING_REQUEST_ITEMS")
+}
+
+model RadiologyReports {
+  REPORT_ID          Int       @id @default(autoincrement())
+  IMAGING_REQUEST_ID Int
+  FINDINGS           String    @db.Text
+  IMPRESSION         String?   @db.Text
+  RECOMMENDATION     String?   @db.Text
+  CRITICAL           Boolean   @default(false)
+  /// DRAFT | SUBMITTED | VERIFIED | RELEASED | RETURNED
+  STATUS             String    @default("SUBMITTED") @db.VarChar(20)
+  AUTHOR             String    @db.VarChar(120)
+  AUTHOR_ID          Int?
+  VERIFIER           String?   @db.VarChar(120)
+  VERIFIER_ID        Int?
+  RETURN_REASON      String?   @db.Text
+  SUBMITTED_AT       DateTime  @default(now())
+  VERIFIED_AT        DateTime?
+  RELEASED_AT        DateTime?
+  CREATED_DATE       DateTime  @default(now())
+  UPDATED_DATE       DateTime?
+
+  request ImagingRequests @relation(fields: [IMAGING_REQUEST_ID], references: [IMAGING_REQUEST_ID], onDelete: Cascade)
+
+  @@index([IMAGING_REQUEST_ID])
+  @@index([STATUS])
+  @@index([CRITICAL])
+  @@map("RADIOLOGY_REPORTS")
+}
+
+model EcgStudies {
+  ECG_ID           Int       @id @default(autoincrement())
+  PERSON_ID        Int
+  IMAGING_REQUEST_ID Int?
+  /// 12-Lead | Holter | Stress | Rhythm strip
+  ECG_TYPE         String    @default("12-Lead") @db.VarChar(40)
+  HEART_RATE       Int?
+  RHYTHM           String?   @db.VarChar(120)
+  PR_MS            Int?
+  QRS_MS           Int?
+  QTC_MS           Int?
+  ST_CHANGES       String?   @db.VarChar(255)
+  INTERPRETATION   String?   @db.Text
+  ABNORMAL         Boolean   @default(false)
+  CRITICAL         Boolean   @default(false)
+  /// RECORDED | VERIFIED
+  STATUS           String    @default("RECORDED") @db.VarChar(20)
+  RECORDED_BY      String?   @db.VarChar(120)
+  INTERPRETED_BY   String?   @db.VarChar(120)
+  RECORDED_AT      DateTime  @default(now())
+  INTERPRETED_AT   DateTime?
+  CREATED_DATE     DateTime  @default(now())
+  UPDATED_DATE     DateTime?
+
+  person Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([CRITICAL])
+  @@index([STATUS])
+  @@map("ECG_STUDIES")
+}
+
+model RadEquipment {
+  EQUIPMENT_ID   Int       @id @default(autoincrement())
+  NAME           String    @db.VarChar(255)
+  MODALITY       String    @db.VarChar(40)
+  LOCATION       String?   @db.VarChar(120)
+  /// Available | In Use | Maintenance | Offline
+  STATUS         String    @default("Available") @db.VarChar(30)
+  USAGE_HOURS    Decimal   @default(0) @db.Decimal(12, 2)
+  LAST_SERVICE   DateTime?
+  CREATED_DATE   DateTime  @default(now())
+  UPDATED_DATE   DateTime?
+
+  @@index([STATUS])
+  @@map("RAD_EQUIPMENT")
+}
+
+model RadConsumables {
+  CONSUMABLE_ID  Int       @id @default(autoincrement())
+  NAME           String    @db.VarChar(255)
+  CATEGORY       String    @db.VarChar(40)
+  STOCK          Int       @default(0)
+  UNIT           String    @default("unit") @db.VarChar(20)
+  REORDER_LEVEL  Int       @default(10)
+  LOT_NUMBER     String?   @db.VarChar(80)
+  EXPIRY         DateTime?
+  CREATED_DATE   DateTime  @default(now())
+  UPDATED_DATE   DateTime?
+
+  @@index([CATEGORY])
+  @@map("RAD_CONSUMABLES")
+}
+
+model RadFormInstances {
+  FORM_ID        Int       @id @default(autoincrement())
+  FORM_TYPE      String    @db.VarChar(120)
+  IMAGING_REQUEST_ID Int?
+  PERSON_ID      Int
+  VALUES_JSON    String    @db.Text
+  SIGNED_BY      String    @db.VarChar(120)
+  CREATED_DATE   DateTime  @default(now())
+
+  person Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([PERSON_ID])
+  @@index([FORM_TYPE])
+  @@map("RAD_FORM_INSTANCES")
+}
