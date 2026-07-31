@@ -2921,6 +2921,23 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 
 **Audit:** `service:create`, `service:pricing`, `service:approve`, `service:reject`, `service:payer-create`
 
+#### Public appointments (`/appointments/public`)
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/appointments/public/availability` | Duration-based slots for a date (`serviceId`, `date`, `mode`) | public |
+| POST | `/appointments/public/book` | Create booking + price snapshot | public |
+
+**GET availability response:** `{ data: { serviceId, date, mode, durationMinutes, price, slots: [{ start, end, available }] } }`
+
+**POST book body:** `{ serviceId, date, startTime, mode: "PHYSICAL"|"ONLINE", patientName, phone, email?, age?, gender?, notes? }`
+
+**POST book response:** `{ data: { bookingId, bookingNo, priceAmount, startTime, endTime, mode, status } }`
+
+**Errors:** `400` (mode not allowed / slot taken / unpriced / outside hours), `404`
+
+**Audit:** `appointment:public-book`
+
 ---
 
 ### Audit (`/audit`) — Admin

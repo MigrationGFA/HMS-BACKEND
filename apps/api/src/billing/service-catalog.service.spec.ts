@@ -103,9 +103,17 @@ describe('ServiceCatalogService', () => {
         UPDATED_DATE: new Date(),
         category: { CODE: 'LABORATORY', NAME: 'Laboratory' },
         department: { CODE: 'LAB', NAME: 'Laboratory' },
+        bookingSettings: {
+          ONLINE_BOOKABLE: false,
+          DELIVERY_MODE: 'PHYSICAL',
+          DURATION_MINUTES: 30,
+          DAY_START: '08:00',
+          DAY_END: '17:00',
+        },
         payerPrices: [],
         approvals: [],
       };
+      prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma));
       prisma.masterServices.create.mockResolvedValue(created);
 
       const result = await service.createService(

@@ -66,12 +66,14 @@ model MasterServices {
   UPDATED_BY             String?   @db.VarChar(100)
   UPDATED_DATE           DateTime?
 
-  category    ServiceCategories    @relation(fields: [CATEGORY_ID], references: [CATEGORY_ID])
-  department  Departments          @relation(fields: [DEPARTMENT_ID], references: [DEPARTMENT_ID])
-  payerPrices ServicePayerPrices[]
-  approvals   ServicePriceApprovals[]
-  labTests    LabTests[]
-  imagingStudies ImagingStudies[]
+  category         ServiceCategories      @relation(fields: [CATEGORY_ID], references: [CATEGORY_ID])
+  department       Departments            @relation(fields: [DEPARTMENT_ID], references: [DEPARTMENT_ID])
+  bookingSettings  ServiceBookingSettings?
+  bookings         ServiceBookings[]
+  payerPrices      ServicePayerPrices[]
+  approvals        ServicePriceApprovals[]
+  labTests         LabTests[]
+  imagingStudies   ImagingStudies[]
   admissionBillingItems AdmissionBillingItems[]
 
   @@index([CATEGORY_ID])
@@ -79,6 +81,62 @@ model MasterServices {
   @@index([STATUS])
   @@index([NAME])
   @@map("MASTER_SERVICES")
+}
+
+/// 1:1 booking metadata for a master service (source of truth for online/mode/duration).
+/// MasterServices.ONLINE_BOOKABLE / DURATION_MINUTES are synced mirrors.
+model ServiceBookingSettings {
+  SETTING_ID       Int       @id @default(autoincrement())
+  SERVICE_ID       Int       @unique
+  ONLINE_BOOKABLE  Boolean   @default(false)
+  /// PHYSICAL | ONLINE | BOTH
+  DELIVERY_MODE    String    @default("PHYSICAL") @db.VarChar(20)
+  DURATION_MINUTES Int       @default(30)
+  /// Clinic day window "HH:mm"
+  DAY_START        String    @default("08:00") @db.VarChar(5)
+  DAY_END          String    @default("17:00") @db.VarChar(5)
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+
+  service MasterServices @relation(fields: [SERVICE_ID], references: [SERVICE_ID], onDelete: Cascade)
+
+  @@index([ONLINE_BOOKABLE])
+  @@index([DELIVERY_MODE])
+  @@map("SERVICE_BOOKING_SETTINGS")
+}
+
+/// Public / front-desk bookings used to block appointment slots.
+model ServiceBookings {
+  BOOKING_ID       Int       @id @default(autoincrement())
+  BOOKING_NO       String    @unique @db.VarChar(50)
+  SERVICE_ID       Int
+  PATIENT_NAME     String    @db.VarChar(255)
+  PHONE            String    @db.VarChar(40)
+  EMAIL            String?   @db.VarChar(255)
+  AGE              String?   @db.VarChar(20)
+  GENDER           String?   @db.VarChar(30)
+  APPOINTMENT_DATE DateTime  @db.Date
+  START_TIME       String    @db.VarChar(5)
+  END_TIME         String    @db.VarChar(5)
+  /// PHYSICAL | ONLINE (must be allowed by ServiceBookingSettings.DELIVERY_MODE)
+  DELIVERY_MODE    String    @db.VarChar(20)
+  PRICE_AMOUNT     Decimal   @db.Decimal(14, 2)
+  NOTES            String?   @db.Text
+  /// Booked | Cancelled | Completed
+  STATUS           String    @default("Booked") @db.VarChar(30)
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+
+  service MasterServices @relation(fields: [SERVICE_ID], references: [SERVICE_ID])
+
+  @@index([SERVICE_ID, APPOINTMENT_DATE])
+  @@index([STATUS])
+  @@index([APPOINTMENT_DATE])
+  @@map("SERVICE_BOOKINGS")
 }
 
 /// Billable payer entities (NHIA scheme, HMO plans, corporate retainers).
