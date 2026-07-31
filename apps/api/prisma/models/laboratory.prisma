@@ -10,6 +10,8 @@ model LabTests {
   CONTAINER     String?   @db.VarChar(100)
   TURNAROUND    String    @db.VarChar(50)
   UNIT_PRICE    Decimal   @db.Decimal(14, 2)
+  /// Links to Master Service Catalog (source of truth for GENERAL_PRICE).
+  SERVICE_ID    Int?
   LOINC_CODE    String?   @db.VarChar(50)
   IS_PANEL      Boolean   @default(false)
   /// Active | Inactive
@@ -21,11 +23,13 @@ model LabTests {
   UPDATED_BY    String?   @db.VarChar(100)
   UPDATED_DATE  DateTime?
 
-  requestItems LabRequestItems[]
+  masterService MasterServices?  @relation(fields: [SERVICE_ID], references: [SERVICE_ID])
+  requestItems  LabRequestItems[]
 
   @@index([CATEGORY])
   @@index([STATUS])
   @@index([NAME])
+  @@index([SERVICE_ID])
   @@map("LAB_TESTS")
 }
 

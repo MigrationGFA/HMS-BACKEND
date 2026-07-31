@@ -72,6 +72,18 @@ apps/api/
 | **Reporting & platform** | reports, analytics, notifications, files, realtime | Cross-cutting services |
 | **Governance** | super-admin, governance, administration, hr | Board, CMD, admin, HR |
 
+### Master Service Catalog (billing)
+
+Single source of truth for hospital services and pricing (`prisma/models/service-catalog.prisma`):
+
+- **Workflow:** Department creates service (no price) → Finance sets GENERAL/STAFF + payer prices → IT approves → `ACTIVE` (orderable).
+- **Tiers:** cash `GENERAL_PRICE` and `STAFF_PRICE` on `MasterServices`; NHIA / HMO / Corporate amounts in `ServicePayerPrices` keyed by `ServicePayers`.
+- **Domain links:** Lab / Imaging / Admission catalogs hold nullable `SERVICE_ID`; operational `UNIT_PRICE` is a synced cache of master GENERAL price.
+- **APIs:** `/api/billing/services*`, `/service-categories`, `/departments`, `/service-payers`, `…/resolve-price`.
+- **Public:** `GET /api/billing/services/bookable` (no JWT) for landing appointment Service step (`ONLINE_BOOKABLE` + `ACTIVE`).
+- **Frontend:** Superadmin Service Billing (`fnph-aro` `/dashboard/superadmin/billing/services`) wires create → price → approve; landing `/appointment` loads bookable services.
+- **Still out of scope:** full appointment persistence from landing, NHIA claims, moving `DRUGS.UNIT_PRICE` into the catalog.
+
 ## Configuration
 
 Split config files loaded by `ConfigModule`:

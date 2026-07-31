@@ -22,15 +22,17 @@ Modules are organized by **hospital function** (patients, laboratory, billing), 
 4. **Scalable foundation** — PostgreSQL, Redis, RabbitMQ, read replicas when needed
 5. **Realtime awareness** — Socket.IO for queues, notifications, emergency broadcasts
 6. **Enterprise coverage** — psychiatry, allied health, insurance (NHIA/HMO), governance, HR
+7. **Unified service pricing** — Master Service Catalog (`/api/billing/services`) as the single source of truth for hospital services, with department → finance → IT approval workflow and payer-specific prices
 
 ## Non-Goals (Current Phase)
 
-- Frontend UI implementation
+- Frontend UI implementation (Service Billing admin UI is a follow-up in fnph-aro)
 - Full business logic in scaffolded modules (structure only for now)
 - Multi-tenant SaaS (single-hospital deployment initially)
 - External search engine — PostgreSQL full-text search first
 - Two-factor authentication (2FA) — planned later
 - Microservices split — modular monolith at `apps/api`
+- Moving pharmacy drug `UNIT_PRICE` into Master Services (drugs stay product catalog)
 
 ## System Roles
 

@@ -336,6 +336,9 @@ export class RadiologyService {
     const studyIds = dto.items.map((i) => i.studyId);
     const studies = await this.prisma.imagingStudies.findMany({
       where: { IMAGING_STUDY_ID: { in: studyIds }, STATUS: 'Active' },
+      include: {
+        masterService: { select: { GENERAL_PRICE: true, STATUS: true } },
+      },
     });
     if (studies.length !== studyIds.length) {
       throw new BadRequestException('One or more imaging studies are invalid or inactive');
@@ -344,14 +347,19 @@ export class RadiologyService {
     let total = 0;
     const itemData = dto.items.map((i) => {
       const s = byId.get(i.studyId)!;
-      total += num(s.UNIT_PRICE);
+      const masterPrice =
+        s.SERVICE_ID != null && s.masterService?.GENERAL_PRICE != null
+          ? num(s.masterService.GENERAL_PRICE)
+          : null;
+      const unitPrice = masterPrice ?? num(s.UNIT_PRICE);
+      total += unitPrice;
       return {
         IMAGING_STUDY_ID: s.IMAGING_STUDY_ID,
         STUDY_CODE: s.STUDY_CODE,
         STUDY_NAME: s.NAME,
         MODALITY: s.MODALITY,
         BODY_REGION: s.BODY_REGION,
-        UNIT_PRICE: s.UNIT_PRICE,
+        UNIT_PRICE: unitPrice,
         LINE_NOTES: i.lineNotes ?? null,
       };
     });

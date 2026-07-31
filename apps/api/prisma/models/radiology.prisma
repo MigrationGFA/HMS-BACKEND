@@ -9,15 +9,19 @@ model ImagingStudies {
   BODY_REGION      String?   @db.VarChar(120)
   TURNAROUND       String?   @db.VarChar(80)
   UNIT_PRICE       Decimal   @default(0) @db.Decimal(18, 2)
+  /// Links to Master Service Catalog (source of truth for GENERAL_PRICE).
+  SERVICE_ID       Int?
   /// Active | Inactive
   STATUS           String    @default("Active") @db.VarChar(20)
   CREATED_DATE     DateTime  @default(now())
   UPDATED_DATE     DateTime?
 
-  items ImagingRequestItems[]
+  masterService MasterServices?     @relation(fields: [SERVICE_ID], references: [SERVICE_ID])
+  items         ImagingRequestItems[]
 
   @@index([MODALITY])
   @@index([STATUS])
+  @@index([SERVICE_ID])
   @@map("IMAGING_STUDIES")
 }
 

@@ -1,0 +1,150 @@
+// Unified Master Service Catalog — single source of truth for hospital services & pricing.
+// Domain modules (Lab, Radiology, Admissions) reference MasterServices via SERVICE_ID.
+// Soft status only — never hard-delete priced/clinical catalog history.
+
+/// Hospital departments (maps legacy DEPARTMENTS; extended with CODE/STATUS).
+model Departments {
+  DEPARTMENT_ID Int       @id @default(autoincrement())
+  NAME          String    @db.VarChar(255)
+  CODE          String?   @unique @db.VarChar(40)
+  /// Active | Inactive
+  STATUS        String    @default("Active") @db.VarChar(30)
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  services MasterServices[]
+
+  @@index([STATUS])
+  @@index([NAME])
+  @@map("DEPARTMENTS")
+}
+
+model ServiceCategories {
+  CATEGORY_ID  Int       @id @default(autoincrement())
+  CODE         String    @unique @db.VarChar(40)
+  NAME         String    @db.VarChar(150)
+  /// Active | Inactive
+  STATUS       String    @default("Active") @db.VarChar(30)
+  CREATED_BY   String?   @db.VarChar(100)
+  CREATED_DATE DateTime?
+  UPDATED_BY   String?   @db.VarChar(100)
+  UPDATED_DATE DateTime?
+
+  services MasterServices[]
+
+  @@index([STATUS])
+  @@map("SERVICE_CATEGORIES")
+}
+
+/// Central hospital service definition. Prices: GENERAL + STAFF on row;
+/// NHIA / HMO / Corporate via ServicePayerPrices.
+model MasterServices {
+  SERVICE_ID             Int       @id @default(autoincrement())
+  SERVICE_CODE           String    @unique @db.VarChar(50)
+  CATEGORY_ID            Int
+  DEPARTMENT_ID          Int
+  NAME                   String    @db.VarChar(255)
+  DESCRIPTION            String?   @db.Text
+  DURATION_MINUTES       Int?
+  GENERAL_PRICE          Decimal?  @db.Decimal(14, 2)
+  STAFF_PRICE            Decimal?  @db.Decimal(14, 2)
+  ONLINE_BOOKABLE        Boolean   @default(false)
+  APPOINTMENT_REQUIRED   Boolean   @default(false)
+  REQUIRES_DOCTOR_ORDER  Boolean   @default(true)
+  INSURANCE_ELIGIBLE     Boolean   @default(true)
+  /// Optional restriction hints (free text / enum-like)
+  AGE_RESTRICTION        String?   @db.VarChar(100)
+  GENDER_RESTRICTION     String?   @db.VarChar(30)
+  /// DRAFT | PENDING_PRICING | PENDING_APPROVAL | ACTIVE | INACTIVE | REJECTED
+  STATUS                 String    @default("PENDING_PRICING") @db.VarChar(40)
+  CREATED_BY_ID          Int?
+  CREATED_BY             String?   @db.VarChar(100)
+  CREATED_DATE           DateTime?
+  UPDATED_BY_ID          Int?
+  UPDATED_BY             String?   @db.VarChar(100)
+  UPDATED_DATE           DateTime?
+
+  category    ServiceCategories    @relation(fields: [CATEGORY_ID], references: [CATEGORY_ID])
+  department  Departments          @relation(fields: [DEPARTMENT_ID], references: [DEPARTMENT_ID])
+  payerPrices ServicePayerPrices[]
+  approvals   ServicePriceApprovals[]
+  labTests    LabTests[]
+  imagingStudies ImagingStudies[]
+  admissionBillingItems AdmissionBillingItems[]
+
+  @@index([CATEGORY_ID])
+  @@index([DEPARTMENT_ID])
+  @@index([STATUS])
+  @@index([NAME])
+  @@map("MASTER_SERVICES")
+}
+
+/// Billable payer entities (NHIA scheme, HMO plans, corporate retainers).
+model ServicePayers {
+  PAYER_ID     Int       @id @default(autoincrement())
+  /// NHIA | HMO | CORPORATE
+  PAYER_TYPE   String    @db.VarChar(30)
+  CODE         String    @unique @db.VarChar(40)
+  NAME         String    @db.VarChar(255)
+  /// Active | Inactive
+  STATUS       String    @default("Active") @db.VarChar(30)
+  CREATED_BY   String?   @db.VarChar(100)
+  CREATED_DATE DateTime?
+  UPDATED_BY   String?   @db.VarChar(100)
+  UPDATED_DATE DateTime?
+
+  prices ServicePayerPrices[]
+
+  @@index([PAYER_TYPE])
+  @@index([STATUS])
+  @@map("SERVICE_PAYERS")
+}
+
+model ServicePayerPrices {
+  PAYER_PRICE_ID Int       @id @default(autoincrement())
+  SERVICE_ID     Int
+  PAYER_ID       Int
+  AMOUNT         Decimal   @db.Decimal(14, 2)
+  EFFECTIVE_FROM DateTime  @default(now())
+  EFFECTIVE_TO   DateTime?
+  /// Active | Superseded
+  STATUS         String    @default("Active") @db.VarChar(30)
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+
+  service MasterServices @relation(fields: [SERVICE_ID], references: [SERVICE_ID])
+  payer   ServicePayers  @relation(fields: [PAYER_ID], references: [PAYER_ID])
+
+  @@index([SERVICE_ID])
+  @@index([PAYER_ID])
+  @@index([STATUS])
+  @@index([SERVICE_ID, PAYER_ID, STATUS])
+  @@map("SERVICE_PAYER_PRICES")
+}
+
+/// IT / finance approval trail for pricing workflow.
+model ServicePriceApprovals {
+  APPROVAL_ID   Int       @id @default(autoincrement())
+  SERVICE_ID    Int
+  /// SUBMIT_PRICING | APPROVE | REJECT
+  ACTION        String    @db.VarChar(40)
+  ACTOR_USER_ID Int?
+  ACTOR_LABEL   String?   @db.VarChar(100)
+  NOTES         String?   @db.Text
+  /// JSON snapshot of prices at decision time
+  PRICE_SNAPSHOT Json?
+  CREATED_DATE  DateTime  @default(now())
+
+  service MasterServices @relation(fields: [SERVICE_ID], references: [SERVICE_ID])
+
+  @@index([SERVICE_ID])
+  @@index([ACTION])
+  @@index([CREATED_DATE])
+  @@map("SERVICE_PRICE_APPROVALS")
+}

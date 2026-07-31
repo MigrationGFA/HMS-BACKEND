@@ -675,6 +675,9 @@ export class LaboratoryService {
     const testIds = [...new Set(dto.items.map((i) => i.testId))];
     const tests = await this.prisma.labTests.findMany({
       where: { LAB_TEST_ID: { in: testIds }, STATUS: 'Active' },
+      include: {
+        masterService: { select: { GENERAL_PRICE: true, STATUS: true } },
+      },
     });
     const testMap = new Map(tests.map((t) => [t.LAB_TEST_ID, t]));
     const missing = testIds.filter((id) => !testMap.has(id));
@@ -690,15 +693,19 @@ export class LaboratoryService {
     let total = 0;
     const itemCreates = dto.items.map((item) => {
       const test = testMap.get(item.testId)!;
-      const price = Number(test.UNIT_PRICE);
-      total += price;
+      const masterPrice =
+        test.SERVICE_ID != null && test.masterService?.GENERAL_PRICE != null
+          ? Number(test.masterService.GENERAL_PRICE)
+          : null;
+      const unitPrice = masterPrice ?? Number(test.UNIT_PRICE);
+      total += unitPrice;
       return {
         LAB_TEST_ID: test.LAB_TEST_ID,
         TEST_CODE: test.TEST_CODE,
         TEST_NAME: test.NAME,
         CATEGORY: test.CATEGORY,
         SPECIMEN_TYPE: test.SPECIMEN_TYPE,
-        UNIT_PRICE: test.UNIT_PRICE,
+        UNIT_PRICE: unitPrice,
         LINE_NOTES: item.lineNotes?.trim() ?? null,
       };
     });
