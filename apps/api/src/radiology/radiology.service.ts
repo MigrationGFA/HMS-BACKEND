@@ -202,6 +202,9 @@ export class RadiologyService {
     const studyIds = [...new Set(dto.items.map((i) => i.studyId))];
     const studies = await this.prisma.imagingStudies.findMany({
       where: { IMAGING_STUDY_ID: { in: studyIds }, STATUS: 'Active' },
+      include: {
+        masterService: { select: { GENERAL_PRICE: true, STATUS: true } },
+      },
     });
     const studyMap = new Map(studies.map((s) => [s.IMAGING_STUDY_ID, s]));
     const missing = studyIds.filter((id) => !studyMap.has(id));
@@ -217,14 +220,19 @@ export class RadiologyService {
     let total = 0;
     const itemCreates = dto.items.map((item) => {
       const study = studyMap.get(item.studyId)!;
-      total += Number(study.UNIT_PRICE);
+      const masterPrice =
+        study.SERVICE_ID != null && study.masterService?.GENERAL_PRICE != null
+          ? Number(study.masterService.GENERAL_PRICE)
+          : null;
+      const unitPrice = masterPrice ?? Number(study.UNIT_PRICE);
+      total += unitPrice;
       return {
         IMAGING_STUDY_ID: study.IMAGING_STUDY_ID,
         STUDY_CODE: study.STUDY_CODE,
         STUDY_NAME: study.NAME,
         MODALITY: study.MODALITY,
         BODY_REGION: study.BODY_REGION,
-        UNIT_PRICE: study.UNIT_PRICE,
+        UNIT_PRICE: unitPrice,
         LINE_NOTES: item.lineNotes?.trim() ?? null,
       };
     });

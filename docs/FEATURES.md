@@ -215,7 +215,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 
 | Module | Status | Route |
 |--------|--------|-------|
-| Billing | ✅ | `/api/billing/*` |
+| Billing | ✅ | `/api/billing/*` — Master Service Catalog under `/api/billing/services*` |
 | Cashier | ✅ | `/api/cashier/*` — receipts, refunds, discounts, shifts, reports, verify, audit, settings; FE desk `/dashboard/cashier` (+ profile); `/billing/*` visits/gate kept |
 | Finance | ✅ | `/api/finance/*` |
 | Insurance | ✅ | `/api/insurance/*` |
@@ -223,11 +223,34 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 
 | Sub-feature | Status |
 |-------------|--------|
-| Invoices & service pricing | 📋 |
-| Point-of-sale payments | 📋 |
+| **Master Service Catalog** (dept create → finance price → IT approve; GENERAL/STAFF + NHIA/HMO/Corporate payer prices) | ✅ |
+| Service categories / departments / service-payers APIs | ✅ |
+| Resolve-price helper (`GET …/services/:id/resolve-price`) | ✅ |
+| Lab/Imaging order price snapshot from `MasterServices.GENERAL_PRICE` when linked | ✅ |
+| Invoices & POS payments | 📋 |
 | Revenue & financial claims | 📋 |
-| NHIA & HMO integration | 📋 |
+| NHIA claims submission | 📋 |
 | Stock & procurement | 📋 |
+
+### Master Service Catalog endpoints
+
+| Method | URL | Purpose | Permission | Request body | Response | Errors |
+|--------|-----|---------|------------|--------------|----------|--------|
+| GET | `/api/billing/service-categories` | List categories | `service:read` | — | `{ data: { items } }` | 401, 403 |
+| GET | `/api/billing/departments` | List departments | `service:read` | `?status=&q=` | `{ data: { items } }` | 401, 403 |
+| POST | `/api/billing/departments` | Create department | `service:approve` | `{ name, code? }` | `{ data: department }` | 400, 401, 403 |
+| GET | `/api/billing/services` | Paginated catalog | `service:read` | filters | `{ data: { items, meta } }` | 401, 403 |
+| GET | `/api/billing/services/orderable` | ACTIVE only | `service:read` | filters | `{ data: { items, meta } }` | 401, 403 |
+| GET | `/api/billing/services/bookable` | Landing ONLINE_BOOKABLE catalog | public | `?q=&categoryId=` | `{ data: { items } }` | 500 |
+| GET | `/api/billing/services/:id` | Detail + prices | `service:read` | — | `{ data: service }` | 401, 403, 404 |
+| POST | `/api/billing/services` | Create (no prices) | `service:create` | metadata | `{ data: service }` `PENDING_PRICING` | 400 (prices), 401, 403 |
+| PATCH | `/api/billing/services/:id` | Metadata | `service:update` | partial | `{ data: service }` | 400, 401, 403, 404 |
+| PATCH | `/api/billing/services/:id/pricing` | Finance pricing | `service:price` | `{ generalPrice, staffPrice?, payerPrices?, submitForApproval? }` | `{ data: service }` | 400, 401, 403, 404 |
+| POST | `/api/billing/services/:id/submit-approval` | Submit for IT | `service:price` | — | `{ data: service }` | 400, 401, 403, 404 |
+| POST | `/api/billing/services/:id/approve` | Approve → ACTIVE | `service:approve` | `{ notes? }` | `{ data: service }` | 400, 401, 403, 404 |
+| POST | `/api/billing/services/:id/reject` | Reject | `service:approve` | `{ notes? }` | `{ data: service }` | 400, 401, 403, 404 |
+| GET/POST/PATCH | `/api/billing/service-payers` | Manage payers | `service_payer:manage` | see API_REFERENCE | `{ data }` | 400, 401, 403, 404 |
+| GET | `/api/billing/services/:id/resolve-price` | Resolve amount | `service:read` | `?payerType=&payerId=` | `{ data: { amount, source } }` | 400, 401, 403, 404 |
 
 ## Reporting & Platform (Scaffolded)
 

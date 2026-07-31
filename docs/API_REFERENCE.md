@@ -2844,10 +2844,82 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 
 | Method | Path | Description | Permission |
 |--------|------|-------------|------------|
-| GET | `/invoices` | List invoices | `billing:read` |
-| POST | `/invoices` | Create invoice | `billing:create` |
-| GET | `/invoices/:id` | Get invoice | `billing:read` |
-| POST | `/invoices/:id/payments` | Record payment | `billing:create` |
+| GET | `/invoices` | List invoices (scaffold) | `billing:read` |
+| POST | `/invoices` | Create invoice (scaffold) | `billing:create` |
+| GET | `/invoices/:id` | Get invoice (scaffold) | `billing:read` |
+| POST | `/invoices/:id/payments` | Record payment (scaffold) | `billing:create` |
+
+#### Master Service Catalog
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/billing/service-categories` | List active categories | `service:read` |
+| GET | `/billing/departments` | List departments | `service:read` |
+| POST | `/billing/departments` | Create department | `service:approve` |
+| GET | `/billing/services` | Paginated catalog (`categoryId`, `departmentId`, `status`, `q`, `page`, `limit`) | `service:read` |
+| GET | `/billing/services/orderable` | ACTIVE only (doctors) | `service:read` |
+| GET | `/billing/services/bookable` | ACTIVE + ONLINE_BOOKABLE (landing booking) | **public** (no auth) |
+| GET | `/billing/services/:id` | Detail + prices + payer prices | `service:read` |
+| POST | `/billing/services` | Dept create (no prices) → `PENDING_PRICING` | `service:create` |
+| PATCH | `/billing/services/:id` | Metadata update | `service:update` |
+| PATCH | `/billing/services/:id/pricing` | Finance set GENERAL/STAFF + payer prices → `PENDING_APPROVAL` | `service:price` |
+| POST | `/billing/services/:id/submit-approval` | Move to `PENDING_APPROVAL` | `service:price` |
+| POST | `/billing/services/:id/approve` | IT approve → `ACTIVE` | `service:approve` |
+| POST | `/billing/services/:id/reject` | IT reject → `REJECTED` | `service:approve` |
+| GET | `/billing/service-payers` | List NHIA/HMO/Corporate payers | `service_payer:manage` |
+| POST | `/billing/service-payers` | Create payer | `service_payer:manage` |
+| PATCH | `/billing/service-payers/:id` | Update payer | `service_payer:manage` |
+| GET | `/billing/services/:id/resolve-price` | Resolve amount (`payerType`, `payerId`) | `service:read` |
+
+**POST `/billing/services` body:** `{ categoryId, departmentId, name, description?, durationMinutes?, onlineBookable?, appointmentRequired?, requiresDoctorOrder?, insuranceEligible?, ageRestriction?, genderRestriction? }` — prices in body are rejected (`400`).
+
+**PATCH `/billing/services/:id/pricing` body:**
+```json
+{
+  "generalPrice": 5000,
+  "staffPrice": 3500,
+  "payerPrices": [{ "payerId": 1, "amount": 4000 }],
+  "submitForApproval": true
+}
+```
+
+**Response example (service detail):** `{ data: { serviceId, serviceCode, name, status, generalPrice, staffPrice, payerPrices: [{ payerId, payerType, amount }], recentApprovals: […] } }`
+
+**GET resolve-price response:** `{ data: { amount, source: "GENERAL"|"STAFF"|"PAYER", payerId?, payerType?, payerCode? } }`
+
+#### `GET /api/billing/services/bookable` (public)
+
+**Purpose:** Landing-page appointment Service step — services with `STATUS=ACTIVE` and `ONLINE_BOOKABLE=true`.
+
+**Permission:** none (unguarded)
+
+**Query:** `q?`, `categoryId?`
+
+**Response example:**
+```json
+{
+  "data": {
+    "items": [
+      {
+        "serviceId": 12,
+        "serviceCode": "SVC-CON-GMPC",
+        "name": "GMPC General Consultation",
+        "categoryName": "Consultation",
+        "departmentName": "GMPC",
+        "generalPrice": 5000,
+        "durationMinutes": 20,
+        "appointmentRequired": true
+      }
+    ]
+  }
+}
+```
+
+**Errors:** `500`
+
+**Errors (authenticated catalog):** `400` (not priced / invalid transition / prices on create), `401`, `403`, `404`
+
+**Audit:** `service:create`, `service:pricing`, `service:approve`, `service:reject`, `service:payer-create`
 
 ---
 

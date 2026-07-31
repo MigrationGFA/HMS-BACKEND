@@ -175,6 +175,8 @@ model AdmissionBillingItems {
   /// AdmissionFee | Nursing | Folder | Consumables | Deposit | Other
   CATEGORY     String    @db.VarChar(40)
   UNIT_PRICE   Decimal   @db.Decimal(14, 2)
+  /// Links to Master Service Catalog (source of truth for GENERAL_PRICE).
+  SERVICE_ID   Int?
   /// Active | Inactive
   STATUS       String    @default("Active") @db.VarChar(30)
   CREATED_BY   String?   @db.VarChar(100)
@@ -182,8 +184,11 @@ model AdmissionBillingItems {
   UPDATED_BY   String?   @db.VarChar(100)
   UPDATED_DATE DateTime?
 
+  masterService MasterServices? @relation(fields: [SERVICE_ID], references: [SERVICE_ID])
+
   @@index([STATUS])
   @@index([CATEGORY])
+  @@index([SERVICE_ID])
   @@map("ADMISSION_BILLING_ITEMS")
 }
 

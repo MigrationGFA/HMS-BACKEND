@@ -322,6 +322,366 @@ async function main() {
   await seedDiagnosesDemo();
   await seedCertificateTemplates();
   await seedBloodBankDemo();
+  await seedServiceCatalog();
+}
+
+/**
+ * Idempotent Master Service Catalog seed:
+ * categories, core departments, NHIA payer, backfill unlinked domain rows,
+ * FE-mock consultation/therapy/ward services.
+ */
+async function seedServiceCatalog() {
+  const now = new Date();
+  const categories: Array<{ code: string; name: string }> = [
+    { code: 'CONSULTATION', name: 'Consultation' },
+    { code: 'LABORATORY', name: 'Laboratory' },
+    { code: 'RADIOLOGY', name: 'Radiology' },
+    { code: 'PHARMACY', name: 'Pharmacy' },
+    { code: 'PHYSIOTHERAPY', name: 'Physiotherapy' },
+    { code: 'DENTAL', name: 'Dental' },
+    { code: 'EYE_CLINIC', name: 'Eye Clinic' },
+    { code: 'PSYCHOLOGY', name: 'Psychology' },
+    { code: 'OCCUPATIONAL_THERAPY', name: 'Occupational Therapy' },
+    { code: 'SPEECH_THERAPY', name: 'Speech Therapy' },
+    { code: 'PSYCHIATRY', name: 'Psychiatry' },
+    { code: 'EMERGENCY', name: 'Emergency' },
+    { code: 'ADMISSION', name: 'Admission' },
+    { code: 'WARD_CHARGES', name: 'Ward Charges' },
+    { code: 'THEATRE', name: 'Theatre' },
+    { code: 'VACCINATION', name: 'Vaccination' },
+    { code: 'PROCEDURE', name: 'Procedure' },
+    { code: 'MEDICAL_CERTIFICATE', name: 'Medical Certificate' },
+    { code: 'CARD_FEE', name: 'Card Fee' },
+    { code: 'REGISTRATION_FEE', name: 'Registration Fee' },
+    { code: 'HOME_CARE', name: 'Home Care' },
+    { code: 'TELEMEDICINE', name: 'Telemedicine' },
+  ];
+
+  for (const c of categories) {
+    await prisma.serviceCategories.upsert({
+      where: { CODE: c.code },
+      create: {
+        CODE: c.code,
+        NAME: c.name,
+        STATUS: 'Active',
+        CREATED_BY: 'seed',
+        CREATED_DATE: now,
+      },
+      update: { NAME: c.name, STATUS: 'Active' },
+    });
+  }
+
+  const departments: Array<{ code: string; name: string }> = [
+    { code: 'LAB', name: 'Laboratory' },
+    { code: 'RAD', name: 'Radiology' },
+    { code: 'ADM', name: 'Admissions' },
+    { code: 'GMPC', name: 'GMPC' },
+    { code: 'OPC', name: 'OPC Psychiatry' },
+    { code: 'CAP', name: 'Child Psychiatry' },
+    { code: 'PSY', name: 'Psychology' },
+    { code: 'ADD', name: 'Addiction Services' },
+    { code: 'PHARM', name: 'Pharmacy' },
+    { code: 'ER', name: 'Emergency' },
+    { code: 'TELE', name: 'Telepsychiatry' },
+  ];
+
+  for (const d of departments) {
+    const existing = await prisma.departments.findFirst({
+      where: { CODE: d.code },
+    });
+    if (existing) {
+      await prisma.departments.update({
+        where: { DEPARTMENT_ID: existing.DEPARTMENT_ID },
+        data: { NAME: d.name, STATUS: 'Active' },
+      });
+    } else {
+      await prisma.departments.create({
+        data: {
+          NAME: d.name,
+          CODE: d.code,
+          STATUS: 'Active',
+          CREATED_BY: 'seed',
+          CREATED_DATE: now,
+        },
+      });
+    }
+  }
+
+  await prisma.servicePayers.upsert({
+    where: { CODE: 'NHIA-DEFAULT' },
+    create: {
+      PAYER_TYPE: 'NHIA',
+      CODE: 'NHIA-DEFAULT',
+      NAME: 'NHIA / NHIS (Default)',
+      STATUS: 'Active',
+      CREATED_BY: 'seed',
+      CREATED_DATE: now,
+    },
+    update: { NAME: 'NHIA / NHIS (Default)', STATUS: 'Active' },
+  });
+
+  const catByCode = Object.fromEntries(
+    (
+      await prisma.serviceCategories.findMany({
+        where: { CODE: { in: categories.map((c) => c.code) } },
+      })
+    ).map((c) => [c.CODE, c.CATEGORY_ID]),
+  );
+  const deptByCode = Object.fromEntries(
+    (
+      await prisma.departments.findMany({
+        where: { CODE: { in: departments.map((d) => d.code) } },
+      })
+    ).map((d) => [d.CODE!, d.DEPARTMENT_ID]),
+  );
+
+  // Backfill unlinked lab tests
+  const unlinkedLabs = await prisma.labTests.findMany({
+    where: { SERVICE_ID: null },
+  });
+  for (const lt of unlinkedLabs) {
+    const code = `SVC-LAB-${String(lt.LAB_TEST_ID).padStart(4, '0')}`;
+    let ms = await prisma.masterServices.findUnique({
+      where: { SERVICE_CODE: code },
+    });
+    if (!ms) {
+      ms = await prisma.masterServices.create({
+        data: {
+          SERVICE_CODE: code,
+          CATEGORY_ID: catByCode.LABORATORY,
+          DEPARTMENT_ID: deptByCode.LAB,
+          NAME: lt.NAME,
+          DESCRIPTION: `Migrated from LAB_TESTS ${lt.TEST_CODE}`,
+          GENERAL_PRICE: lt.UNIT_PRICE,
+          STAFF_PRICE: Number(lt.UNIT_PRICE) * 0.7,
+          REQUIRES_DOCTOR_ORDER: true,
+          STATUS: 'ACTIVE',
+          CREATED_BY: 'seed',
+          CREATED_DATE: now,
+        },
+      });
+    }
+    await prisma.labTests.update({
+      where: { LAB_TEST_ID: lt.LAB_TEST_ID },
+      data: { SERVICE_ID: ms.SERVICE_ID },
+    });
+  }
+
+  const unlinkedImaging = await prisma.imagingStudies.findMany({
+    where: { SERVICE_ID: null },
+  });
+  for (const im of unlinkedImaging) {
+    const code = `SVC-RAD-${String(im.IMAGING_STUDY_ID).padStart(4, '0')}`;
+    let ms = await prisma.masterServices.findUnique({
+      where: { SERVICE_CODE: code },
+    });
+    if (!ms) {
+      ms = await prisma.masterServices.create({
+        data: {
+          SERVICE_CODE: code,
+          CATEGORY_ID: catByCode.RADIOLOGY,
+          DEPARTMENT_ID: deptByCode.RAD,
+          NAME: im.NAME,
+          DESCRIPTION: `Migrated from IMAGING_STUDIES ${im.STUDY_CODE}`,
+          GENERAL_PRICE: im.UNIT_PRICE,
+          STAFF_PRICE: Number(im.UNIT_PRICE) * 0.7,
+          REQUIRES_DOCTOR_ORDER: true,
+          STATUS: 'ACTIVE',
+          CREATED_BY: 'seed',
+          CREATED_DATE: now,
+        },
+      });
+    }
+    await prisma.imagingStudies.update({
+      where: { IMAGING_STUDY_ID: im.IMAGING_STUDY_ID },
+      data: { SERVICE_ID: ms.SERVICE_ID },
+    });
+  }
+
+  const unlinkedAdm = await prisma.admissionBillingItems.findMany({
+    where: { SERVICE_ID: null },
+  });
+  for (const ab of unlinkedAdm) {
+    const code = `SVC-ADM-${String(ab.ITEM_ID).padStart(4, '0')}`;
+    let ms = await prisma.masterServices.findUnique({
+      where: { SERVICE_CODE: code },
+    });
+    if (!ms) {
+      ms = await prisma.masterServices.create({
+        data: {
+          SERVICE_CODE: code,
+          CATEGORY_ID: catByCode.ADMISSION,
+          DEPARTMENT_ID: deptByCode.ADM,
+          NAME: ab.NAME,
+          DESCRIPTION: `Migrated from ADMISSION_BILLING_ITEMS ${ab.ITEM_CODE}`,
+          GENERAL_PRICE: ab.UNIT_PRICE,
+          STAFF_PRICE: Number(ab.UNIT_PRICE) * 0.7,
+          REQUIRES_DOCTOR_ORDER: false,
+          STATUS: 'ACTIVE',
+          CREATED_BY: 'seed',
+          CREATED_DATE: now,
+        },
+      });
+    }
+    await prisma.admissionBillingItems.update({
+      where: { ITEM_ID: ab.ITEM_ID },
+      data: { SERVICE_ID: ms.SERVICE_ID },
+    });
+  }
+
+  const extras: Array<{
+    code: string;
+    cat: string;
+    dept: string;
+    name: string;
+    descr: string;
+    duration: number | null;
+    price: number;
+    online: boolean;
+    appt: boolean;
+    orderReq: boolean;
+  }> = [
+    {
+      code: 'SVC-CON-GMPC',
+      cat: 'CONSULTATION',
+      dept: 'GMPC',
+      name: 'GMPC General Consultation',
+      descr: 'General medical psychiatry clinic consultation',
+      duration: 20,
+      price: 5000,
+      online: true,
+      appt: true,
+      orderReq: false,
+    },
+    {
+      code: 'SVC-CON-OPC',
+      cat: 'CONSULTATION',
+      dept: 'OPC',
+      name: 'OPC Psychiatry Consultation',
+      descr: 'Outpatient psychiatry consultation',
+      duration: 30,
+      price: 12000,
+      online: true,
+      appt: true,
+      orderReq: false,
+    },
+    {
+      code: 'SVC-CON-CAP',
+      cat: 'CONSULTATION',
+      dept: 'CAP',
+      name: 'Child Psychiatry Consultation',
+      descr: 'Child & adolescent psychiatry consultation',
+      duration: 45,
+      price: 15000,
+      online: true,
+      appt: true,
+      orderReq: false,
+    },
+    {
+      code: 'SVC-PSY-CBT',
+      cat: 'PSYCHOLOGY',
+      dept: 'PSY',
+      name: 'CBT Session (45m)',
+      descr: 'Cognitive behavioural therapy session',
+      duration: 45,
+      price: 18000,
+      online: true,
+      appt: true,
+      orderReq: false,
+    },
+    {
+      code: 'SVC-ADD-GRP',
+      cat: 'PSYCHOLOGY',
+      dept: 'ADD',
+      name: 'Addiction Group Therapy',
+      descr: 'Group therapy for addiction services',
+      duration: 60,
+      price: 8000,
+      online: true,
+      appt: true,
+      orderReq: false,
+    },
+    {
+      code: 'SVC-PRC-ECT',
+      cat: 'PROCEDURE',
+      dept: 'OPC',
+      name: 'ECT Session',
+      descr: 'Electroconvulsive therapy session',
+      duration: 60,
+      price: 35000,
+      online: false,
+      appt: true,
+      orderReq: true,
+    },
+    {
+      code: 'SVC-TEL-PSY',
+      cat: 'TELEMEDICINE',
+      dept: 'TELE',
+      name: 'Telepsychiatry (30m)',
+      descr: 'Remote psychiatry consultation',
+      duration: 30,
+      price: 10000,
+      online: true,
+      appt: true,
+      orderReq: false,
+    },
+    {
+      code: 'SVC-WRD-GEN',
+      cat: 'WARD_CHARGES',
+      dept: 'ADM',
+      name: 'General Ward (per day)',
+      descr: 'General ward daily charge',
+      duration: null,
+      price: 8000,
+      online: false,
+      appt: false,
+      orderReq: false,
+    },
+    {
+      code: 'SVC-WRD-PVT',
+      cat: 'WARD_CHARGES',
+      dept: 'ADM',
+      name: 'Private Ward (per day)',
+      descr: 'Private ward daily charge',
+      duration: null,
+      price: 25000,
+      online: false,
+      appt: false,
+      orderReq: false,
+    },
+  ];
+
+  for (const e of extras) {
+    await prisma.masterServices.upsert({
+      where: { SERVICE_CODE: e.code },
+      create: {
+        SERVICE_CODE: e.code,
+        CATEGORY_ID: catByCode[e.cat],
+        DEPARTMENT_ID: deptByCode[e.dept],
+        NAME: e.name,
+        DESCRIPTION: e.descr,
+        DURATION_MINUTES: e.duration,
+        GENERAL_PRICE: e.price,
+        STAFF_PRICE: Math.round(e.price * 0.7 * 100) / 100,
+        ONLINE_BOOKABLE: e.online,
+        APPOINTMENT_REQUIRED: e.appt,
+        REQUIRES_DOCTOR_ORDER: e.orderReq,
+        STATUS: 'ACTIVE',
+        CREATED_BY: 'seed',
+        CREATED_DATE: now,
+      },
+      update: {
+        NAME: e.name,
+        GENERAL_PRICE: e.price,
+        STATUS: 'ACTIVE',
+      },
+    });
+  }
+
+  const serviceCount = await prisma.masterServices.count();
+  console.log(
+    `Seeded service catalog (${serviceCount} master services; categories/departments/NHIA payer upserted).`,
+  );
 }
 
 async function seedBloodBankDemo() {
