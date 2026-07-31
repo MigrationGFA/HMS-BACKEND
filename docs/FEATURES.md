@@ -241,7 +241,9 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | POST | `/api/billing/departments` | Create department | `service:approve` | `{ name, code? }` | `{ data: department }` | 400, 401, 403 |
 | GET | `/api/billing/services` | Paginated catalog | `service:read` | filters | `{ data: { items, meta } }` | 401, 403 |
 | GET | `/api/billing/services/orderable` | ACTIVE only | `service:read` | filters | `{ data: { items, meta } }` | 401, 403 |
-| GET | `/api/billing/services/bookable` | Landing ONLINE_BOOKABLE catalog | public | `?q=&categoryId=` | `{ data: { items } }` | 500 |
+| GET | `/api/billing/services/bookable` | Landing ONLINE_BOOKABLE catalog (price, mode, duration) | public | `?q=&categoryId=` | `{ data: { items } }` | 500 |
+| GET | `/api/appointments/public/availability` | Slot grid by service duration | public | `serviceId`, `date`, `mode` | `{ data: { slots, price } }` | 400, 404 |
+| POST | `/api/appointments/public/book` | Create public booking | public | patient + slot | `{ data: booking }` | 400, 404 |
 | GET | `/api/billing/services/:id` | Detail + prices | `service:read` | — | `{ data: service }` | 401, 403, 404 |
 | POST | `/api/billing/services` | Create (no prices) | `service:create` | metadata | `{ data: service }` `PENDING_PRICING` | 400 (prices), 401, 403 |
 | PATCH | `/api/billing/services/:id` | Metadata | `service:update` | partial | `{ data: service }` | 400, 401, 403, 404 |

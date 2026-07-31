@@ -31,6 +31,7 @@ function dec(n: number | string | Prisma.Decimal | null | undefined): number | n
 const SERVICE_INCLUDE = {
   category: true,
   department: true,
+  bookingSettings: true,
   payerPrices: {
     where: { STATUS: 'Active', EFFECTIVE_TO: null },
     include: { payer: true },
@@ -46,6 +47,23 @@ type MasterServiceRow = Prisma.MasterServicesGetPayload<{
   include: typeof SERVICE_INCLUDE;
 }>;
 
+function normalizeHhMm(value: string | undefined, fallback: string): string {
+  if (!value?.trim()) return fallback;
+  const v = value.trim();
+  if (!/^\d{2}:\d{2}$/.test(v)) {
+    throw new BadRequestException(`Invalid time format (expected HH:mm): ${v}`);
+  }
+  return v;
+}
+
+function resolveDeliveryMode(
+  mode: string | undefined,
+  onlineBookable: boolean,
+): string {
+  if (mode && ['PHYSICAL', 'ONLINE', 'BOTH'].includes(mode)) return mode;
+  return onlineBookable ? 'BOTH' : 'PHYSICAL';
+}
+
 @Injectable()
 export class ServiceCatalogService {
   constructor(
@@ -53,7 +71,19 @@ export class ServiceCatalogService {
     private readonly audit: AuditService,
   ) {}
 
+  private toBookingSettings(row: MasterServiceRow) {
+    const s = row.bookingSettings;
+    return {
+      onlineBookable: s?.ONLINE_BOOKABLE ?? row.ONLINE_BOOKABLE,
+      deliveryMode: s?.DELIVERY_MODE ?? (row.ONLINE_BOOKABLE ? 'BOTH' : 'PHYSICAL'),
+      durationMinutes: s?.DURATION_MINUTES ?? row.DURATION_MINUTES ?? 30,
+      dayStart: s?.DAY_START ?? '08:00',
+      dayEnd: s?.DAY_END ?? '17:00',
+    };
+  }
+
   private toServiceResponse(row: MasterServiceRow) {
+    const bookingSettings = this.toBookingSettings(row);
     return {
       serviceId: row.SERVICE_ID,
       serviceCode: row.SERVICE_CODE,
@@ -65,10 +95,10 @@ export class ServiceCatalogService {
       departmentName: row.department.NAME,
       name: row.NAME,
       description: row.DESCRIPTION,
-      durationMinutes: row.DURATION_MINUTES,
+      durationMinutes: bookingSettings.durationMinutes,
       generalPrice: dec(row.GENERAL_PRICE),
       staffPrice: dec(row.STAFF_PRICE),
-      onlineBookable: row.ONLINE_BOOKABLE,
+      onlineBookable: bookingSettings.onlineBookable,
       appointmentRequired: row.APPOINTMENT_REQUIRED,
       requiresDoctorOrder: row.REQUIRES_DOCTOR_ORDER,
       insuranceEligible: row.INSURANCE_ELIGIBLE,
@@ -79,6 +109,7 @@ export class ServiceCatalogService {
       createdAt: row.CREATED_DATE?.toISOString() ?? null,
       updatedBy: row.UPDATED_BY,
       updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
+      bookingSettings,
       payerPrices: row.payerPrices.map((p) => ({
         payerPriceId: p.PAYER_PRICE_ID,
         payerId: p.PAYER_ID,
@@ -262,24 +293,34 @@ export class ServiceCatalogService {
       include: {
         category: true,
         department: true,
+        bookingSettings: true,
       },
       orderBy: [{ NAME: 'asc' }],
       take: 500,
     });
 
     return {
-      items: rows.map((r) => ({
-        serviceId: r.SERVICE_ID,
-        serviceCode: r.SERVICE_CODE,
-        name: r.NAME,
-        categoryName: r.category.NAME,
-        categoryCode: r.category.CODE,
-        departmentName: r.department.NAME,
-        departmentCode: r.department.CODE,
-        generalPrice: dec(r.GENERAL_PRICE),
-        durationMinutes: r.DURATION_MINUTES,
-        appointmentRequired: r.APPOINTMENT_REQUIRED,
-      })),
+      items: rows.map((r) => {
+        const settings = r.bookingSettings;
+        return {
+          serviceId: r.SERVICE_ID,
+          serviceCode: r.SERVICE_CODE,
+          name: r.NAME,
+          categoryName: r.category.NAME,
+          categoryCode: r.category.CODE,
+          departmentName: r.department.NAME,
+          departmentCode: r.department.CODE,
+          generalPrice: dec(r.GENERAL_PRICE),
+          durationMinutes:
+            settings?.DURATION_MINUTES ?? r.DURATION_MINUTES ?? 30,
+          deliveryMode:
+            settings?.DELIVERY_MODE ??
+            (r.ONLINE_BOOKABLE ? 'BOTH' : 'PHYSICAL'),
+          dayStart: settings?.DAY_START ?? '08:00',
+          dayEnd: settings?.DAY_END ?? '17:00',
+          appointmentRequired: r.APPOINTMENT_REQUIRED,
+        };
+      }),
     };
   }
 
@@ -325,30 +366,51 @@ export class ServiceCatalogService {
     const now = new Date();
     const label = actorLabel(actor);
     const serviceCode = await this.nextServiceCode(category.CODE);
+    const onlineBookable = dto.onlineBookable ?? false;
+    const durationMinutes = dto.durationMinutes ?? 30;
+    const deliveryMode = resolveDeliveryMode(dto.deliveryMode, onlineBookable);
+    const dayStart = normalizeHhMm(dto.dayStart, '08:00');
+    const dayEnd = normalizeHhMm(dto.dayEnd, '17:00');
 
-    const row = await this.prisma.masterServices.create({
-      data: {
-        SERVICE_CODE: serviceCode,
-        CATEGORY_ID: dto.categoryId,
-        DEPARTMENT_ID: dto.departmentId,
-        NAME: dto.name.trim(),
-        DESCRIPTION: dto.description?.trim() ?? null,
-        DURATION_MINUTES: dto.durationMinutes ?? null,
-        ONLINE_BOOKABLE: dto.onlineBookable ?? false,
-        APPOINTMENT_REQUIRED: dto.appointmentRequired ?? false,
-        REQUIRES_DOCTOR_ORDER: dto.requiresDoctorOrder ?? true,
-        INSURANCE_ELIGIBLE: dto.insuranceEligible ?? true,
-        AGE_RESTRICTION: dto.ageRestriction?.trim() ?? null,
-        GENDER_RESTRICTION: dto.genderRestriction?.trim() ?? null,
-        STATUS: 'PENDING_PRICING',
-        CREATED_BY_ID: actor?.id ?? null,
-        CREATED_BY: label,
-        CREATED_DATE: now,
-        UPDATED_BY_ID: actor?.id ?? null,
-        UPDATED_BY: label,
-        UPDATED_DATE: now,
-      },
-      include: SERVICE_INCLUDE,
+    const row = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.masterServices.create({
+        data: {
+          SERVICE_CODE: serviceCode,
+          CATEGORY_ID: dto.categoryId,
+          DEPARTMENT_ID: dto.departmentId,
+          NAME: dto.name.trim(),
+          DESCRIPTION: dto.description?.trim() ?? null,
+          DURATION_MINUTES: durationMinutes,
+          ONLINE_BOOKABLE: onlineBookable,
+          APPOINTMENT_REQUIRED: dto.appointmentRequired ?? false,
+          REQUIRES_DOCTOR_ORDER: dto.requiresDoctorOrder ?? true,
+          INSURANCE_ELIGIBLE: dto.insuranceEligible ?? true,
+          AGE_RESTRICTION: dto.ageRestriction?.trim() ?? null,
+          GENDER_RESTRICTION: dto.genderRestriction?.trim() ?? null,
+          STATUS: 'PENDING_PRICING',
+          CREATED_BY_ID: actor?.id ?? null,
+          CREATED_BY: label,
+          CREATED_DATE: now,
+          UPDATED_BY_ID: actor?.id ?? null,
+          UPDATED_BY: label,
+          UPDATED_DATE: now,
+          bookingSettings: {
+            create: {
+              ONLINE_BOOKABLE: onlineBookable,
+              DELIVERY_MODE: deliveryMode,
+              DURATION_MINUTES: durationMinutes,
+              DAY_START: dayStart,
+              DAY_END: dayEnd,
+              CREATED_BY: label,
+              CREATED_DATE: now,
+              UPDATED_BY: label,
+              UPDATED_DATE: now,
+            },
+          },
+        },
+        include: SERVICE_INCLUDE,
+      });
+      return created;
     });
 
     const response = this.toServiceResponse(row);
@@ -393,42 +455,99 @@ export class ServiceCatalogService {
 
     const now = new Date();
     const label = actorLabel(actor);
-    const row = await this.prisma.masterServices.update({
-      where: { SERVICE_ID: id },
-      data: {
-        ...(dto.categoryId != null ? { CATEGORY_ID: dto.categoryId } : {}),
-        ...(dto.departmentId != null ? { DEPARTMENT_ID: dto.departmentId } : {}),
-        ...(dto.name != null ? { NAME: dto.name.trim() } : {}),
-        ...(dto.description !== undefined
-          ? { DESCRIPTION: dto.description?.trim() ?? null }
-          : {}),
-        ...(dto.durationMinutes !== undefined
-          ? { DURATION_MINUTES: dto.durationMinutes }
-          : {}),
-        ...(dto.onlineBookable != null
-          ? { ONLINE_BOOKABLE: dto.onlineBookable }
-          : {}),
-        ...(dto.appointmentRequired != null
-          ? { APPOINTMENT_REQUIRED: dto.appointmentRequired }
-          : {}),
-        ...(dto.requiresDoctorOrder != null
-          ? { REQUIRES_DOCTOR_ORDER: dto.requiresDoctorOrder }
-          : {}),
-        ...(dto.insuranceEligible != null
-          ? { INSURANCE_ELIGIBLE: dto.insuranceEligible }
-          : {}),
-        ...(dto.ageRestriction !== undefined
-          ? { AGE_RESTRICTION: dto.ageRestriction?.trim() ?? null }
-          : {}),
-        ...(dto.genderRestriction !== undefined
-          ? { GENDER_RESTRICTION: dto.genderRestriction?.trim() ?? null }
-          : {}),
-        ...(dto.status != null ? { STATUS: dto.status } : {}),
-        UPDATED_BY_ID: actor?.id ?? null,
-        UPDATED_BY: label,
-        UPDATED_DATE: now,
-      },
-      include: SERVICE_INCLUDE,
+    const settingsTouch =
+      dto.onlineBookable != null ||
+      dto.deliveryMode != null ||
+      dto.durationMinutes !== undefined ||
+      dto.dayStart != null ||
+      dto.dayEnd != null;
+
+    const row = await this.prisma.$transaction(async (tx) => {
+      let onlineBookable = existing.ONLINE_BOOKABLE;
+      let durationMinutes = existing.DURATION_MINUTES ?? 30;
+      if (dto.onlineBookable != null) onlineBookable = dto.onlineBookable;
+      if (dto.durationMinutes !== undefined) {
+        durationMinutes = dto.durationMinutes ?? 30;
+      }
+      const deliveryMode = resolveDeliveryMode(
+        dto.deliveryMode,
+        onlineBookable,
+      );
+      const dayStart = normalizeHhMm(dto.dayStart, '08:00');
+      const dayEnd = normalizeHhMm(dto.dayEnd, '17:00');
+
+      if (settingsTouch) {
+        await tx.serviceBookingSettings.upsert({
+          where: { SERVICE_ID: id },
+          create: {
+            SERVICE_ID: id,
+            ONLINE_BOOKABLE: onlineBookable,
+            DELIVERY_MODE: deliveryMode,
+            DURATION_MINUTES: durationMinutes,
+            DAY_START: dayStart,
+            DAY_END: dayEnd,
+            CREATED_BY: label,
+            CREATED_DATE: now,
+            UPDATED_BY: label,
+            UPDATED_DATE: now,
+          },
+          update: {
+            ...(dto.onlineBookable != null
+              ? { ONLINE_BOOKABLE: dto.onlineBookable }
+              : {}),
+            ...(dto.deliveryMode != null
+              ? { DELIVERY_MODE: deliveryMode }
+              : {}),
+            ...(dto.durationMinutes !== undefined
+              ? { DURATION_MINUTES: durationMinutes }
+              : {}),
+            ...(dto.dayStart != null ? { DAY_START: dayStart } : {}),
+            ...(dto.dayEnd != null ? { DAY_END: dayEnd } : {}),
+            UPDATED_BY: label,
+            UPDATED_DATE: now,
+          },
+        });
+      }
+
+      return tx.masterServices.update({
+        where: { SERVICE_ID: id },
+        data: {
+          ...(dto.categoryId != null ? { CATEGORY_ID: dto.categoryId } : {}),
+          ...(dto.departmentId != null
+            ? { DEPARTMENT_ID: dto.departmentId }
+            : {}),
+          ...(dto.name != null ? { NAME: dto.name.trim() } : {}),
+          ...(dto.description !== undefined
+            ? { DESCRIPTION: dto.description?.trim() ?? null }
+            : {}),
+          ...(dto.durationMinutes !== undefined
+            ? { DURATION_MINUTES: durationMinutes }
+            : {}),
+          ...(dto.onlineBookable != null
+            ? { ONLINE_BOOKABLE: onlineBookable }
+            : {}),
+          ...(dto.appointmentRequired != null
+            ? { APPOINTMENT_REQUIRED: dto.appointmentRequired }
+            : {}),
+          ...(dto.requiresDoctorOrder != null
+            ? { REQUIRES_DOCTOR_ORDER: dto.requiresDoctorOrder }
+            : {}),
+          ...(dto.insuranceEligible != null
+            ? { INSURANCE_ELIGIBLE: dto.insuranceEligible }
+            : {}),
+          ...(dto.ageRestriction !== undefined
+            ? { AGE_RESTRICTION: dto.ageRestriction?.trim() ?? null }
+            : {}),
+          ...(dto.genderRestriction !== undefined
+            ? { GENDER_RESTRICTION: dto.genderRestriction?.trim() ?? null }
+            : {}),
+          ...(dto.status != null ? { STATUS: dto.status } : {}),
+          UPDATED_BY_ID: actor?.id ?? null,
+          UPDATED_BY: label,
+          UPDATED_DATE: now,
+        },
+        include: SERVICE_INCLUDE,
+      });
     });
 
     const response = this.toServiceResponse(row);

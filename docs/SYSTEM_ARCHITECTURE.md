@@ -80,9 +80,11 @@ Single source of truth for hospital services and pricing (`prisma/models/service
 - **Tiers:** cash `GENERAL_PRICE` and `STAFF_PRICE` on `MasterServices`; NHIA / HMO / Corporate amounts in `ServicePayerPrices` keyed by `ServicePayers`.
 - **Domain links:** Lab / Imaging / Admission catalogs hold nullable `SERVICE_ID`; operational `UNIT_PRICE` is a synced cache of master GENERAL price.
 - **APIs:** `/api/billing/services*`, `/service-categories`, `/departments`, `/service-payers`, `…/resolve-price`.
-- **Public:** `GET /api/billing/services/bookable` (no JWT) for landing appointment Service step (`ONLINE_BOOKABLE` + `ACTIVE`).
-- **Frontend:** Superadmin Service Billing (`fnph-aro` `/dashboard/superadmin/billing/services`) wires create → price → approve; landing `/appointment` loads bookable services.
-- **Still out of scope:** full appointment persistence from landing, NHIA claims, moving `DRUGS.UNIT_PRICE` into the catalog.
+- **Booking settings (1:1):** `ServiceBookingSettings` is write source of truth for online bookable, delivery mode (`PHYSICAL`|`ONLINE`|`BOTH`), duration, and day window; mirrored onto `MasterServices.ONLINE_BOOKABLE` / `DURATION_MINUTES`.
+- **Public bookings:** `ServiceBookings` blocks slots; `GET /api/appointments/public/availability` + `POST /api/appointments/public/book` (no JWT). Price snapshot from `GENERAL_PRICE`. Capacity: one booking per service per slot (no doctor calendar yet).
+- **Public catalog:** `GET /api/billing/services/bookable` returns mode, duration, and `generalPrice` for landing.
+- **Frontend:** Superadmin Service Billing wires create → price → approve (mode/duration on create); landing `/appointment` loads bookable services, duration slots, and books via public APIs.
+- **Still out of scope:** doctor-specific calendars, payment capture on book, NHIA claims, moving `DRUGS.UNIT_PRICE` into the catalog.
 
 ## Configuration
 

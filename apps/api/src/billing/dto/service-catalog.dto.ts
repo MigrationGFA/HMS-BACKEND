@@ -23,6 +23,8 @@ export const MASTER_SERVICE_STATUSES = [
 
 export const PAYER_TYPES = ['NHIA', 'HMO', 'CORPORATE'] as const;
 
+export const DELIVERY_MODES = ['PHYSICAL', 'ONLINE', 'BOTH'] as const;
+
 export class CreateDepartmentDto {
   @IsString()
   @MaxLength(255)
@@ -57,6 +59,20 @@ export class CreateMasterServiceDto {
   @IsOptional()
   @IsBoolean()
   onlineBookable?: boolean;
+
+  @IsOptional()
+  @IsIn(DELIVERY_MODES)
+  deliveryMode?: (typeof DELIVERY_MODES)[number];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5)
+  dayStart?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5)
+  dayEnd?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -107,6 +123,20 @@ export class UpdateMasterServiceDto {
   @IsOptional()
   @IsBoolean()
   onlineBookable?: boolean;
+
+  @IsOptional()
+  @IsIn(DELIVERY_MODES)
+  deliveryMode?: (typeof DELIVERY_MODES)[number];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5)
+  dayStart?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5)
+  dayEnd?: string;
 
   @IsOptional()
   @IsBoolean()
