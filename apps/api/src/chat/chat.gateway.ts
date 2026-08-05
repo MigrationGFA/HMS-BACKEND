@@ -41,6 +41,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           this.server?.to(`user:${id}`).emit(event, payload);
         }
       },
+      emitToUsersPer: (userIds, event, payloadForUser) => {
+        for (const id of userIds) {
+          this.server?.to(`user:${id}`).emit(event, payloadForUser(id));
+        }
+      },
       emitToModules: (modules, event, payload) => {
         for (const m of modules) {
           this.server?.to(`module:${m}`).emit(event, payload);
