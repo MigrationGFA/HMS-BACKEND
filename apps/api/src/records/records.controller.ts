@@ -232,6 +232,28 @@ export class RecordsController {
   }
 
   /**
+   * Method: GET
+   * URL: /api/records/registration-charges?payerType=&payerId=
+   * Purpose: Resolve first-time registration fee bundle from Master Services catalog
+   * Required permission: card:read
+   * Request body: none
+   * Response example: { data: { regFee, cardFee, consultFee, total, items: [{ code, label, amount, serviceId, source }] } }
+   * Error cases: 404 if any required fee service missing/unpriced, 401, 403
+   */
+  @Get('registration-charges')
+  @RequirePermissions(PERMISSIONS.CARD_READ)
+  async registrationCharges(
+    @Query('payerType') payerType?: string,
+    @Query('payerId') payerId?: string,
+  ) {
+    const result = await this.recordsService.getRegistrationCharges({
+      payerType,
+      payerId: payerId ? Number(payerId) : undefined,
+    });
+    return { data: result };
+  }
+
+  /**
    * Method: POST
    * URL: /api/records/registrations
    * Purpose: Create patient (PERSONS) + registration card (PATIENT_CARDS, payment Pending) after Next of Kin

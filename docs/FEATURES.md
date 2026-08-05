@@ -55,6 +55,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Records Audit Trail (`GET /records/audit` + `/audit-stats`) | ✅ |
 | Patient Arrival / Check-In (`GET /records/arrivals`, `POST /records/arrivals/route`) | ✅ |
 | Records registration queue + payment gate (`/api/records/*`) | ✅ |
+| Registration fee catalog (`GET /records/registration-charges`; seed `SVC-REG-FEE`, `SVC-CARD-FEE`, `SVC-REG-CONSULT`; server-enforced on registration create) | ✅ |
 | Card payment gate (`GET /cards/person/:id`; triage blocked with 409 while Pending) | ✅ |
 | Cashier confirm card payment (`POST /cashier/payments/cards/:id/confirm`) | ✅ |
 | Person search (`GET /patients?q=`) | ✅ |

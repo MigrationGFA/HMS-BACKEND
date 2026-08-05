@@ -6,12 +6,14 @@ import {
 } from '@nestjs/common';
 import { CardsService } from '../patients/cards.service';
 import { PatientsService } from '../patients/patients.service';
+import { ServiceCatalogService } from '../billing/service-catalog.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { TriageService } from '../triage/triage.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import type { CreatePersonDto } from '../patients/dto/create-person.dto';
 import type { UpdatePersonDto } from '../patients/dto/update-person.dto';
+import type { RegistrationChargesResult } from './registration-charge.constants';
 
 /**
  * Records / front-desk workflows for Patient Entry Engine.
@@ -25,11 +27,27 @@ export class RecordsService {
     private readonly prisma: PrismaService,
     private readonly triage: TriageService,
     private readonly audit: AuditService,
+    private readonly serviceCatalog: ServiceCatalogService,
   ) {}
+
+  /** Catalog-resolved first-time registration charges (Records role). */
+  async getRegistrationCharges(params?: {
+    payerType?: string;
+    payerId?: number;
+  }): Promise<RegistrationChargesResult> {
+    return this.serviceCatalog.resolveRegistrationCharges(params);
+  }
 
   /** Create PERSONS + pending PATIENT_CARDS after Next of Kin (steps 1–3). */
   async createRegistration(dto: CreatePersonDto, actor?: AuthUser) {
-    return this.patients.register(dto, actor);
+    const charges = await this.serviceCatalog.resolveRegistrationCharges();
+    const enforced: CreatePersonDto = {
+      ...dto,
+      regFee: charges.regFee,
+      consultFee: charges.consultFee,
+      cardFee: charges.cardFee,
+    };
+    return this.patients.register(enforced, actor);
   }
 
   /**
