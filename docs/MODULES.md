@@ -114,7 +114,9 @@ Each submodule has its own controller and service.
 | **AnalyticsModule** | `/analytics` | analytics |
 | **NotificationsModule** | `/notifications` | notifications, sms, email |
 | **FilesModule** | `/files` | files, storage |
-| **RealtimeModule** | WebSocket `/events` | realtime gateway + service |
+| **RealtimeModule** | WebSocket `/events` | realtime gateway + service (queues/alerts) |
+| **ChatModule** | `/chat` + Socket.IO `/chat` | staff conversations, messages, broadcasts, presence (MongoDB `HMS`) |
+| **MongoModule** | — | global Mongoose connection (`MONGODB_URI` / `MONGODB_DB`) |
 
 ---
 

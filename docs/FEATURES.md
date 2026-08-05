@@ -265,7 +265,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Doctor self profile | ✅ | `GET/PATCH /api/users/me` + `POST /api/auth/change-password` |
 | Notifications | ✅ | `/api/notifications` |
 | Files | ✅ | `/api/files` |
-| Realtime | ✅ | WebSocket `/events` |
+| Realtime | ✅ | WebSocket `/events` (queues/alerts stub) |
+| Staff chat | ✅ | REST `/api/chat/*` + Socket.IO `/chat` (MongoDB `HMS`) |
 
 | Sub-feature | Status |
 |-------------|--------|
@@ -274,6 +275,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | SMS & email (RabbitMQ) | 📋 |
 | File upload & storage | 📋 |
 | Live queues & emergency broadcasts | 📋 |
+| Cross-module staff chat (doctor/lab/pharmacy/cashier/records) | ✅ |
+| Staff emergency / department broadcasts | ✅ |
 
 ## Governance & Administration (Scaffolded)
 

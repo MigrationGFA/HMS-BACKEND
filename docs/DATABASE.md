@@ -2,9 +2,18 @@
 
 ## Overview
 
-HMS uses **PostgreSQL** with **Prisma**. The active schema is intentionally slimmed to the entities currently implemented in the API and frontend.
+HMS uses **PostgreSQL** with **Prisma** for clinical and administrative data. Staff chat uses a **parallel Azure Cosmos MongoDB** store (database name **`HMS`**) via Mongoose — see `ChatModule` / `MongoModule`. Identity, RBAC, and audit remain in PostgreSQL.
 
 Schema files live under `apps/api/prisma/`. Migrations are managed via `prisma migrate`.
+
+### MongoDB staff chat (parallel store)
+
+| Env | Purpose |
+|-----|---------|
+| `MONGODB_URI` | Cosmos connection string; include `/HMS` in the path |
+| `MONGODB_DB` | Database name (`HMS`) |
+
+Collections: `conversations`, `messages`, `broadcasts`, `presence`.
 
 ## Schema Layout (active)
 

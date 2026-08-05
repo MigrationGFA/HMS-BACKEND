@@ -3018,9 +3018,53 @@ Query params: `userId`, `entity`, `entityId`, `from`, `to`
 
 ---
 
-## WebSocket Events (Socket.IO)
+## Staff Chat (`/chat`) — MongoDB + Socket.IO
 
-Namespace: `/events` (planned)
+Cross-module staff messaging for doctor, laboratory, pharmacy, cashier, and records. Data in Azure Cosmos MongoDB database **`HMS`**. Users/roles from Postgres. Nursing channel chat remains on Postgres (`/nursing/messages`).
+
+**RBAC:** `comms:read`, `comms:send`, `comms:broadcast` (granted to clinical/lab/pharmacy/cashier/records + admin).
+
+### REST
+
+| Method | URL | Purpose | Permission | Request body | Response example | Error cases |
+|--------|-----|---------|------------|--------------|------------------|-------------|
+| GET | `/api/chat/conversations` | List inbox (`module`, `tab`, `q`, `page`, `limit`) | `comms:read` | — | `{ data: { items, meta } }` | 401, 403 |
+| POST | `/api/chat/conversations` | Start DM / department / patient-linked thread | `comms:send` | `{ type, group?, title?, participantUserIds?, patientId?, patientName?, hospitalNo?, urgent?, initialMessage?, moduleScope? }` | `{ data: { conversation, message? } }` | 400, 401, 403 |
+| GET | `/api/chat/conversations/:id/messages` | Paginated history | `comms:read` | — | `{ data: { items, meta } }` | 401, 403, 404 |
+| POST | `/api/chat/conversations/:id/messages` | Send message (also emits WS) | `comms:send` | `{ text, urgent?, mentions?, attachmentUrl? }` | `{ data: { message, conversation } }` | 400, 401, 403, 404 |
+| PATCH | `/api/chat/conversations/:id/read` | Mark read | `comms:read` | — | `{ data: conversation }` | 401, 403, 404 |
+| PATCH | `/api/chat/conversations/:id/archive` | Archive | `comms:send` | — | `{ data: conversation }` | 401, 403, 404 |
+| POST | `/api/chat/broadcasts` | Emergency / department broadcast | `comms:broadcast` | `{ target, priority, message, moduleScope? }` | `{ data: broadcast }` | 400, 401, 403 |
+| GET | `/api/chat/broadcasts` | List recent broadcasts | `comms:read` | — | `{ data: { items, meta } }` | 401, 403 |
+| GET | `/api/chat/directory` | Staff directory (`q`, `module`) | `comms:read` | — | `{ data: { items, meta } }` | 401, 403 |
+
+### WebSocket namespace `/chat`
+
+Authentication: JWT in `socket.handshake.auth.token` (same access secret as HTTP). Unauthorized connections are disconnected. On connect, client joins `user:{userId}` and `module:{module}` rooms for roles mapped in `CHAT_MODULES`.
+
+**Client → Server**
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `chat:join` | `{ conversationId }` | Join conversation room |
+| `chat:typing` | `{ conversationId }` | Typing indicator to conversation peers |
+| `chat:presence` | optional | Presence ping (presence also updated on connect/disconnect) |
+
+**Server → Client**
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `chat:message` | `{ message, conversation }` | New message |
+| `chat:conversation-updated` | conversation | Inbox metadata / unread |
+| `chat:broadcast` | broadcast | Emergency / department broadcast |
+| `chat:presence` | presence | Online / last-seen |
+| `chat:read` | `{ conversationId, userId }` | Read receipt |
+
+---
+
+## WebSocket Events (Socket.IO) — `/events`
+
+Namespace: `/events` (queues / alerts; planned expansions)
 
 ### Client → Server
 
