@@ -16,6 +16,10 @@ import {
   UpdateMasterServiceDto,
   UpdateServicePayerDto,
 } from './dto/service-catalog.dto';
+import {
+  REGISTRATION_CHARGE_DEFINITIONS,
+  type RegistrationChargesResult,
+} from '../records/registration-charge.constants';
 
 function actorLabel(actor?: AuthUser): string {
   if (!actor) return 'SYSTEM';
@@ -1081,6 +1085,60 @@ export class ServiceCatalogService {
       payerId: null,
       payerType: payerType ?? 'GENERAL',
       payerCode: null,
+    };
+  }
+
+  /** Lookup an ACTIVE master service by stable SERVICE_CODE. */
+  async findActiveByCode(serviceCode: string) {
+    const row = await this.prisma.masterServices.findUnique({
+      where: { SERVICE_CODE: serviceCode },
+    });
+    if (!row || row.STATUS !== 'ACTIVE') {
+      throw new NotFoundException(
+        `Active service not found for code: ${serviceCode}`,
+      );
+    }
+    return row;
+  }
+
+  /**
+   * Resolve first-time registration charge bundle from Master Services catalog.
+   * Used by Records Patient Entry Engine — not editable by front desk staff.
+   */
+  async resolveRegistrationCharges(params?: {
+    payerType?: string;
+    payerId?: number;
+  }): Promise<RegistrationChargesResult> {
+    const items: RegistrationChargesResult['items'] = [];
+    const amounts: Record<'regFee' | 'cardFee' | 'consultFee', number> = {
+      regFee: 0,
+      cardFee: 0,
+      consultFee: 0,
+    };
+
+    for (const def of REGISTRATION_CHARGE_DEFINITIONS) {
+      const service = await this.findActiveByCode(def.code);
+      const resolved = await this.resolvePrice(service.SERVICE_ID, {
+        payerType: params?.payerType,
+        payerId: params?.payerId,
+      });
+      amounts[def.field] = resolved.amount;
+      items.push({
+        code: def.code,
+        label: def.label,
+        amount: resolved.amount,
+        serviceId: resolved.serviceId,
+        source: resolved.source,
+      });
+    }
+
+    const total = amounts.regFee + amounts.cardFee + amounts.consultFee;
+    return {
+      regFee: amounts.regFee,
+      cardFee: amounts.cardFee,
+      consultFee: amounts.consultFee,
+      total,
+      items,
     };
   }
 }

@@ -324,6 +324,7 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 | GET | `/records/audit` | Records Audit Trail list (`q`, `type`, `status`, `page`, `limit`) | `audit:read` |
 | GET | `/records/arrivals` | Patient Arrival / Check-In list | `patient:read` |
 | POST | `/records/arrivals/route` | Route arrival to triage/consult/emergency/checkout | `triage:create` or `triage:update` |
+| GET | `/records/registration-charges` | First-time registration fee bundle from Master Services (`payerType`, `payerId`) | `card:read` |
 | POST | `/records/registrations` | Create PERSONS + pending PATIENT_CARDS after Next of Kin | `patient:create` |
 | GET | `/records/registrations` | Registration queue (`paymentStatus`, `q`, `page`, `limit`) | `card:read` |
 | GET | `/records/registrations/:personId` | Load person + card to continue registration | `patient:read` |
@@ -604,6 +605,45 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 ---
 
+#### `GET /api/records/registration-charges`
+
+**Method:** GET  
+**URL:** `/api/records/registration-charges?payerType=&payerId=`  
+**Purpose:** Resolve first-time registration fee bundle (registration, card, consultation) from the Master Services catalog for the Patient Entry Engine wizard. Fees are read-only in the UI; `POST /api/records/registrations` re-resolves server-side and ignores client-supplied amounts.  
+**Required permission:** `card:read`  
+**Request body:** none  
+
+**Query (optional):**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `payerType` | string | Future NHIA/HMO pricing; v1 defaults to GENERAL/Cash |
+| `payerId` | number | Corporate/HMO payer id for payer-specific price |
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "regFee": 1500,
+    "cardFee": 500,
+    "consultFee": 5500,
+    "total": 7500,
+    "items": [
+      { "code": "SVC-REG-FEE", "label": "Registration Fee", "amount": 1500, "serviceId": 12, "source": "GENERAL" },
+      { "code": "SVC-CARD-FEE", "label": "Card Fee", "amount": 500, "serviceId": 13, "source": "GENERAL" },
+      { "code": "SVC-REG-CONSULT", "label": "Consultation Fee", "amount": 5500, "serviceId": 14, "source": "GENERAL" }
+    ]
+  }
+}
+```
+
+**Error cases:**
+- `404` if any required fee service (`SVC-REG-FEE`, `SVC-CARD-FEE`, `SVC-REG-CONSULT`) is missing or not ACTIVE
+- `401` / `403`
+
+---
+
 ### Cashier Card Payments (`/cashier/payments`)
 
 | Method | Path | Description | Permission |
@@ -718,7 +758,7 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 #### `GET /api/cashier/reports`
 
-**Purpose:** Revenue dashboard from `CASHIER_PAYMENT_RECEIPTS` + outstanding unpaid bills.
+**Purpose:** Revenue dashboard from `CASHIER_PAYMENT_RECEIPTS` + outstanding unpaid bills. Response may include `partialErrors` when one outstanding-bill source could not be queried.
 
 **Query:** `from`, `to` (optional ISO dates; default today).
 
@@ -732,12 +772,22 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
     "kpis": { "collected": 120000, "refunds": 1500, "receiptCount": 42, "outstanding": 88000, "discounted": 5000 },
     "bySource": [{ "department": "Pharmacy", "amount": 40000 }],
     "byChannel": [{ "channel": "Cash", "amount": 50000 }],
-    "outstandingItems": [{ "ref": "LAB-001", "patientName": "Ada", "department": "Laboratory", "amount": 3500 }]
+    "outstandingItems": [{ "ref": "LAB-001", "patientName": "Ada", "department": "Laboratory", "amount": 3500 }],
+    "partialErrors": ["Psychiatric OPC: table unavailable"]
   }
 }
 ```
 
 **Error cases:** `401`, `403`.
+
+#### `GET /api/cashier/patients/:personId/payment-history`
+
+| | |
+|--|--|
+| **Purpose** | Patient financial snapshot for cashier Patient Search |
+| **Permission** | `cashier:receipt-read` |
+| **Response** | `{ data: { person, outstanding, receipts, outstandingBills, refunds, wallet, walletTxns, partialErrors? } }` |
+| **Errors** | 401, 403, 404 patient not found |
 
 #### `GET /api/cashier/receipts/verify?receiptNo=`
 
