@@ -47,6 +47,46 @@ export class CashierController {
 
   /**
    * Method: GET
+   * URL: /api/cashier/patients/recent?limit=10
+   * Purpose: Recent patients for cashier sidebar (receipt activity, then registrations)
+   * Required permission: cashier:receipt-read
+   * Request body: none
+   * Response example: { data: { items: [{ personId, hospitalNo, firstName, middleName, lastName, patientPhoneNo }] } }
+   * Error cases: 401, 403
+   */
+  @Get('patients/recent')
+  @RequirePermissions(PERMISSIONS.CASHIER_RECEIPT_READ)
+  async recentPatients(@Query('limit') limit?: string) {
+    const data = await this.cashierService.listRecentPatients(
+      limit ? Number(limit) : 10,
+    );
+    return { data };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/cashier/patients/search?q=&limit=20
+   * Purpose: Search patients by name, hospital no, phone, NHIS, identity (empty q → recent)
+   * Required permission: cashier:receipt-read
+   * Request body: none
+   * Response example: { data: { items: [{ personId, hospitalNo, firstName, middleName, lastName, patientPhoneNo }] } }
+   * Error cases: 401, 403
+   */
+  @Get('patients/search')
+  @RequirePermissions(PERMISSIONS.CASHIER_RECEIPT_READ)
+  async searchPatients(
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.cashierService.searchPatients(
+      q,
+      limit ? Number(limit) : 20,
+    );
+    return { data };
+  }
+
+  /**
+   * Method: GET
    * URL: /api/cashier/patients/:personId/payment-history
    * Purpose: Patient financial snapshot — receipts, outstanding bills, refunds
    * Required permission: cashier:receipt-read

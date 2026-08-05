@@ -4,6 +4,8 @@ import { CashierService } from './cashier.service';
 describe('CashierService', () => {
   const audit = { log: jest.fn() };
 
+  const patientsService = { search: jest.fn() };
+
   const prisma: Record<string, any> = {
     cashierPaymentReceipts: {
       findMany: jest.fn(),
@@ -17,7 +19,7 @@ describe('CashierService', () => {
     admissionBills: { findMany: jest.fn() },
     imagingRequests: { findMany: jest.fn() },
     opcVisits: { findMany: jest.fn() },
-    persons: { findUnique: jest.fn() },
+    persons: { findUnique: jest.fn(), findMany: jest.fn() },
     cashierRefundRequests: { findMany: jest.fn() },
     cashierSettings: {
       findFirst: jest.fn(),
@@ -30,7 +32,7 @@ describe('CashierService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new CashierService(prisma as any, audit as any);
+    service = new CashierService(prisma as any, audit as any, patientsService as any);
     prisma.cashierPaymentReceipts.findMany.mockResolvedValue([]);
     prisma.cashierDiscountRequests.aggregate.mockResolvedValue({
       _sum: { COMPUTED_AMOUNT: 0 },
@@ -110,6 +112,91 @@ describe('CashierService', () => {
       expect(result.partialErrors).toEqual([
         'Psychiatric OPC: OpcVisits unavailable',
       ]);
+    });
+  });
+
+  describe('listRecentPatients', () => {
+    it('returns receipt patients first then backfills from registrations', async () => {
+      prisma.cashierPaymentReceipts.findMany.mockResolvedValue([
+        { PERSON_ID: 2 },
+        { PERSON_ID: 5 },
+      ]);
+      prisma.persons.findMany
+        .mockResolvedValueOnce([
+          {
+            PERSON_ID: 2,
+            HOSPITAL_NO: 'H002',
+            FIRST_NAME: 'Bob',
+            MIDDLE_NAME: null,
+            LAST_NAME: 'Lee',
+            PATIENT_PHONE_NO: '080',
+          },
+          {
+            PERSON_ID: 5,
+            HOSPITAL_NO: 'H005',
+            FIRST_NAME: 'Ada',
+            MIDDLE_NAME: null,
+            LAST_NAME: 'Oka',
+            PATIENT_PHONE_NO: '081',
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            PERSON_ID: 9,
+            HOSPITAL_NO: 'H009',
+            FIRST_NAME: 'New',
+            MIDDLE_NAME: null,
+            LAST_NAME: 'Patient',
+            PATIENT_PHONE_NO: '082',
+          },
+        ]);
+
+      const result = await service.listRecentPatients(3);
+
+      expect(result.items.map((i) => i.personId)).toEqual([2, 5, 9]);
+      expect(result.items[0].firstName).toBe('Bob');
+    });
+  });
+
+  describe('searchPatients', () => {
+    it('delegates to recent when q is empty', async () => {
+      prisma.cashierPaymentReceipts.findMany.mockResolvedValue([]);
+      prisma.persons.findMany.mockResolvedValue([
+        {
+          PERSON_ID: 1,
+          HOSPITAL_NO: 'H001',
+          FIRST_NAME: 'Test',
+          MIDDLE_NAME: null,
+          LAST_NAME: 'User',
+          PATIENT_PHONE_NO: null,
+        },
+      ]);
+
+      const result = await service.searchPatients('  ', 10);
+
+      expect(patientsService.search).not.toHaveBeenCalled();
+      expect(result.items).toHaveLength(1);
+    });
+
+    it('searches by term via PatientsService', async () => {
+      patientsService.search.mockResolvedValue({
+        items: [
+          {
+            personId: 7,
+            hospitalNo: 'H007',
+            firstName: 'Search',
+            middleName: null,
+            lastName: 'Hit',
+            patientPhoneNo: '090',
+          },
+        ],
+        meta: { page: 1, limit: 20, total: 1 },
+      });
+
+      const result = await service.searchPatients('Search', 20);
+
+      expect(patientsService.search).toHaveBeenCalledWith('Search', 1, 20);
+      expect(result.items[0].personId).toBe(7);
     });
   });
 

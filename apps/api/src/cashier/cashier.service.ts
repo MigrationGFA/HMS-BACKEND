@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { PatientsService } from '../patients/patients.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import type {
   CloseShiftDto,
@@ -124,7 +125,99 @@ export class CashierService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly patientsService: PatientsService,
   ) {}
+
+  private personSelectCompact = {
+    PERSON_ID: true,
+    HOSPITAL_NO: true,
+    FIRST_NAME: true,
+    MIDDLE_NAME: true,
+    LAST_NAME: true,
+    PATIENT_PHONE_NO: true,
+  } as const;
+
+  private mapPersonCompact(row: {
+    PERSON_ID: number;
+    HOSPITAL_NO: string | null;
+    FIRST_NAME: string | null;
+    MIDDLE_NAME: string | null;
+    LAST_NAME: string | null;
+    PATIENT_PHONE_NO: string | null;
+  }) {
+    return {
+      personId: row.PERSON_ID,
+      hospitalNo: row.HOSPITAL_NO,
+      firstName: row.FIRST_NAME,
+      middleName: row.MIDDLE_NAME,
+      lastName: row.LAST_NAME,
+      patientPhoneNo: row.PATIENT_PHONE_NO,
+    };
+  }
+
+  async listRecentPatients(limit = 10) {
+    const take = Math.min(Math.max(limit, 1), 50);
+    const receiptRows = await this.prisma.cashierPaymentReceipts.findMany({
+      where: this.notDeletedReceipt(),
+      orderBy: { PAID_AT: 'desc' },
+      distinct: ['PERSON_ID'],
+      take,
+      select: { PERSON_ID: true },
+    });
+
+    const orderedIds = receiptRows.map((r) => r.PERSON_ID);
+    const persons =
+      orderedIds.length > 0
+        ? await this.prisma.persons.findMany({
+            where: {
+              PERSON_ID: { in: orderedIds },
+              DISCONTINUE_FLAG: { not: 'Y' },
+            },
+            select: this.personSelectCompact,
+          })
+        : [];
+
+    const byId = new Map(persons.map((p) => [p.PERSON_ID, p]));
+    const items = orderedIds
+      .map((id) => byId.get(id))
+      .filter((p): p is NonNullable<typeof p> => p != null)
+      .map((p) => this.mapPersonCompact(p));
+
+    if (items.length < take) {
+      const exclude = new Set(items.map((i) => i.personId));
+      const backfill = await this.prisma.persons.findMany({
+        where: {
+          DISCONTINUE_FLAG: { not: 'Y' },
+          ...(exclude.size > 0 ? { PERSON_ID: { notIn: [...exclude] } } : {}),
+        },
+        orderBy: { CREATED_DATE: 'desc' },
+        take: take - items.length,
+        select: this.personSelectCompact,
+      });
+      items.push(...backfill.map((p) => this.mapPersonCompact(p)));
+    }
+
+    return { items };
+  }
+
+  async searchPatients(q?: string, limit = 20) {
+    const term = q?.trim();
+    if (!term) {
+      return this.listRecentPatients(Math.min(limit, 10));
+    }
+    const take = Math.min(Math.max(limit, 1), 50);
+    const result = await this.patientsService.search(term, 1, take);
+    return {
+      items: result.items.map((p) => ({
+        personId: p.personId,
+        hospitalNo: p.hospitalNo,
+        firstName: p.firstName,
+        middleName: p.middleName,
+        lastName: p.lastName,
+        patientPhoneNo: p.patientPhoneNo,
+      })),
+    };
+  }
 
   private notDeletedReceipt(): Prisma.CashierPaymentReceiptsWhereInput {
     return { NOT: { DELETED_FLAG: 'Y' } };
