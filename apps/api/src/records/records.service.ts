@@ -445,6 +445,68 @@ export class RecordsService {
     };
   }
 
+  /**
+   * Resume Patient Entry wizard from draft (personId or phone/hospital search).
+   * Returns suggested wizard step based on payment + person status.
+   */
+  async resumeRegistration(params?: { personId?: number; q?: string }) {
+    if (params?.personId != null) {
+      const reg = await this.getRegistration(params.personId);
+      return this.buildResumePayload(reg.person, reg.card);
+    }
+
+    const term = params?.q?.trim();
+    if (!term) {
+      return this.emptyResumePayload();
+    }
+
+    const queue = await this.cards.list({ q: term, limit: 1 });
+    const card = queue.items[0] ?? null;
+    if (!card) {
+      return this.emptyResumePayload();
+    }
+
+    const person = await this.patients.findById(card.personId);
+    return this.buildResumePayload(person, card);
+  }
+
+  private emptyResumePayload() {
+    return {
+      person: null,
+      card: null,
+      paymentCleared: false,
+      suggestedStep: null as number | null,
+      registrationComplete: false,
+    };
+  }
+
+  private buildResumePayload(
+    person: Awaited<ReturnType<PatientsService['findById']>>,
+    card: Awaited<ReturnType<CardsService['latestForPerson']>>,
+  ) {
+    const paymentCleared = !card || card.paymentStatus !== 'Pending';
+    const status = (person.status ?? '').trim();
+    let suggestedStep: number | null = null;
+    let registrationComplete = false;
+
+    if (card?.paymentStatus === 'Pending') {
+      suggestedStep = 4;
+    } else if (status === 'Active') {
+      suggestedStep = 6;
+      registrationComplete = true;
+    } else {
+      suggestedStep = 5;
+    }
+
+    return {
+      person,
+      card,
+      paymentCleared,
+      suggestedStep,
+      registrationComplete,
+    };
+  }
+
   /** Complete registration after payment (medical/details + Active status). */
   async completeRegistration(
     personId: number,
