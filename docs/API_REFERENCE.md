@@ -758,7 +758,7 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 #### `GET /api/cashier/reports`
 
-**Purpose:** Revenue dashboard from `CASHIER_PAYMENT_RECEIPTS` + outstanding unpaid bills.
+**Purpose:** Revenue dashboard from `CASHIER_PAYMENT_RECEIPTS` + outstanding unpaid bills. Response may include `partialErrors` when one outstanding-bill source could not be queried.
 
 **Query:** `from`, `to` (optional ISO dates; default today).
 
@@ -772,12 +772,22 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
     "kpis": { "collected": 120000, "refunds": 1500, "receiptCount": 42, "outstanding": 88000, "discounted": 5000 },
     "bySource": [{ "department": "Pharmacy", "amount": 40000 }],
     "byChannel": [{ "channel": "Cash", "amount": 50000 }],
-    "outstandingItems": [{ "ref": "LAB-001", "patientName": "Ada", "department": "Laboratory", "amount": 3500 }]
+    "outstandingItems": [{ "ref": "LAB-001", "patientName": "Ada", "department": "Laboratory", "amount": 3500 }],
+    "partialErrors": ["Psychiatric OPC: table unavailable"]
   }
 }
 ```
 
 **Error cases:** `401`, `403`.
+
+#### `GET /api/cashier/patients/:personId/payment-history`
+
+| | |
+|--|--|
+| **Purpose** | Patient financial snapshot for cashier Patient Search |
+| **Permission** | `cashier:receipt-read` |
+| **Response** | `{ data: { person, outstanding, receipts, outstandingBills, refunds, wallet, walletTxns, partialErrors? } }` |
+| **Errors** | 401, 403, 404 patient not found |
 
 #### `GET /api/cashier/receipts/verify?receiptNo=`
 

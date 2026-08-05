@@ -469,115 +469,89 @@ export class CashierService {
 
   /* ---- Discounts ---- */
 
-  async listEligibleBills() {
-    const [cards, sales, rx, labs, adms, imgs, opcs] = await Promise.all([
-      this.prisma.patientCards.findMany({
-        where: { PAYMENT_STATUS: 'Pending' },
-        take: 40,
-        orderBy: { CREATED_DATE: 'desc' },
-        include: {
-          person: {
-            select: {
-              FIRST_NAME: true,
-              MIDDLE_NAME: true,
-              LAST_NAME: true,
-              HOSPITAL_NO: true,
-            },
+  async listEligibleBills(opts?: { personId?: number }) {
+    const personId = opts?.personId;
+    const personWhere =
+      personId != null ? { PERSON_ID: personId } : ({} as { PERSON_ID?: number });
+    const partialErrors: string[] = [];
+    const personSelect = {
+      FIRST_NAME: true,
+      MIDDLE_NAME: true,
+      LAST_NAME: true,
+      HOSPITAL_NO: true,
+    };
+
+    const [cardsR, salesR, rxR, labsR, admsR, imgsR, opcsR] =
+      await Promise.allSettled([
+        this.prisma.patientCards.findMany({
+          where: { PAYMENT_STATUS: 'Pending', ...personWhere },
+          take: personId != null ? 100 : 40,
+          orderBy: { CREATED_DATE: 'desc' },
+          include: { person: { select: personSelect } },
+        }),
+        this.prisma.pharmacySales.findMany({
+          where: { PAYMENT_STATUS: 'Unpaid', ...personWhere },
+          take: personId != null ? 100 : 40,
+          orderBy: { CREATED_DATE: 'desc' },
+          include: { person: { select: personSelect } },
+        }),
+        this.prisma.prescriptions.findMany({
+          where: {
+            PAYMENT_STATUS: { in: ['Unpaid', 'Emergency'] },
+            ...personWhere,
           },
-        },
-      }),
-      this.prisma.pharmacySales.findMany({
-        where: { PAYMENT_STATUS: 'Unpaid' },
-        take: 40,
-        orderBy: { CREATED_DATE: 'desc' },
-        include: {
-          person: {
-            select: {
-              FIRST_NAME: true,
-              MIDDLE_NAME: true,
-              LAST_NAME: true,
-              HOSPITAL_NO: true,
-            },
+          take: personId != null ? 100 : 40,
+          orderBy: { CREATED_DATE: 'desc' },
+          include: {
+            person: { select: personSelect },
+            items: { select: { QUANTITY: true, UNIT_PRICE: true } },
           },
-        },
-      }),
-      this.prisma.prescriptions.findMany({
-        where: { PAYMENT_STATUS: { in: ['Unpaid', 'Emergency'] } },
-        take: 40,
-        orderBy: { CREATED_DATE: 'desc' },
-        include: {
-          person: {
-            select: {
-              FIRST_NAME: true,
-              MIDDLE_NAME: true,
-              LAST_NAME: true,
-              HOSPITAL_NO: true,
-            },
-          },
-          items: { select: { QUANTITY: true, UNIT_PRICE: true } },
-        },
-      }),
-      this.prisma.labRequests.findMany({
-        where: { PAYMENT_STATUS: 'Unpaid' },
-        take: 40,
-        orderBy: { CREATED_DATE: 'desc' },
-        include: {
-          person: {
-            select: {
-              FIRST_NAME: true,
-              MIDDLE_NAME: true,
-              LAST_NAME: true,
-              HOSPITAL_NO: true,
-            },
-          },
-        },
-      }),
-      this.prisma.admissionBills.findMany({
-        where: { PAYMENT_STATUS: 'Unpaid' },
-        take: 40,
-        orderBy: { CREATED_DATE: 'desc' },
-        include: {
-          person: {
-            select: {
-              FIRST_NAME: true,
-              MIDDLE_NAME: true,
-              LAST_NAME: true,
-              HOSPITAL_NO: true,
-            },
-          },
-        },
-      }),
-      this.prisma.imagingRequests.findMany({
-        where: { PAYMENT_STATUS: 'Unpaid' },
-        take: 40,
-        orderBy: { CREATED_DATE: 'desc' },
-        include: {
-          person: {
-            select: {
-              FIRST_NAME: true,
-              MIDDLE_NAME: true,
-              LAST_NAME: true,
-              HOSPITAL_NO: true,
-            },
-          },
-        },
-      }),
-      this.prisma.opcVisits.findMany({
-        where: { BILLING_STATUS: 'Unpaid' },
-        take: 40,
-        orderBy: { CHECK_IN_AT: 'desc' },
-        include: {
-          person: {
-            select: {
-              FIRST_NAME: true,
-              MIDDLE_NAME: true,
-              LAST_NAME: true,
-              HOSPITAL_NO: true,
-            },
-          },
-        },
-      }),
-    ]);
+        }),
+        this.prisma.labRequests.findMany({
+          where: { PAYMENT_STATUS: 'Unpaid', ...personWhere },
+          take: personId != null ? 100 : 40,
+          orderBy: { CREATED_DATE: 'desc' },
+          include: { person: { select: personSelect } },
+        }),
+        this.prisma.admissionBills.findMany({
+          where: { PAYMENT_STATUS: 'Unpaid', ...personWhere },
+          take: personId != null ? 100 : 40,
+          orderBy: { CREATED_DATE: 'desc' },
+          include: { person: { select: personSelect } },
+        }),
+        this.prisma.imagingRequests.findMany({
+          where: { PAYMENT_STATUS: 'Unpaid', ...personWhere },
+          take: personId != null ? 100 : 40,
+          orderBy: { CREATED_DATE: 'desc' },
+          include: { person: { select: personSelect } },
+        }),
+        this.prisma.opcVisits.findMany({
+          where: { BILLING_STATUS: 'Unpaid', ...personWhere },
+          take: personId != null ? 100 : 40,
+          orderBy: { CHECK_IN_AT: 'desc' },
+          include: { person: { select: personSelect } },
+        }),
+      ]);
+
+    const unwrap = <T>(result: PromiseSettledResult<T>, label: string): T extends (infer U)[] ? U[] : never => {
+      if (result.status === 'fulfilled') {
+        return result.value as T extends (infer U)[] ? U[] : never;
+      }
+      const msg =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason);
+      partialErrors.push(`${label}: ${msg}`);
+      return [] as T extends (infer U)[] ? U[] : never;
+    };
+
+    const cards = unwrap(cardsR, 'Registration cards');
+    const sales = unwrap(salesR, 'Pharmacy sales');
+    const rx = unwrap(rxR, 'Prescriptions');
+    const labs = unwrap(labsR, 'Laboratory');
+    const adms = unwrap(admsR, 'Admission bills');
+    const imgs = unwrap(imgsR, 'Imaging');
+    const opcs = unwrap(opcsR, 'Psychiatric OPC');
 
     const items: {
       sourceType: string;
@@ -587,6 +561,7 @@ export class CashierService {
       patientName: string;
       amount: number;
       department: string;
+      paymentStatus: string;
     }[] = [];
 
     for (const c of cards) {
@@ -598,6 +573,7 @@ export class CashierService {
         patientName: personName(c.person),
         amount: dec(c.TOTAL_AMOUNT ?? 0),
         department: 'Registration',
+        paymentStatus: c.PAYMENT_STATUS,
       });
     }
     for (const s of sales) {
@@ -609,6 +585,7 @@ export class CashierService {
         patientName: personName(s.person),
         amount: dec(s.TOTAL ?? 0),
         department: 'Pharmacy',
+        paymentStatus: s.PAYMENT_STATUS,
       });
     }
     for (const r of rx) {
@@ -624,6 +601,7 @@ export class CashierService {
         patientName: personName(r.person),
         amount: rxTotal,
         department: 'Prescription',
+        paymentStatus: r.PAYMENT_STATUS,
       });
     }
     for (const l of labs) {
@@ -635,6 +613,7 @@ export class CashierService {
         patientName: personName(l.person),
         amount: dec(l.TOTAL_AMOUNT ?? 0),
         department: 'Laboratory',
+        paymentStatus: l.PAYMENT_STATUS,
       });
     }
     for (const a of adms) {
@@ -646,6 +625,7 @@ export class CashierService {
         patientName: personName(a.person),
         amount: dec(a.TOTAL_AMOUNT ?? 0),
         department: 'Admission',
+        paymentStatus: a.PAYMENT_STATUS,
       });
     }
     for (const i of imgs) {
@@ -657,6 +637,7 @@ export class CashierService {
         patientName: personName(i.person),
         amount: dec(i.TOTAL_AMOUNT ?? 0),
         department: 'Imaging',
+        paymentStatus: i.PAYMENT_STATUS,
       });
     }
     for (const o of opcs) {
@@ -668,9 +649,95 @@ export class CashierService {
         patientName: personName(o.person),
         amount: dec(o.CONSULT_AMOUNT ?? 0),
         department: 'Psychiatric OPC',
+        paymentStatus: o.BILLING_STATUS,
       });
     }
-    return { items };
+    return { items, partialErrors };
+  }
+
+  async getPatientPaymentHistory(personId: number) {
+    const person = await this.prisma.persons.findUnique({
+      where: { PERSON_ID: personId },
+      select: {
+        PERSON_ID: true,
+        HOSPITAL_NO: true,
+        FIRST_NAME: true,
+        MIDDLE_NAME: true,
+        LAST_NAME: true,
+        PATIENT_PHONE_NO: true,
+      },
+    });
+    if (!person) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    const receipts = await this.prisma.cashierPaymentReceipts.findMany({
+      where: { PERSON_ID: personId, ...this.notDeletedReceipt() },
+      orderBy: { PAID_AT: 'desc' },
+      take: 100,
+    });
+
+    const receiptIds = receipts.map((r) => r.RECEIPT_ID);
+    const refunds =
+      receiptIds.length > 0
+        ? await this.prisma.cashierRefundRequests.findMany({
+            where: {
+              RECEIPT_ID: { in: receiptIds },
+              NOT: { DELETED_FLAG: 'Y' },
+            },
+            orderBy: { CREATED_DATE: 'desc' },
+          })
+        : [];
+
+    const eligible = await this.listEligibleBills({ personId });
+    const settings = await this.getOrCreateSettings();
+    const outstanding = eligible.items.reduce((s, i) => s + i.amount, 0);
+
+    return {
+      person: {
+        personId: person.PERSON_ID,
+        hospitalNo: person.HOSPITAL_NO,
+        firstName: person.FIRST_NAME,
+        middleName: person.MIDDLE_NAME,
+        lastName: person.LAST_NAME,
+        phone: person.PATIENT_PHONE_NO,
+      },
+      outstanding,
+      receipts: receipts.map((r) => ({
+        receiptNo: r.RECEIPT_NO,
+        channel: r.CHANNEL,
+        amount: dec(r.AMOUNT),
+        paidAt: r.PAID_AT.toISOString(),
+        sourceType: r.SOURCE_TYPE,
+        sourceRef: r.SOURCE_REF,
+        status: r.STATUS,
+      })),
+      outstandingBills: eligible.items.map((i) => ({
+        sourceType: i.sourceType,
+        sourceRef: i.sourceRef,
+        department: i.department,
+        amount: i.amount,
+        paymentStatus: i.paymentStatus,
+      })),
+      refunds: refunds.map((r) => ({
+        refundNo: r.REFUND_NO,
+        amount: dec(r.AMOUNT),
+        method: r.METHOD,
+        status: r.STATUS,
+      })),
+      wallet: {
+        balance: 0,
+        enabled: settings.walletEnabled,
+      },
+      walletTxns: [] as {
+        kind: string;
+        amount: number;
+        balanceAfter: number;
+        by: string;
+        at: string;
+      }[],
+      partialErrors: eligible.partialErrors,
+    };
   }
 
   async listDiscounts(params?: { page?: number; limit?: number }) {
@@ -1364,6 +1431,8 @@ export class CashierService {
         (c) => ({ channel: c, amount: byChannelMap.get(c) ?? 0 }),
       ),
       outstandingItems,
+      partialErrors:
+        eligible.partialErrors.length > 0 ? eligible.partialErrors : undefined,
     };
   }
 

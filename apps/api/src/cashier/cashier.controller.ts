@@ -47,6 +47,24 @@ export class CashierController {
 
   /**
    * Method: GET
+   * URL: /api/cashier/patients/:personId/payment-history
+   * Purpose: Patient financial snapshot — receipts, outstanding bills, refunds
+   * Required permission: cashier:receipt-read
+   * Request body: none
+   * Response example: { data: { person, outstanding, receipts, outstandingBills, refunds, wallet, walletTxns } }
+   * Error cases: 401, 403, 404 patient not found
+   */
+  @Get('patients/:personId/payment-history')
+  @RequirePermissions(PERMISSIONS.CASHIER_RECEIPT_READ)
+  async patientPaymentHistory(
+    @Param('personId', ParseIntPipe) personId: number,
+  ) {
+    const data = await this.cashierService.getPatientPaymentHistory(personId);
+    return { data };
+  }
+
+  /**
+   * Method: GET
    * URL: /api/cashier/receipts/verify?receiptNo=
    * Purpose: Verify any receipt (including fully Refunded) by receipt number
    * Required permission: cashier:receipt-read

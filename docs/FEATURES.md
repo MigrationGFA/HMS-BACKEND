@@ -217,7 +217,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Module | Status | Route |
 |--------|--------|-------|
 | Billing | ✅ | `/api/billing/*` — Master Service Catalog under `/api/billing/services*` |
-| Cashier | ✅ | `/api/cashier/*` — receipts, refunds, discounts, shifts, reports, verify, audit, settings; FE desk `/dashboard/cashier` (+ profile); `/billing/*` visits/gate kept |
+| Cashier | ✅ | `/api/cashier/*` — receipts, refunds, discounts, shifts, reports, patient payment-history, verify, audit, settings; FE desk `/dashboard/cashier` (+ profile); `/billing/*` visits/gate kept |
 | Finance | ✅ | `/api/finance/*` |
 | Insurance | ✅ | `/api/insurance/*` |
 | Inventory | ✅ | `/api/inventory/*` |

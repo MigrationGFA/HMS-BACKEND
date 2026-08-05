@@ -6,6 +6,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Doctor prescription RBAC:** Grant `clinical-pharmacy:read` and `clinical-pharmacy:update` to clinical roles (`DOCTOR`, `NURSE`, `PSYCHIATRIC_OPC`, `ICU`) so Prescription Engine and CDS can call `/api/clinical-pharmacy/alerts`, `/check`, and `/allergies` without 403. Re-login required after deploy.
+- **Cashier reports resilience:** `listEligibleBills` uses `Promise.allSettled`; `GET /api/cashier/reports` returns receipt KPIs even when one bill source fails (`partialErrors` in response).
+- **Cashier patient payment history:** `GET /api/cashier/patients/:personId/payment-history` for Patient Search (receipts, outstanding bills, refunds).
+
 ### Added
 - **Registration fee catalog integration:** Seed ACTIVE Master Services `SVC-REG-FEE`, `SVC-CARD-FEE`, `SVC-REG-CONSULT` with GENERAL prices. `GET /api/records/registration-charges` (`card:read`) returns reg/card/consult bundle via `ServiceCatalogService.resolveRegistrationCharges`. `POST /api/records/registrations` ignores client fee fields and applies catalog-resolved amounts. fnph-aro Patient Entry Engine step 3 auto-fills read-only fees with loading/retry states.
 - **Service booking settings + public slots:** `SERVICE_BOOKING_SETTINGS` (1:1 online bookable / delivery mode PHYSICAL|ONLINE|BOTH / duration / day window) created with each master service; `SERVICE_BOOKINGS` for public appointments. APIs: `GET /api/appointments/public/availability`, `POST /api/appointments/public/book`. Bookable catalog returns mode + duration; landing generates slots by duration and blurs booked times. Migration `20260731140000_service_booking_settings`.
