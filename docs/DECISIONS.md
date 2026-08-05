@@ -156,6 +156,27 @@ Record of significant technical decisions. Format inspired by [ADR](https://adr.
 
 ---
 
+## ADR-015: MongoDB Parallel Store for Staff Chat
+
+**Status:** Accepted
+**Date:** 2026-08-05
+
+**Context:** Cross-module staff messaging (doctor, lab, pharmacy, cashier, records) needs flexible document storage and realtime delivery without reshaping clinical PostgreSQL schemas. Azure Cosmos MongoDB is available with database name `HMS`.
+
+**Decision:** Use Mongoose (`MongoModule`) as a parallel store for chat collections (`conversations`, `messages`, `broadcasts`, `presence`). Expose REST `/api/chat/*` and Socket.IO namespace `/chat` with JWT auth. Keep users, RBAC, and audit in PostgreSQL. Leave nursing channel messages on Postgres for now.
+
+**Rationale:**
+- Document model fits threaded chat and unread maps
+- Does not couple clinical migrations to messaging changes
+- Extensible module registry (`CHAT_MODULES`) for radiology later
+- Cosmos Mongo API with `/HMS` path + `MONGODB_DB=HMS`
+
+**Alternatives considered:** Store chat in PostgreSQL (extra migrations, heavier joins), migrate nursing messages into Mongo immediately (out of scope).
+
+**Consequences:** API requires `MONGODB_URI` / `MONGODB_DB` at runtime for chat features; clinical data remains Postgres-only.
+
+---
+
 ## ADR-009: PostgreSQL Full-Text Search (Initial)
 
 **Status:** Accepted

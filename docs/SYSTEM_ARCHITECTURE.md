@@ -11,26 +11,27 @@ HMS is an enterprise **modular monolith** at `apps/api/`. A single NestJS proces
                     └───────────────┬─────────────────────────┘
                                     │
               ┌─────────────────────┼─────────────────────┐
-              │ HTTP /api/*         │ WebSocket /events   │
+              │ HTTP /api/*         │ WS /events + /chat  │
               ▼                     ▼                     │
      ┌────────────────────────────────────────┐           │
      │         apps/api — NestJS App          │           │
      │  ┌──────────────────────────────────┐  │           │
-     │  │ 36 feature modules by function   │  │           │
-     │  │ patients │ clinical │ billing ... │  │           │
+     │  │ feature modules by function      │  │           │
+     │  │ patients │ clinical │ chat ...   │  │           │
      │  └──────────────────────────────────┘  │           │
-     │  ┌────────┐ ┌────────┐ ┌──────────┐   │           │
-     │  │ Prisma │ │ Redis  │ │ RabbitMQ │   │           │
-     │  └────┬───┘ └───┬────┘ └────┬─────┘   │           │
-     └───────┼─────────┼───────────┼─────────┘           │
-             ▼         ▼           ▼                     │
-     ┌───────────┐ ┌────────┐ ┌──────────┐               │
-     │PostgreSQL │ │ Redis  │ │ RabbitMQ │               │
-     └─────┬─────┘ └────────┘ └────┬─────┘               │
-           ▼                       ▼                     │
-     ┌───────────┐           ┌──────────────┐            │
-     │Read Replica│ (later)  │   Workers    │            │
-     └───────────┘           └──────────────┘            │
+     │  ┌────────┐ ┌────────┐ ┌──────────┐ ┌───────┐    │
+     │  │ Prisma │ │ Redis  │ │ RabbitMQ │ │Mongoose│   │
+     │  └────┬───┘ └───┬────┘ └────┬─────┘ └───┬───┘    │
+     └───────┼─────────┼───────────┼───────────┼────────┘
+             ▼         ▼           ▼           ▼
+     ┌───────────┐ ┌────────┐ ┌──────────┐ ┌────────────┐
+     │PostgreSQL │ │ Redis  │ │ RabbitMQ │ │ Cosmos Mongo│
+     │ (clinical)│ │        │ │          │ │ DB: HMS     │
+     └─────┬─────┘ └────────┘ └────┬─────┘ └────────────┘
+           ▼                       ▼
+     ┌───────────┐           ┌──────────────┐
+     │Read Replica│ (later)  │   Workers    │
+     └───────────┘           └──────────────┘
 ```
 
 ## Application Structure
@@ -51,6 +52,7 @@ apps/api/
 │   ├── laboratory/ radiology/ pharmacy/
 │   ├── billing/ cashier/ finance/ insurance/ inventory/
 │   ├── reports/ analytics/ notifications/ files/ realtime/
+│   ├── mongo/ chat/      # Parallel Mongo store + staff chat (/chat WS)
 │   ├── super-admin/ governance/ administration/ hr/
 │   └── future-modules/   # Planned modules README
 ├── prisma/
@@ -69,7 +71,7 @@ apps/api/
 | **Clinical & care** | clinical, nursing, admissions, discharge, psychiatry, allied-health, icu | Care delivery across specialties |
 | **Diagnostics & pharmacy** | laboratory, radiology, pharmacy | Tests, imaging, medications |
 | **Finance & operations** | billing, cashier, finance, insurance, inventory | Revenue, payments, supplies |
-| **Reporting & platform** | reports, analytics, notifications, files, realtime | Cross-cutting services |
+| **Reporting & platform** | reports, analytics, notifications, files, realtime, mongo, chat | Cross-cutting services + staff chat |
 | **Governance** | super-admin, governance, administration, hr | Board, CMD, admin, HR |
 
 ### Master Service Catalog (billing)
@@ -94,6 +96,7 @@ Split config files loaded by `ConfigModule`:
 |------|-----------|-----------|
 | `app.config.ts` | `app` | `PORT`, `NODE_ENV`, `API_PREFIX` |
 | `database.config.ts` | `database` | `DATABASE_URL`, `DATABASE_READ_URL` |
+| `mongodb.config.ts` | `mongodb` | `MONGODB_URI`, `MONGODB_DB` (staff chat; Cosmos DB name `HMS`) |
 | `redis.config.ts` | `redis` | `REDIS_*` |
 | `jwt.config.ts` | `jwt` | `JWT_*` |
 | `storage.config.ts` | `storage` | `STORAGE_*` |
@@ -116,8 +119,11 @@ Service → Prisma (commit) → RabbitMQ → Worker (SMS/email/lab/report)
 ### Realtime
 
 ```
-Service (state change) → RealtimeGateway → Socket.IO → subscribed clients
+Service (state change) → RealtimeGateway → Socket.IO /events → subscribed clients
+ChatService (message/broadcast) → ChatGateway → Socket.IO /chat → user:{id} | module:{name} rooms
 ```
+
+Staff chat documents live in MongoDB (`conversations`, `messages`, `broadcasts`, `presence`). Identity, RBAC, and audit remain in PostgreSQL.
 
 ## RBAC Model
 
@@ -131,10 +137,11 @@ User ── UserRole ── Role ── RolePermission ── Permission
 
 | Component | Used By |
 |-----------|---------|
-| **PostgreSQL** | All modules via PrismaService |
+| **PostgreSQL** | Clinical/admin modules via PrismaService; chat directory + audit |
+| **MongoDB (Cosmos)** | Staff chat collections in database `HMS` via Mongoose |
 | **Redis** | Cache, sessions, BullMQ, rate limiting (planned) |
 | **RabbitMQ** | notifications, laboratory, reports (planned) |
-| **Socket.IO** | realtime module — queues, alerts, doctor status |
+| **Socket.IO** | `/events` queues/alerts; `/chat` staff messaging |
 
 ## Scalability Path
 

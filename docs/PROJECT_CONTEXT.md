@@ -19,10 +19,11 @@ Modules are organized by **hospital function** (patients, laboratory, billing), 
 1. **Reliable clinical operations** — queues, appointments, doctor clinical overview (`/api/doctor/overview`), emergency intake, ICU workflows, doctor emergency override, research analytics
 2. **Secure access** — RBAC with 27 system roles mapped to hospital functions
 3. **Auditability** — immutable audit trail for compliance (`/api/audit/logs` + `/api/audit/stats`)
-4. **Scalable foundation** — PostgreSQL, Redis, RabbitMQ, read replicas when needed
-5. **Realtime awareness** — Socket.IO for queues, notifications, emergency broadcasts
+4. **Scalable foundation** — PostgreSQL (clinical), Redis, RabbitMQ, Azure Cosmos MongoDB (`HMS`) for staff chat, read replicas when needed
+5. **Realtime awareness** — Socket.IO `/events` for queues/notifications; `/chat` for cross-module staff messaging
 6. **Enterprise coverage** — psychiatry, allied health, insurance (NHIA/HMO), governance, HR
 7. **Unified service pricing** — Master Service Catalog (`/api/billing/services`) as the single source of truth for hospital services, with department → finance → IT approval workflow and payer-specific prices
+8. **Cross-module staff chat** — Doctor, Lab, Pharmacy, Cashier, Records share Communication Center (`/api/chat` + MongoDB)
 
 ## Non-Goals (Current Phase)
 

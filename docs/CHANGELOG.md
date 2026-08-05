@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Staff chat (MongoDB + Socket.IO):** Azure Cosmos MongoDB database `HMS` via `MONGODB_URI` / `MONGODB_DB`. Nest `ChatModule` stores conversations/messages/broadcasts/presence; REST under `/api/chat/*` with RBAC `comms:read|send|broadcast`. JWT-authenticated Socket.IO namespace `/chat` emits `chat:message`, `chat:conversation-updated`, `chat:broadcast`, `chat:presence`, `chat:read`. Frontend shared `StaffCommunicationCenter` wired for doctor, laboratory, pharmacy, cashier (`/dashboard/cashier/comms`), and records (`/records/comms`). Nursing Postgres messages unchanged. **Deploy:** set `MONGODB_URI` (path `/HMS`) and `MONGODB_DB=HMS` on the host; grant `comms:*` via role seed/re-login.
+
 ### Fixed
 - **Imaging schema drift (Render 500):** Migration `20260805120000_imaging_requests_workflow_columns` adds missing `IMAGING_REQUESTS` workflow columns (`NURSING_ORDER_ID`, scheduling/completion fields, nullable `DOCTOR_ID`) and `IMAGING_STUDIES.SERVICE_ID`. Fixes cashier imaging queue, patient payment history partial errors, and radiology request listing on production. **Deploy:** `npx prisma migrate deploy` on Render after backend redeploy.
 - **Doctor prescription RBAC:** Grant `clinical-pharmacy:read` and `clinical-pharmacy:update` to clinical roles (`DOCTOR`, `NURSE`, `PSYCHIATRIC_OPC`, `ICU`) so Prescription Engine and CDS can call `/api/clinical-pharmacy/alerts`, `/check`, and `/allergies` without 403. Re-login required after deploy.

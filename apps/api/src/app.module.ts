@@ -50,6 +50,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { FilesModule } from './files/files.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { ChatModule } from './chat/chat.module';
+import { MongoModule } from './mongo/mongo.module';
 
 // Governance & administration
 import { SuperAdminModule } from './super-admin/super-admin.module';
@@ -66,6 +68,7 @@ import { ClinicalPharmacyModule } from './clinical-pharmacy/clinical-pharmacy.mo
       load: configLoaders,
     }),
     PrismaModule,
+    MongoModule,
 
     // Foundation
     AuthModule,
@@ -112,6 +115,7 @@ import { ClinicalPharmacyModule } from './clinical-pharmacy/clinical-pharmacy.mo
     NotificationsModule,
     FilesModule,
     RealtimeModule,
+    ChatModule,
 
     // Governance & administration
     SuperAdminModule,
