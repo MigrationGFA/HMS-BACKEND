@@ -29,6 +29,15 @@ export const CHAT_GROUPS = [
 
 export type ChatGroup = (typeof CHAT_GROUPS)[number];
 
+/** Map UI group labels → chat module id (department threads). */
+export const GROUP_TO_CHAT_MODULE: Partial<Record<ChatGroup, ChatModuleId>> = {
+  Nurses: 'doctor',
+  Laboratory: 'laboratory',
+  Pharmacy: 'pharmacy',
+  Accounts: 'cashier',
+  'Medical Records': 'records',
+};
+
 /** Map HMS roles → chat module scopes (for directory + room joins). */
 export const ROLE_TO_CHAT_MODULES: Record<string, ChatModuleId[]> = {
   DOCTOR: ['doctor'],

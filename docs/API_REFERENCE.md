@@ -3022,14 +3022,16 @@ Query params: `userId`, `entity`, `entityId`, `from`, `to`
 
 Cross-module staff messaging for doctor, laboratory, pharmacy, cashier, and records. Data in Azure Cosmos MongoDB database **`HMS`**. Users/roles from Postgres. Nursing channel chat remains on Postgres (`/nursing/messages`).
 
+**Inbox rule:** `GET /api/chat/conversations` returns threads where the authenticated user is in `participantUserIds`. The optional `module` query param is reserved for UI context; it does **not** hide participant threads. On create, the server sets `moduleScope` to the union of all participants' chat modules (from Postgres roles + group label).
+
 **RBAC:** `comms:read`, `comms:send`, `comms:broadcast` (granted to clinical/lab/pharmacy/cashier/records + admin).
 
 ### REST
 
 | Method | URL | Purpose | Permission | Request body | Response example | Error cases |
 |--------|-----|---------|------------|--------------|------------------|-------------|
-| GET | `/api/chat/conversations` | List inbox (`module`, `tab`, `q`, `page`, `limit`) | `comms:read` | — | `{ data: { items, meta } }` | 401, 403 |
-| POST | `/api/chat/conversations` | Start DM / department / patient-linked thread | `comms:send` | `{ type, group?, title?, participantUserIds?, patientId?, patientName?, hospitalNo?, urgent?, initialMessage?, moduleScope? }` | `{ data: { conversation, message? } }` | 400, 401, 403 |
+| GET | `/api/chat/conversations` | List inbox for current user (`tab`, `q`, `page`, `limit`; `module` optional UI hint) | `comms:read` | — | `{ data: { items, meta } }` | 401, 403 |
+| POST | `/api/chat/conversations` | Start DM / department / patient-linked thread | `comms:send` | `{ type, group, title, participantUserIds, patientId?, patientName?, hospitalNo?, urgent?, initialMessage? }` — `moduleScope` computed server-side | `{ data: { conversation, message? } }` | 400, 401, 403 |
 | GET | `/api/chat/conversations/:id/messages` | Paginated history | `comms:read` | — | `{ data: { items, meta } }` | 401, 403, 404 |
 | POST | `/api/chat/conversations/:id/messages` | Send message (also emits WS) | `comms:send` | `{ text, urgent?, mentions?, attachmentUrl? }` | `{ data: { message, conversation } }` | 400, 401, 403, 404 |
 | PATCH | `/api/chat/conversations/:id/read` | Mark read | `comms:read` | — | `{ data: conversation }` | 401, 403, 404 |

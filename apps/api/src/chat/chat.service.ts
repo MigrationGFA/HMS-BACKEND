@@ -11,6 +11,7 @@ import type { AuthUser } from '../auth/types/auth-user.type';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ChatModuleId,
+  GROUP_TO_CHAT_MODULE,
   isChatModule,
   modulesForRoles,
 } from './chat.constants';
@@ -29,6 +30,11 @@ import { Presence, PresenceDocument } from './schemas/presence.schema';
 
 export type ChatEmitter = {
   emitToUsers: (userIds: number[], event: string, payload: unknown) => void;
+  emitToUsersPer: (
+    userIds: number[],
+    event: string,
+    payloadForUser: (userId: number) => unknown,
+  ) => void;
   emitToModules: (modules: string[], event: string, payload: unknown) => void;
 };
 
@@ -59,6 +65,41 @@ export class ChatService {
 
   setEmitter(emitter: ChatEmitter) {
     this.emitter = emitter;
+  }
+
+  private emitConversationEvent(
+    userIds: number[],
+    event: string,
+    conv: ConversationDocument,
+    extra?: Record<string, unknown>,
+  ) {
+    this.emitter?.emitToUsersPer(userIds, event, (recipientId) => ({
+      conversation: this.mapConversation(conv, recipientId),
+      ...extra,
+    }));
+  }
+
+  private async resolveModuleScopeForUserIds(
+    userIds: number[],
+    group?: string,
+  ): Promise<ChatModuleId[]> {
+    const scope = new Set<ChatModuleId>();
+    const rows = await this.prisma.users.findMany({
+      where: { USER_ID: { in: userIds } },
+      include: { role: { select: { ROLE_NAME: true } } },
+    });
+    for (const row of rows) {
+      const role = row.role?.ROLE_NAME;
+      for (const m of modulesForRoles(role ? [role] : [])) {
+        scope.add(m);
+      }
+    }
+    if (group && group in GROUP_TO_CHAT_MODULE) {
+      const mapped = GROUP_TO_CHAT_MODULE[group as keyof typeof GROUP_TO_CHAT_MODULE];
+      if (mapped) scope.add(mapped);
+    }
+    if (!scope.size) scope.add('doctor');
+    return [...scope];
   }
 
   private assertParticipant(conv: ConversationDocument, userId: number) {
@@ -139,9 +180,6 @@ export class ChatService {
     if (tab === 'patient') filter.type = 'patient';
     if (tab === 'department') filter.type = 'department';
     if (tab === 'broadcasts') filter.type = 'broadcast';
-    if (params?.module && isChatModule(params.module)) {
-      filter.moduleScope = params.module;
-    }
     if (params?.q?.trim()) {
       const q = params.q.trim();
       filter.$or = [
@@ -176,10 +214,10 @@ export class ChatService {
       throw new BadRequestException('Direct chat needs another participant');
     }
 
-    const userModules = modulesForRoles(user.roles);
-    const moduleScope =
-      dto.moduleScope?.filter(isChatModule) ??
-      (userModules.length ? userModules : (['doctor'] as ChatModuleId[]));
+    const moduleScope = await this.resolveModuleScopeForUserIds(
+      participants,
+      dto.group,
+    );
 
     const label = actorLabel(user);
     const created = await this.conversations.create({
@@ -215,15 +253,18 @@ export class ChatService {
         mentions: [],
         readBy: [user.id],
       });
-      this.emitter?.emitToUsers(participants, 'chat:message', {
-        conversation: this.mapConversation(created, user.id),
-        message: this.mapMessage(firstMessage),
-      });
+      const mappedMsg = this.mapMessage(firstMessage);
+      this.emitter?.emitToUsersPer(participants, 'chat:message', (recipientId) => ({
+        conversation: this.mapConversation(created, recipientId),
+        message: mappedMsg,
+      }));
     }
 
-    this.emitter?.emitToUsers(participants, 'chat:conversation-updated', {
-      conversation: this.mapConversation(created, user.id),
-    });
+    this.emitConversationEvent(
+      participants,
+      'chat:conversation-updated',
+      created,
+    );
 
     await this.audit.log({
       type: 'comms:conversation-create',
@@ -331,24 +372,26 @@ export class ChatService {
     );
 
     const refreshed = await this.conversations.findById(conv._id).exec();
-    const payload = {
-      conversation: refreshed
-        ? this.mapConversation(refreshed, user.id)
-        : this.mapConversation(conv, user.id),
-      message: this.mapMessage(msg),
-    };
-    this.emitter?.emitToUsers(
+    const doc = refreshed ?? conv;
+    const mappedMsg = this.mapMessage(msg);
+    this.emitter?.emitToUsersPer(
       conv.participantUserIds,
       'chat:message',
-      payload,
+      (recipientId) => ({
+        conversation: this.mapConversation(doc, recipientId),
+        message: mappedMsg,
+      }),
     );
-    this.emitter?.emitToUsers(
+    this.emitConversationEvent(
       conv.participantUserIds,
       'chat:conversation-updated',
-      { conversation: payload.conversation },
+      doc,
     );
 
-    return payload;
+    return {
+      conversation: this.mapConversation(doc, user.id),
+      message: mappedMsg,
+    };
   }
 
   async markRead(conversationId: string, user: AuthUser) {
@@ -394,10 +437,10 @@ export class ChatService {
     this.assertParticipant(conv, user.id);
     conv.archived = true;
     await conv.save();
-    this.emitter?.emitToUsers(
+    this.emitConversationEvent(
       conv.participantUserIds,
       'chat:conversation-updated',
-      { conversation: this.mapConversation(conv, user.id) },
+      conv,
     );
     return { conversation: this.mapConversation(conv, user.id) };
   }
