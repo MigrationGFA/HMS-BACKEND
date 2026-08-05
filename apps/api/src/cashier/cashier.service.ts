@@ -533,16 +533,19 @@ export class CashierService {
         }),
       ]);
 
-    const unwrap = <T>(result: PromiseSettledResult<T>, label: string): T extends (infer U)[] ? U[] : never => {
+    const unwrap = <T>(
+      result: PromiseSettledResult<T[]>,
+      label: string,
+    ): T[] => {
       if (result.status === 'fulfilled') {
-        return result.value as T extends (infer U)[] ? U[] : never;
+        return result.value;
       }
       const msg =
         result.reason instanceof Error
           ? result.reason.message
           : String(result.reason);
       partialErrors.push(`${label}: ${msg}`);
-      return [] as T extends (infer U)[] ? U[] : never;
+      return [];
     };
 
     const cards = unwrap(cardsR, 'Registration cards');
