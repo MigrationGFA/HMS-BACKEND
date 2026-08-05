@@ -780,6 +780,24 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 **Error cases:** `401`, `403`.
 
+#### `GET /api/cashier/patients/recent?limit=10`
+
+| | |
+|--|--|
+| **Purpose** | Recent patients for cashier sidebar (receipt activity first, then latest registrations) |
+| **Permission** | `cashier:receipt-read` |
+| **Response** | `{ data: { items: [{ personId, hospitalNo, firstName, middleName, lastName, patientPhoneNo }] } }` |
+| **Errors** | 401, 403 |
+
+#### `GET /api/cashier/patients/search?q=&limit=20`
+
+| | |
+|--|--|
+| **Purpose** | Search patients by name, hospital no, phone, NHIS, identity; empty `q` returns recent (default limit 10) |
+| **Permission** | `cashier:receipt-read` |
+| **Response** | `{ data: { items: [{ personId, hospitalNo, firstName, middleName, lastName, patientPhoneNo }] } }` |
+| **Errors** | 401, 403 |
+
 #### `GET /api/cashier/patients/:personId/payment-history`
 
 | | |

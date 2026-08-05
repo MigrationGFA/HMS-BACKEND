@@ -142,7 +142,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Patient lab history (`GET /laboratory/history?personId=`) live FE History Center | ✅ |
 | Lab Request Center shows Unpaid as Pending Payment (limited detail; Collect/Results locked) | ✅ |
 | Lab Request Center Paid/Waived unlocks full detail + processing | ✅ |
-| Cashier Pending/Paid bills = live aggregate (cards + pharmacy + Rx + lab + admission) | ✅ | Hub `/dashboard/cashier/bills` tabs Pending/Paid |
+| Cashier Patient Search live (`/dashboard/cashier/search`) | ✅ | Recent 10 on load + `GET /api/cashier/patients/search`; payment history with partialErrors |
+| Cashier Pending/Paid bills = live aggregate (cards + pharmacy + Rx + lab + admission + imaging) | ✅ | Hub `/dashboard/cashier/bills` tabs Pending/Paid |
 | Cashier Part Payments empty (no partial for domain bills) | ✅ | Hub tab Part |
 | Cashier Invoice + clinical bills workspace | ✅ | `/dashboard/cashier/bills` (Invoice \| Pending \| Paid \| Part); legacy `/pay|/pending|/paid|/part` redirect |
 | Cashier clinical payments `?tab=walkin|rx|lab|admission` deep-link | ✅ |
