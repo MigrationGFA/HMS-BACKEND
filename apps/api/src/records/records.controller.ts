@@ -300,6 +300,28 @@ export class RecordsController {
 
   /**
    * Method: GET
+   * URL: /api/records/registrations/resume?personId=&q=
+   * Purpose: Resume Patient Entry wizard from draft — resolve person/card, payment gate, suggested step
+   * Required permission: card:read
+   * Request body: none
+   * Response example: { data: { person, card, paymentCleared, suggestedStep, registrationComplete } }
+   * Error cases: 401, 403, 404 when personId provided but not found
+   */
+  @Get('registrations/resume')
+  @RequirePermissions(PERMISSIONS.CARD_READ)
+  async resumeRegistration(
+    @Query('personId') personId?: string,
+    @Query('q') q?: string,
+  ) {
+    const result = await this.recordsService.resumeRegistration({
+      personId: personId ? Number(personId) : undefined,
+      q,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: GET
    * URL: /api/records/registrations/:personId
    * Purpose: Load person + card for continuing registration from the queue
    * Required permission: patient:read

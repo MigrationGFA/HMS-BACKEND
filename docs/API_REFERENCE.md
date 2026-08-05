@@ -327,6 +327,7 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 | GET | `/records/registration-charges` | First-time registration fee bundle from Master Services (`payerType`, `payerId`) | `card:read` |
 | POST | `/records/registrations` | Create PERSONS + pending PATIENT_CARDS after Next of Kin | `patient:create` |
 | GET | `/records/registrations` | Registration queue (`paymentStatus`, `q`, `page`, `limit`) | `card:read` |
+| GET | `/records/registrations/resume` | Resume wizard from draft (`personId` or `q` phone/hospital no) — payment + suggested step | `card:read` |
 | GET | `/records/registrations/:personId` | Load person + card to continue registration | `patient:read` |
 | GET | `/records/cards/:cardId/payment-status` | Check if a card has been paid | `card:read` |
 | GET | `/records/persons/:personId/payment-status` | Check latest card payment for a person | `card:read` |
@@ -611,7 +612,7 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 **URL:** `/api/records/registration-charges?payerType=&payerId=`  
 **Purpose:** Resolve first-time registration fee bundle (registration, card, consultation) from the Master Services catalog for the Patient Entry Engine wizard. Fees are read-only in the UI; `POST /api/records/registrations` re-resolves server-side and ignores client-supplied amounts. Required services (`SVC-REG-FEE`, `SVC-CARD-FEE`, `SVC-REG-CONSULT`) are ensured ACTIVE by migration `20260805180000_registration_charge_services` (no seed required).
 
-**Records wizard UX (fnph-aro):** Step 3 is Next of Kin only. Step 4 **Payment** loads fees, creates the patient record + card, shows pending/collected status, and directs the patient to Cashier — Records does not collect payment category or HMO details. Step 5 Medical & Social is optional; empty fields are stored/displayed as **Not available** on complete.  
+**Records wizard UX (fnph-aro):** Step 3 is Next of Kin only. Step 4 **Payment** loads fees, creates the patient record + card, shows pending/collected status, and directs the patient to Cashier — Records does not collect payment category or HMO details. Step 5 Medical & Social is optional; empty fields are stored/displayed as **Not available** on complete. IndexedDB drafts store `registeredPersonId` after create; **Continue Draft** calls `GET /api/records/registrations/resume` to sync payment and advance the wizard step.  
 **Required permission:** `card:read`  
 **Request body:** none  
 
@@ -642,6 +643,43 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 **Error cases:**
 - `404` if any required fee service (`SVC-REG-FEE`, `SVC-CARD-FEE`, `SVC-REG-CONSULT`) is missing or not ACTIVE
+- `401` / `403`
+
+---
+
+#### `GET /api/records/registrations/resume`
+
+**Method:** GET  
+**URL:** `/api/records/registrations/resume?personId=&q=`  
+**Purpose:** Resume Patient Entry wizard after closing a draft or when payment was collected at Cashier. Returns person, latest card, `paymentCleared`, `suggestedStep` (4 = payment pending, 5 = medical, 6 = already Active), and `registrationComplete`. Used by fnph-aro **Continue Draft** and as fallback when `POST /api/records/registrations` returns 409 duplicate.  
+**Required permission:** `card:read`  
+**Request body:** none  
+
+**Query (one of):**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `personId` | number | PERSON_ID stored on IndexedDB draft after Create Record & Card |
+| `q` | string | Phone, hospital no, or name — matches registration queue search |
+
+**Response example (paid, continue medical):**
+
+```json
+{
+  "data": {
+    "person": { "personId": 42, "hospitalNo": "FNPH/ARO/2026/001234", "status": "Pending Payment" },
+    "card": { "cardId": 15, "paymentStatus": "Paid", "totalAmount": 7500 },
+    "paymentCleared": true,
+    "suggestedStep": 5,
+    "registrationComplete": false
+  }
+}
+```
+
+**Response when no match (`q` only):** `{ data: { person: null, card: null, paymentCleared: false, suggestedStep: null, registrationComplete: false } }` (200)
+
+**Error cases:**
+- `404` when `personId` is provided but person not found
 - `401` / `403`
 
 ---
