@@ -609,7 +609,9 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 **Method:** GET  
 **URL:** `/api/records/registration-charges?payerType=&payerId=`  
-**Purpose:** Resolve first-time registration fee bundle (registration, card, consultation) from the Master Services catalog for the Patient Entry Engine wizard. Fees are read-only in the UI; `POST /api/records/registrations` re-resolves server-side and ignores client-supplied amounts.  
+**Purpose:** Resolve first-time registration fee bundle (registration, card, consultation) from the Master Services catalog for the Patient Entry Engine wizard. Fees are read-only in the UI; `POST /api/records/registrations` re-resolves server-side and ignores client-supplied amounts. Required services (`SVC-REG-FEE`, `SVC-CARD-FEE`, `SVC-REG-CONSULT`) are ensured ACTIVE by migration `20260805180000_registration_charge_services` (no seed required).
+
+**Records wizard UX (fnph-aro):** Step 3 is Next of Kin only. Step 4 **Payment** loads fees, creates the patient record + card, shows pending/collected status, and directs the patient to Cashier — Records does not collect payment category or HMO details. Step 5 Medical & Social is optional; empty fields are stored/displayed as **Not available** on complete.  
 **Required permission:** `card:read`  
 **Request body:** none  
 
