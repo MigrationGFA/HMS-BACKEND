@@ -3143,3 +3143,45 @@ Implemented via `@nestjs/throttler` with Redis storage.
 - [MODULES.md](./MODULES.md)
 - [WORKFLOWS.md](./WORKFLOWS.md)
 - [FEATURES.md](./FEATURES.md)
+
+---
+
+## HMO Integration Broker (`/api/insurance/hmo`)
+
+Canonical hospital-facing APIs for Nigeria HMO eligibility, benefits, pre-auth, and claims. Adapters translate to Mock (sandbox), Curably (aggregator), or direct HMO stubs.
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/api/insurance/hmo/payers` | List HMOs + integration status | `insurance:read` |
+| POST | `/api/insurance/hmo/coverage` | Upsert patient membership | `insurance:eligibility` |
+| GET | `/api/insurance/hmo/coverage/:personId` | Stored coverage + last eligibility | `insurance:read` |
+| GET | `/api/insurance/hmo/eligibility` | Verify member (immutable snapshot) | `insurance:eligibility` |
+| GET | `/api/insurance/hmo/benefits` | Plan coverage / limits | `insurance:read` |
+| POST | `/api/insurance/hmo/pre-auth` | Request authorization | `insurance:preauth` |
+| GET | `/api/insurance/hmo/pre-auth/:id` | Auth status | `insurance:read` |
+| POST | `/api/insurance/hmo/claims` | Submit claim | `insurance:claim-submit` |
+| GET | `/api/insurance/hmo/claims/:id` | Claim detail + timeline | `insurance:claim-read` |
+| POST | `/api/insurance/hmo/claims/:id/poll` | Poll external status | `insurance:claim-read` |
+| POST | `/api/insurance/hmo/webhooks/:payerCode` | Payer callbacks | HMAC `X-Cura-Signature` when `CURABLY_WEBHOOK_SECRET` set |
+
+**Eligibility query:** `personId`, `payerId`, `memberNo` (optional `encounterId`).
+
+**Eligibility response example:**
+
+```json
+{
+  "data": {
+    "checkId": 1,
+    "status": "ACTIVE",
+    "member": { "fullName": "Ada Lovelace", "dob": "1990-01-15" },
+    "plan": { "code": "MOCK-GOLD", "name": "Mock Gold Plan" },
+    "verifiedAt": "2026-08-06T12:00:00.000Z",
+    "sourceAdapter": "mock",
+    "payer": { "payerId": 2, "code": "HMO-MOCK", "name": "Mock / Sandbox HMO" }
+  }
+}
+```
+
+**Claim submit errors:** 400 validation / missing payer, 401/403 auth, 404 person/payer.
+
+**Cashier split (related):** `POST /api/cashier/payments/cards/:id/confirm` accepts optional `patientAmount`, `payerLiability`, `payerId`, `authCode` so the desk collects co-pay only.

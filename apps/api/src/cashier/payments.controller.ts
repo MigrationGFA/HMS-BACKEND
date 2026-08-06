@@ -100,18 +100,33 @@ export class PaymentsController {
     @CurrentUser() user: AuthUser,
   ) {
     const card = await this.cardsService.confirmPayment(cardId, dto, user);
+    const collectedAmount =
+      dto.patientAmount != null && Number.isFinite(dto.patientAmount)
+        ? dto.patientAmount
+        : card.totalAmount;
+    const paymentRef =
+      dto.payerLiability != null
+        ? `${dto.paymentRef ?? ''} [co-pay=${collectedAmount};payer=${dto.payerLiability}${dto.authCode ? `;auth=${dto.authCode}` : ''}]`.trim()
+        : dto.paymentRef;
     await this.cashierService.recordReceipt({
       sourceType: 'card',
       sourceId: card.cardId,
       personId: card.personId,
-      amount: card.totalAmount,
+      amount: collectedAmount,
       channel: dto.paymentChannel,
-      paymentRef: dto.paymentRef,
+      paymentRef,
       patientName: personLabel(card.person),
       sourceRef: card.cardNo,
       user,
     });
-    return { data: card };
+    return {
+      data: {
+        ...card,
+        collectedAmount,
+        payerLiability: dto.payerLiability ?? null,
+        splitBilling: dto.patientAmount != null || dto.payerLiability != null,
+      },
+    };
   }
 
   /**

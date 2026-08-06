@@ -220,7 +220,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Billing | ✅ | `/api/billing/*` — Master Service Catalog under `/api/billing/services*` |
 | Cashier | ✅ | `/api/cashier/*` — receipts, refunds, discounts, shifts, reports, patient payment-history, verify, audit, settings; FE desk `/dashboard/cashier` (+ profile); `/billing/*` visits/gate kept |
 | Finance | ✅ | `/api/finance/*` |
-| Insurance | ✅ | `/api/insurance/*` |
+| Insurance | ✅ | `/api/insurance/*` — NHIA stubs + **HMO Integration Broker** (`/api/insurance/hmo/*`) |
 | Inventory | ✅ | `/api/inventory/*` |
 
 | Sub-feature | Status |
@@ -232,6 +232,27 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Invoices & POS payments | 📋 |
 | Revenue & financial claims | 📋 |
 | NHIA claims submission | 📋 |
+| **HMO Integration Broker** (canonical eligibility / benefits / pre-auth / claims; Mock + Curably + direct stubs) | ✅ |
+| Cashier card confirm split billing (`patientAmount` + `payerLiability`) | ✅ |
+
+### HMO Integration Broker endpoints
+
+| Method | URL | Purpose | Permission | Request body / query | Response | Errors |
+|--------|-----|---------|------------|----------------------|----------|--------|
+| GET | `/api/insurance/hmo/payers` | List HMO payers + adapter status / checklist | `insurance:read` | — | `{ data: { items } }` | 401, 403 |
+| POST | `/api/insurance/hmo/coverage` | Upsert patient HMO membership | `insurance:eligibility` | `{ personId, payerId, memberNo, … }` | `{ data: coverage }` | 400, 401, 403, 404 |
+| GET | `/api/insurance/hmo/coverage/:personId` | Stored coverage + last eligibility snapshot | `insurance:read` | — | `{ data: { coverage, latestEligibility } }` | 401, 403, 404 |
+| GET | `/api/insurance/hmo/eligibility` | Live eligibility verify (immutable snapshot) | `insurance:eligibility` | `personId`, `payerId`, `memberNo` | `{ data: eligibility }` | 400, 401, 403, 404 |
+| GET | `/api/insurance/hmo/benefits` | Plan benefits / limits | `insurance:read` | `personId`, `payerId`, `memberNo` | `{ data: benefits }` | 400, 401, 403, 404 |
+| POST | `/api/insurance/hmo/pre-auth` | Request pre-authorization | `insurance:preauth` | CreatePreAuthDto + optional Idempotency-Key | `{ data: auth }` | 400, 401, 403, 404 |
+| GET | `/api/insurance/hmo/pre-auth/:id` | Auth detail | `insurance:read` | — | `{ data: auth }` | 401, 403, 404 |
+| POST | `/api/insurance/hmo/claims` | Submit electronic claim | `insurance:claim-submit` | SubmitClaimDto | `{ data: claim }` | 400, 401, 403, 404 |
+| GET | `/api/insurance/hmo/claims/:id` | Claim + timeline | `insurance:claim-read` | — | `{ data: claim }` | 401, 403, 404 |
+| POST | `/api/insurance/hmo/claims/:id/poll` | Poll external claim status | `insurance:claim-read` | — | `{ data: claim }` | 400, 401, 403, 404 |
+| POST | `/api/insurance/hmo/webhooks/:payerCode` | Async payer callbacks (HMAC when secret set) | signed secret | webhook payload | `{ data: { received } }` | 400, 404 |
+
+Adapters: `mock` (sandbox ACTIVE), `curably` (aggregator; env `CURABLY_*`), direct stubs `hygeia` / `axa_mansard` / `reliance` / `tht` / `aiico` (delegate to mock until contracts live). Background poller: `HmoClaimPollProcessor` (`HMO_CLAIM_POLL_INTERVAL_MS`).
+
 | Stock & procurement | 📋 |
 
 ### Master Service Catalog endpoints
