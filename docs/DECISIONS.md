@@ -256,6 +256,27 @@ Frontend dual-paths via `nursing-ops.ts` when `VITE_USE_API=true`.
 
 ---
 
+## ADR-014: HMO Integration Broker (hybrid adapters)
+
+**Status:** Accepted
+**Date:** 2026-08-06
+
+**Context:** Nigerian hospitals need eligibility, benefits, pre-auth, and claims across many HMOs. Hardcoding payer logic inside Records, Cashier, or Pharmacy would not scale. Aggregators (Curably) can cover many HMOs quickly; direct APIs come later per contract.
+
+**Decision:** Implement a pluggable Integration Broker under `apps/api/src/insurance/broker/` with one canonical REST API (`/api/insurance/hmo/*`). Route by `ServicePayers` → `HmoIntegrationProfiles.ADAPTER_KEY`. Ship Mock (sandbox), Curably aggregator, and direct stubs (Hygeia, AXA Mansard, Reliance, THT, AIICO). Persist eligibility snapshots, claims, and audit/integration logs. Hospital tariffs stay on `ServicePayerPrices`; Cashier collects co-pay only.
+
+**Rationale:**
+- Single façade for all clinical/billing UIs
+- Adapter swap without rewriting modules
+- Aggregator-first reduces time-to-value; direct adapters activate when contracts are signed
+- Immutable eligibility/claim events support disputes and audits
+
+**Alternatives considered:** Per-module HMO services; screen-scraping portals; email-only claims (rejected).
+
+**Consequences:** Credential vault per branch still to harden beyond env vars; direct adapters remain sandbox-delegating until OpenAPI/SOAP contracts land.
+
+---
+
 ## Template for New Decisions
 
 ```markdown

@@ -1,0 +1,296 @@
+/// HMO Integration Broker — eligibility, benefits, pre-auth, claims.
+/// External payer truth lives here; hospital tariffs stay on ServicePayers / ServicePayerPrices.
+
+/// Per-payer adapter configuration and rollout checklist.
+model HmoIntegrationProfiles {
+  PROFILE_ID       Int       @id @default(autoincrement())
+  PAYER_ID         Int       @unique
+  /// mock | curably | hygeia | axa_mansard | reliance | tht | aiico | manual_assisted
+  ADAPTER_KEY      String    @db.VarChar(40)
+  /// DRAFT | ACTIVE | SUSPENDED
+  STATUS           String    @default("DRAFT") @db.VarChar(20)
+  BASE_URL         String?   @db.VarChar(500)
+  /// Capability flags + per-HMO checklist JSON
+  CAPABILITIES     Json?
+  METADATA         Json?
+  CHECKLIST        Json?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+
+  payer       ServicePayers               @relation(fields: [PAYER_ID], references: [PAYER_ID])
+  credentials HmoIntegrationCredentials[]
+
+  @@index([ADAPTER_KEY])
+  @@index([STATUS])
+  @@map("HMO_INTEGRATION_PROFILES")
+}
+
+/// Encrypted API credentials per branch / environment (never store plaintext in code).
+model HmoIntegrationCredentials {
+  CREDENTIAL_ID  Int       @id @default(autoincrement())
+  PROFILE_ID     Int
+  BRANCH_ID      Int?
+  /// Encrypted payload (API key, org id, secrets)
+  ENCRYPTED_BLOB String    @db.Text
+  /// Optional hint (e.g. last 4 of key)
+  LABEL          String?   @db.VarChar(100)
+  /// Active | Rotated | Revoked
+  STATUS         String    @default("Active") @db.VarChar(20)
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+
+  profile HmoIntegrationProfiles @relation(fields: [PROFILE_ID], references: [PROFILE_ID])
+
+  @@index([PROFILE_ID])
+  @@index([BRANCH_ID])
+  @@index([STATUS])
+  @@map("HMO_INTEGRATION_CREDENTIALS")
+}
+
+/// Patient membership under an HMO payer (replaces orphan Persons.HMO_ID as source of truth).
+model PatientHmoCoverage {
+  COVERAGE_ID    Int       @id @default(autoincrement())
+  PERSON_ID      Int
+  PAYER_ID       Int
+  MEMBER_NO      String    @db.VarChar(80)
+  PLAN_CODE      String?   @db.VarChar(60)
+  PLAN_NAME      String?   @db.VarChar(150)
+  EMPLOYER_NAME  String?   @db.VarChar(255)
+  PRINCIPAL_FLAG String?   @db.VarChar(10)
+  VALID_FROM     DateTime?
+  VALID_TO       DateTime?
+  /// Active | Expired | Suspended
+  STATUS         String    @default("Active") @db.VarChar(20)
+  EXTERNAL_REF   String?   @db.VarChar(120)
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+
+  person Persons       @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  payer  ServicePayers @relation(fields: [PAYER_ID], references: [PAYER_ID])
+
+  @@index([PERSON_ID])
+  @@index([PAYER_ID])
+  @@index([MEMBER_NO])
+  @@index([STATUS])
+  @@index([PERSON_ID, PAYER_ID, STATUS])
+  @@map("PATIENT_HMO_COVERAGE")
+}
+
+/// Immutable eligibility verification snapshots.
+model HmoEligibilityChecks {
+  CHECK_ID       Int       @id @default(autoincrement())
+  PERSON_ID      Int
+  PAYER_ID       Int
+  COVERAGE_ID    Int?
+  ENCOUNTER_ID   Int?
+  MEMBER_NO      String    @db.VarChar(80)
+  /// ACTIVE | INACTIVE | UNKNOWN | ERROR
+  STATUS         String    @db.VarChar(20)
+  MEMBER_NAME    String?   @db.VarChar(255)
+  MEMBER_DOB     DateTime?
+  MEMBER_GENDER  String?   @db.VarChar(20)
+  PHOTO_URL      String?   @db.VarChar(500)
+  PLAN_CODE      String?   @db.VarChar(60)
+  PLAN_NAME      String?   @db.VarChar(150)
+  EMPLOYER_NAME  String?   @db.VarChar(255)
+  VALID_FROM     DateTime?
+  VALID_TO       DateTime?
+  SOURCE_ADAPTER String    @db.VarChar(40)
+  EXTERNAL_REF   String?   @db.VarChar(120)
+  RAW_RESPONSE   Json?
+  VERIFIED_AT    DateTime  @default(now())
+  VERIFIED_BY    String?   @db.VarChar(100)
+  CREATED_DATE   DateTime? @default(now())
+
+  person Persons       @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  payer  ServicePayers @relation(fields: [PAYER_ID], references: [PAYER_ID])
+
+  @@index([PERSON_ID])
+  @@index([PAYER_ID])
+  @@index([ENCOUNTER_ID])
+  @@index([STATUS])
+  @@index([VERIFIED_AT])
+  @@map("HMO_ELIGIBILITY_CHECKS")
+}
+
+/// Cached benefit / plan inquiry results (TTL managed in app).
+model HmoBenefitSnapshots {
+  SNAPSHOT_ID    Int       @id @default(autoincrement())
+  PERSON_ID      Int
+  PAYER_ID       Int
+  MEMBER_NO      String    @db.VarChar(80)
+  PLAN_CODE      String?   @db.VarChar(60)
+  PLAN_NAME      String?   @db.VarChar(150)
+  BENEFITS       Json
+  EXCLUSIONS     Json?
+  SOURCE_ADAPTER String    @db.VarChar(40)
+  FETCHED_AT     DateTime  @default(now())
+  EXPIRES_AT     DateTime?
+  CREATED_DATE   DateTime? @default(now())
+
+  person Persons       @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  payer  ServicePayers @relation(fields: [PAYER_ID], references: [PAYER_ID])
+
+  @@index([PERSON_ID, PAYER_ID])
+  @@index([EXPIRES_AT])
+  @@map("HMO_BENEFIT_SNAPSHOTS")
+}
+
+/// Pre-authorization requests for high-cost care.
+model HmoAuthorizations {
+  AUTH_ID          Int       @id @default(autoincrement())
+  PERSON_ID        Int
+  PAYER_ID         Int
+  ENCOUNTER_ID     Int?
+  ADMISSION_ID     Int?
+  MEMBER_NO        String    @db.VarChar(80)
+  DIAGNOSIS_CODES  Json?
+  PROCEDURE_CODES  Json?
+  SERVICE_CODES    Json?
+  ESTIMATED_AMOUNT Decimal?  @db.Decimal(14, 2)
+  APPROVED_AMOUNT  Decimal?  @db.Decimal(14, 2)
+  /// APPROVED | DENIED | PENDING | EXPIRED | CANCELLED
+  STATUS           String    @db.VarChar(20)
+  AUTH_CODE        String?   @db.VarChar(80)
+  EXTERNAL_REF     String?   @db.VarChar(120)
+  VALID_UNTIL      DateTime?
+  NOTES            String?   @db.Text
+  SOURCE_ADAPTER   String    @db.VarChar(40)
+  IDEMPOTENCY_KEY  String?   @unique @db.VarChar(80)
+  RAW_RESPONSE     Json?
+  REQUESTED_BY     String?   @db.VarChar(100)
+  REQUESTED_AT     DateTime  @default(now())
+  UPDATED_AT       DateTime?
+  CREATED_DATE     DateTime? @default(now())
+
+  person Persons            @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  payer  ServicePayers      @relation(fields: [PAYER_ID], references: [PAYER_ID])
+  lines  HmoAuthorizationLines[]
+
+  @@index([PERSON_ID])
+  @@index([PAYER_ID])
+  @@index([STATUS])
+  @@index([AUTH_CODE])
+  @@index([EXTERNAL_REF])
+  @@map("HMO_AUTHORIZATIONS")
+}
+
+model HmoAuthorizationLines {
+  LINE_ID       Int       @id @default(autoincrement())
+  AUTH_ID       Int
+  SERVICE_CODE  String?   @db.VarChar(50)
+  DESCRIPTION   String?   @db.VarChar(255)
+  QUANTITY      Int?      @default(1)
+  UNIT_AMOUNT   Decimal?  @db.Decimal(14, 2)
+  /// APPROVED | DENIED | PENDING
+  STATUS        String?   @db.VarChar(20)
+
+  authorization HmoAuthorizations @relation(fields: [AUTH_ID], references: [AUTH_ID])
+
+  @@index([AUTH_ID])
+  @@map("HMO_AUTHORIZATION_LINES")
+}
+
+/// Electronic claims submitted to HMO / aggregator.
+model HmoClaims {
+  CLAIM_ID           Int       @id @default(autoincrement())
+  PERSON_ID          Int
+  PAYER_ID           Int
+  AUTH_ID            Int?
+  ENCOUNTER_ID       Int?
+  ADMISSION_ID       Int?
+  MEMBER_NO          String    @db.VarChar(80)
+  /// RECEIVED | REJECTED | QUERIED | APPROVED | PAID | DENIED | CANCELLED
+  STATUS             String    @db.VarChar(20)
+  EXTERNAL_CLAIM_REF String?   @db.VarChar(120)
+  TOTAL_AMOUNT       Decimal   @db.Decimal(14, 2)
+  PAYER_AMOUNT       Decimal?  @db.Decimal(14, 2)
+  PATIENT_AMOUNT     Decimal?  @db.Decimal(14, 2)
+  CURRENCY           String    @default("NGN") @db.VarChar(10)
+  DIAGNOSIS_CODES    Json?
+  VALIDATION_ERRORS  Json?
+  SOURCE_ADAPTER     String    @db.VarChar(40)
+  IDEMPOTENCY_KEY    String?   @unique @db.VarChar(80)
+  RAW_RESPONSE       Json?
+  SUBMITTED_BY       String?   @db.VarChar(100)
+  SUBMITTED_AT       DateTime  @default(now())
+  UPDATED_AT         DateTime?
+  CREATED_DATE       DateTime? @default(now())
+
+  person Persons               @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  payer  ServicePayers         @relation(fields: [PAYER_ID], references: [PAYER_ID])
+  lines  HmoClaimLines[]
+  events HmoClaimStatusEvents[]
+
+  @@index([PERSON_ID])
+  @@index([PAYER_ID])
+  @@index([STATUS])
+  @@index([EXTERNAL_CLAIM_REF])
+  @@index([SUBMITTED_AT])
+  @@map("HMO_CLAIMS")
+}
+
+model HmoClaimLines {
+  LINE_ID        Int       @id @default(autoincrement())
+  CLAIM_ID       Int
+  SERVICE_CODE   String?   @db.VarChar(50)
+  DESCRIPTION    String?   @db.VarChar(255)
+  QUANTITY       Int?      @default(1)
+  UNIT_AMOUNT    Decimal?  @db.Decimal(14, 2)
+  PAYER_AMOUNT   Decimal?  @db.Decimal(14, 2)
+  PATIENT_AMOUNT Decimal?  @db.Decimal(14, 2)
+  /// Optional link to domain bill / invoice line (opaque string for now)
+  BILL_LINE_REF  String?   @db.VarChar(100)
+
+  claim HmoClaims @relation(fields: [CLAIM_ID], references: [CLAIM_ID])
+
+  @@index([CLAIM_ID])
+  @@map("HMO_CLAIM_LINES")
+}
+
+/// Immutable claim status history (audit trail).
+model HmoClaimStatusEvents {
+  EVENT_ID     Int       @id @default(autoincrement())
+  CLAIM_ID     Int
+  FROM_STATUS  String?   @db.VarChar(20)
+  TO_STATUS    String    @db.VarChar(20)
+  MESSAGE      String?   @db.VarChar(500)
+  SOURCE       String?   @db.VarChar(40)
+  RAW_PAYLOAD  Json?
+  CREATED_BY   String?   @db.VarChar(100)
+  CREATED_AT   DateTime  @default(now())
+
+  claim HmoClaims @relation(fields: [CLAIM_ID], references: [CLAIM_ID])
+
+  @@index([CLAIM_ID])
+  @@index([CREATED_AT])
+  @@map("HMO_CLAIM_STATUS_EVENTS")
+}
+
+/// Request/response audit for broker adapter calls (redact PHI in production logs).
+model HmoIntegrationLogs {
+  LOG_ID         Int       @id @default(autoincrement())
+  PAYER_ID       Int?
+  ADAPTER_KEY    String    @db.VarChar(40)
+  OPERATION      String    @db.VarChar(40)
+  PERSON_ID      Int?
+  SUCCESS        Boolean   @default(false)
+  HTTP_STATUS    Int?
+  DURATION_MS    Int?
+  ERROR_MESSAGE  String?   @db.VarChar(500)
+  REQUEST_META   Json?
+  RESPONSE_META  Json?
+  CREATED_AT     DateTime  @default(now())
+
+  @@index([ADAPTER_KEY])
+  @@index([OPERATION])
+  @@index([PERSON_ID])
+  @@index([CREATED_AT])
+  @@map("HMO_INTEGRATION_LOGS")
+}

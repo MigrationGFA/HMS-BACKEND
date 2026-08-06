@@ -82,6 +82,17 @@ Single source of truth for hospital services and pricing (`prisma/models/service
 - **Tiers:** cash `GENERAL_PRICE` and `STAFF_PRICE` on `MasterServices`; NHIA / HMO / Corporate amounts in `ServicePayerPrices` keyed by `ServicePayers`.
 - **Domain links:** Lab / Imaging / Admission catalogs hold nullable `SERVICE_ID`; operational `UNIT_PRICE` is a synced cache of master GENERAL price.
 - **APIs:** `/api/billing/services*`, `/service-categories`, `/departments`, `/service-payers`, `…/resolve-price`.
+
+### HMO Integration Broker (insurance)
+
+Pluggable payer integration under `apps/api/src/insurance/broker/`:
+
+- **Hospital modules** call one canonical REST surface (`/api/insurance/hmo/*`).
+- **Router** (`HmoBrokerService`) resolves `ServicePayers` → `HmoIntegrationProfiles.ADAPTER_KEY` → adapter instance.
+- **Adapters:** Mock (UAT), Curably aggregator (Phase 1 live path), direct HMO stubs (Hygeia, AXA, Reliance, THT, AIICO) until API contracts are signed.
+- **Persistence:** eligibility snapshots, benefit TTL cache, authorizations, claims + immutable status events, integration logs (PHI redacted in prod guidance).
+- **Async:** `HmoClaimPollProcessor` polls open claims; `POST …/webhooks/:payerCode` for Curably/direct callbacks.
+- **Billing boundary:** broker returns coverage % / auth / claim status; hospital charges stay on `ServicePayerPrices` / cashier co-pay split.
 - **Booking settings (1:1):** `ServiceBookingSettings` is write source of truth for online bookable, delivery mode (`PHYSICAL`|`ONLINE`|`BOTH`), duration, and day window; mirrored onto `MasterServices.ONLINE_BOOKABLE` / `DURATION_MINUTES`.
 - **Public bookings:** `ServiceBookings` blocks slots; `GET /api/appointments/public/availability` + `POST /api/appointments/public/book` (no JWT). Price snapshot from `GENERAL_PRICE`. Capacity: one booking per service per slot (no doctor calendar yet).
 - **Public catalog:** `GET /api/billing/services/bookable` returns mode, duration, and `generalPrice` for landing.

@@ -420,6 +420,157 @@ async function seedServiceCatalog() {
     update: { NAME: 'NHIA / NHIS (Default)', STATUS: 'Active' },
   });
 
+  // Nigeria HMO Integration Broker — Phase 0/1 payers + profiles
+  const hmoChecklist = {
+    contractSigned: false,
+    credentialsInVault: false,
+    eligibilityLive: false,
+    benefitsLive: false,
+    preAuthLive: false,
+    claimsLive: false,
+    webhooksLive: false,
+    productionGoLive: false,
+  };
+  const hmoPayers: Array<{
+    code: string;
+    name: string;
+    adapterKey: string;
+    status: string;
+    capabilities: Record<string, boolean>;
+  }> = [
+    {
+      code: 'HMO-MOCK',
+      name: 'Mock / Sandbox HMO',
+      adapterKey: 'mock',
+      status: 'ACTIVE',
+      capabilities: {
+        eligibility: true,
+        benefits: true,
+        preAuth: true,
+        claims: true,
+        webhooks: false,
+      },
+    },
+    {
+      code: 'HMO-CURABLY',
+      name: 'Curably Aggregator (multi-HMO)',
+      adapterKey: 'curably',
+      status: 'DRAFT',
+      capabilities: {
+        eligibility: true,
+        benefits: true,
+        preAuth: true,
+        claims: true,
+        webhooks: true,
+      },
+    },
+    {
+      code: 'HMO-HYGEIA',
+      name: 'Hygeia HMO',
+      adapterKey: 'hygeia',
+      status: 'DRAFT',
+      capabilities: {
+        eligibility: false,
+        benefits: false,
+        preAuth: false,
+        claims: false,
+        webhooks: false,
+      },
+    },
+    {
+      code: 'HMO-AXA',
+      name: 'AXA Mansard Health',
+      adapterKey: 'axa_mansard',
+      status: 'DRAFT',
+      capabilities: {
+        eligibility: false,
+        benefits: false,
+        preAuth: false,
+        claims: false,
+        webhooks: false,
+      },
+    },
+    {
+      code: 'HMO-RELIANCE',
+      name: 'Reliance Health',
+      adapterKey: 'reliance',
+      status: 'DRAFT',
+      capabilities: {
+        eligibility: false,
+        benefits: false,
+        preAuth: false,
+        claims: false,
+        webhooks: false,
+      },
+    },
+    {
+      code: 'HMO-THT',
+      name: 'Total Health Trust (THT)',
+      adapterKey: 'tht',
+      status: 'DRAFT',
+      capabilities: {
+        eligibility: false,
+        benefits: false,
+        preAuth: false,
+        claims: false,
+        webhooks: false,
+      },
+    },
+    {
+      code: 'HMO-AIICO',
+      name: 'AIICO Multishield',
+      adapterKey: 'aiico',
+      status: 'DRAFT',
+      capabilities: {
+        eligibility: false,
+        benefits: false,
+        preAuth: false,
+        claims: false,
+        webhooks: false,
+      },
+    },
+  ];
+
+  for (const hmo of hmoPayers) {
+    const payer = await prisma.servicePayers.upsert({
+      where: { CODE: hmo.code },
+      create: {
+        PAYER_TYPE: 'HMO',
+        CODE: hmo.code,
+        NAME: hmo.name,
+        STATUS: hmo.status === 'ACTIVE' ? 'Active' : 'Inactive',
+        CREATED_BY: 'seed',
+        CREATED_DATE: now,
+      },
+      update: {
+        NAME: hmo.name,
+        STATUS: hmo.status === 'ACTIVE' ? 'Active' : 'Inactive',
+        UPDATED_BY: 'seed',
+        UPDATED_DATE: now,
+      },
+    });
+    await prisma.hmoIntegrationProfiles.upsert({
+      where: { PAYER_ID: payer.PAYER_ID },
+      create: {
+        PAYER_ID: payer.PAYER_ID,
+        ADAPTER_KEY: hmo.adapterKey,
+        STATUS: hmo.status,
+        CAPABILITIES: hmo.capabilities,
+        CHECKLIST: hmoChecklist,
+        METADATA: { phase: hmo.adapterKey === 'mock' ? 0 : hmo.adapterKey === 'curably' ? 1 : 2 },
+        CREATED_BY: 'seed',
+        CREATED_DATE: now,
+      },
+      update: {
+        ADAPTER_KEY: hmo.adapterKey,
+        STATUS: hmo.status,
+        CAPABILITIES: hmo.capabilities,
+        UPDATED_BY: 'seed',
+        UPDATED_DATE: now,
+      },
+    });
+  }
+
   const catByCode = Object.fromEntries(
     (
       await prisma.serviceCategories.findMany({

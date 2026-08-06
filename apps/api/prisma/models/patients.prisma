@@ -23,6 +23,7 @@ model Persons {
   PICTURE                  Bytes?
   FILE_NAME                String?   @db.VarChar(255)
   LOCATION_ID              Int?
+  /// FK to SERVICE_PAYERS.PAYER_ID when patient is HMO-tagged (legacy column; prefer PatientHmoCoverage).
   HMO_ID                   Int?
   NHIS_NO                  String?   @db.VarChar(50)
   REG_TYPE                 String?   @db.VarChar(50)
@@ -115,6 +116,12 @@ model Persons {
   opcAssessments            OpcAssessments[]
   opcRiskAssessments        OpcRiskAssessments[]
   opcNotes                  OpcNotes[]
+  hmoPayer                  ServicePayers?           @relation(fields: [HMO_ID], references: [PAYER_ID])
+  hmoCoverages              PatientHmoCoverage[]
+  hmoEligibilityChecks      HmoEligibilityChecks[]
+  hmoBenefitSnapshots       HmoBenefitSnapshots[]
+  hmoAuthorizations         HmoAuthorizations[]
+  hmoClaims                 HmoClaims[]
 
   @@index([LAST_NAME, FIRST_NAME])
   @@index([HOSPITAL_ID, BRANCH_ID])

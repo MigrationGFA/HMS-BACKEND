@@ -101,7 +101,7 @@ Each submodule has its own controller and service.
 | **BillingModule** | `/billing/*` | billing, invoices, service-pricing |
 | **CashierModule** | `/cashier/*` | cashier, payments |
 | **FinanceModule** | `/finance/*` | finance, revenue, claims |
-| **InsuranceModule** | `/insurance/*` | nhia, hmo, claims |
+| **InsuranceModule** | `/insurance/*` | nhia, **hmo broker** (`/hmo/*` eligibility/benefits/pre-auth/claims/webhooks), claims |
 | **InventoryModule** | `/inventory/*` | inventory, stock, procurement |
 
 ---

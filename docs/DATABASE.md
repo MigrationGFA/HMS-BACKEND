@@ -49,6 +49,7 @@ apps/api/prisma/
 │   ├── records-ops.prisma    # RECORD_FILE_REQUESTS(+EVENTS), RECORD_ARCHIVES, RECORD_REPORT_SNAPSHOTS
 │   ├── cashier-ops.prisma    # CASHIER_PAYMENT_RECEIPTS, CASHIER_REFUND_REQUESTS, CASHIER_DISCOUNT_REQUESTS, CASHIER_SHIFTS, CASHIER_SETTINGS
 │   ├── clinical-pharmacy.prisma # PATIENT_ALLERGIES, DRUG_INTERACTION_RULES, CLINICAL_PHARMACY_ALERTS
+│   ├── insurance-broker.prisma  # HMO_INTEGRATION_*, PATIENT_HMO_COVERAGE, eligibility/benefits/auth/claims/logs
 │   └── audit.prisma          # AUDITS (with AUDIT_TYPE)
 ├── migrations/
 └── seed.ts

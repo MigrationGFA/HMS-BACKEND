@@ -153,7 +153,14 @@ model ServicePayers {
   UPDATED_BY   String?   @db.VarChar(100)
   UPDATED_DATE DateTime?
 
-  prices ServicePayerPrices[]
+  prices              ServicePayerPrices[]
+  hmoProfile          HmoIntegrationProfiles?
+  patientHmoCoverages PatientHmoCoverage[]
+  eligibilityChecks   HmoEligibilityChecks[]
+  benefitSnapshots    HmoBenefitSnapshots[]
+  authorizations      HmoAuthorizations[]
+  claims              HmoClaims[]
+  personsWithHmo      Persons[]
 
   @@index([PAYER_TYPE])
   @@index([STATUS])
