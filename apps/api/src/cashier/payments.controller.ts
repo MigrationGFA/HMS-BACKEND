@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -113,10 +114,15 @@ export class PaymentsController {
       dto,
       user,
     );
+    if (booking.personId == null) {
+      throw new BadRequestException(
+        'Booking has no linked patient — cannot record cashier receipt',
+      );
+    }
     await this.cashierService.recordReceipt({
       sourceType: 'booking',
       sourceId: booking.bookingId,
-      personId: booking.personId ?? undefined,
+      personId: booking.personId,
       amount: booking.collectedAmount,
       channel: dto.paymentChannel,
       paymentRef: dto.paymentRef,
