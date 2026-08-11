@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,12 +10,34 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ServiceCatalogService } from '../billing/service-catalog.service';
 import { CardsService } from '../patients/cards.service';
+import type { AuthUser } from '../auth/types/auth-user.type';
 import {
   CreatePublicBookingDto,
   PublicPatientLookupDto,
   PublicVerifyConfirmDto,
   PublicVerifySendDto,
 } from './dto/public-booking.dto';
+
+function actorLabelOf(actor?: AuthUser): string {
+  if (!actor) return 'SYSTEM';
+  return (
+    [actor.firstName, actor.lastName].filter(Boolean).join(' ') ||
+    actor.email ||
+    'SYSTEM'
+  );
+}
+
+type FeeBreakdown = {
+  service?: number;
+  registration?: number;
+  card?: number;
+  total?: number;
+};
+
+function parseFeeBreakdown(raw: unknown): FeeBreakdown | null {
+  if (!raw || typeof raw !== 'object') return null;
+  return raw as FeeBreakdown;
+}
 
 function parseHhMm(value: string): number {
   const [h, m] = value.split(':').map((x) => Number(x));
@@ -666,5 +689,382 @@ export class AppointmentsService {
     });
 
     return response;
+  }
+
+  /** Amount due at cashier for service booking (service fee only for NEW). */
+  amountDueForBooking(row: {
+    PATIENT_TYPE: string;
+    PRICE_AMOUNT: Prisma.Decimal | number;
+    FEE_BREAKDOWN: unknown;
+  }): number {
+    const breakdown = parseFeeBreakdown(row.FEE_BREAKDOWN);
+    if (row.PATIENT_TYPE === 'NEW') {
+      if (breakdown?.service != null && Number.isFinite(Number(breakdown.service))) {
+        return Number(breakdown.service);
+      }
+      const total = Number(row.PRICE_AMOUNT);
+      const reg = Number(breakdown?.registration ?? 0);
+      const card = Number(breakdown?.card ?? 0);
+      return Math.max(0, total - reg - card);
+    }
+    if (breakdown?.service != null && Number.isFinite(Number(breakdown.service))) {
+      return Number(breakdown.service);
+    }
+    return Number(row.PRICE_AMOUNT);
+  }
+
+  private toStaffBookingRow(
+    row: {
+      BOOKING_ID: number;
+      BOOKING_NO: string;
+      SERVICE_ID: number;
+      PERSON_ID: number | null;
+      PATIENT_TYPE: string;
+      PATIENT_NAME: string;
+      PHONE: string;
+      EMAIL: string | null;
+      APPOINTMENT_DATE: Date;
+      START_TIME: string;
+      END_TIME: string;
+      DELIVERY_MODE: string;
+      PRICE_AMOUNT: Prisma.Decimal;
+      PAYMENT_STATUS: string;
+      FEE_BREAKDOWN: unknown;
+      STATUS: string;
+      CHECKED_IN_AT: Date | null;
+      CHECKED_IN_BY: string | null;
+      NOTES: string | null;
+      service?: {
+        NAME: string;
+        department?: { NAME: string } | null;
+      } | null;
+      person?: {
+        HOSPITAL_NO: string | null;
+        FIRST_NAME: string | null;
+        LAST_NAME: string | null;
+        cards?: Array<{ CARD_ID: number; PAYMENT_STATUS: string; CARD_NO: string }>;
+      } | null;
+    },
+  ) {
+    const card = row.person?.cards?.[0] ?? null;
+    const feeBreakdown = parseFeeBreakdown(row.FEE_BREAKDOWN);
+    const amountDue = this.amountDueForBooking(row);
+    return {
+      bookingId: row.BOOKING_ID,
+      bookingNo: row.BOOKING_NO,
+      serviceId: row.SERVICE_ID,
+      serviceName: row.service?.NAME ?? 'Service',
+      department: row.service?.department?.NAME ?? null,
+      personId: row.PERSON_ID,
+      hospitalNo: row.person?.HOSPITAL_NO ?? null,
+      patientType: row.PATIENT_TYPE,
+      patientName: row.PATIENT_NAME,
+      phone: row.PHONE,
+      email: row.EMAIL,
+      appointmentDate: row.APPOINTMENT_DATE.toISOString().slice(0, 10),
+      startTime: row.START_TIME,
+      endTime: row.END_TIME,
+      deliveryMode: row.DELIVERY_MODE,
+      priceAmount: Number(row.PRICE_AMOUNT),
+      amountDue,
+      paymentStatus: row.PAYMENT_STATUS,
+      feeBreakdown,
+      status: row.STATUS,
+      checkedInAt: row.CHECKED_IN_AT?.toISOString() ?? null,
+      checkedInBy: row.CHECKED_IN_BY,
+      notes: row.NOTES,
+      cardId: card?.CARD_ID ?? null,
+      cardNo: card?.CARD_NO ?? null,
+      cardPaymentStatus: card?.PAYMENT_STATUS ?? null,
+    };
+  }
+
+  async listStaffBookings(params?: {
+    date?: string;
+    from?: string;
+    to?: string;
+    status?: string;
+    paymentStatus?: string;
+    patientType?: string;
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, params?.page ?? 1);
+    const limit = Math.min(100, Math.max(1, params?.limit ?? 50));
+    const where: Prisma.ServiceBookingsWhereInput = {};
+
+    if (params?.status) {
+      where.STATUS = params.status;
+    } else {
+      where.STATUS = { in: ['Booked', 'Completed'] };
+    }
+    if (params?.paymentStatus) where.PAYMENT_STATUS = params.paymentStatus;
+    if (params?.patientType) where.PATIENT_TYPE = params.patientType;
+
+    if (params?.date) {
+      where.APPOINTMENT_DATE = parseDateOnly(params.date);
+    } else if (params?.from || params?.to) {
+      where.APPOINTMENT_DATE = {};
+      if (params.from) {
+        where.APPOINTMENT_DATE.gte = parseDateOnly(params.from);
+      }
+      if (params.to) {
+        where.APPOINTMENT_DATE.lte = parseDateOnly(params.to);
+      }
+    } else {
+      // Default: today
+      const today = new Date().toISOString().slice(0, 10);
+      where.APPOINTMENT_DATE = parseDateOnly(today);
+    }
+
+    const q = params?.q?.trim();
+    if (q) {
+      where.OR = [
+        { BOOKING_NO: { contains: q, mode: 'insensitive' } },
+        { PATIENT_NAME: { contains: q, mode: 'insensitive' } },
+        { PHONE: { contains: q } },
+        { person: { HOSPITAL_NO: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [total, rows] = await Promise.all([
+      this.prisma.serviceBookings.count({ where }),
+      this.prisma.serviceBookings.findMany({
+        where,
+        include: {
+          service: {
+            select: {
+              NAME: true,
+              department: { select: { NAME: true } },
+            },
+          },
+          person: {
+            select: {
+              HOSPITAL_NO: true,
+              FIRST_NAME: true,
+              LAST_NAME: true,
+              cards: {
+                orderBy: { CREATED_DATE: 'desc' },
+                take: 1,
+                select: { CARD_ID: true, PAYMENT_STATUS: true, CARD_NO: true },
+              },
+            },
+          },
+        },
+        orderBy: [{ APPOINTMENT_DATE: 'asc' }, { START_TIME: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      items: rows.map((r) => this.toStaffBookingRow(r)),
+      meta: { page, limit, total },
+    };
+  }
+
+  async getStaffBooking(bookingId: number) {
+    const row = await this.prisma.serviceBookings.findUnique({
+      where: { BOOKING_ID: bookingId },
+      include: {
+        service: {
+          select: {
+            NAME: true,
+            department: { select: { NAME: true } },
+          },
+        },
+        person: {
+          select: {
+            HOSPITAL_NO: true,
+            FIRST_NAME: true,
+            LAST_NAME: true,
+            cards: {
+              orderBy: { CREATED_DATE: 'desc' },
+              take: 1,
+              select: { CARD_ID: true, PAYMENT_STATUS: true, CARD_NO: true },
+            },
+          },
+        },
+      },
+    });
+    if (!row) throw new NotFoundException('Booking not found');
+    return this.toStaffBookingRow(row);
+  }
+
+  async confirmBookingPayment(
+    bookingId: number,
+    input: { paymentChannel: string; paymentRef?: string },
+    actor?: AuthUser,
+  ) {
+    const existing = await this.prisma.serviceBookings.findUnique({
+      where: { BOOKING_ID: bookingId },
+      include: {
+        service: {
+          select: {
+            NAME: true,
+            department: { select: { NAME: true } },
+          },
+        },
+        person: {
+          select: {
+            HOSPITAL_NO: true,
+            FIRST_NAME: true,
+            LAST_NAME: true,
+            cards: {
+              orderBy: { CREATED_DATE: 'desc' },
+              take: 1,
+              select: { CARD_ID: true, PAYMENT_STATUS: true, CARD_NO: true },
+            },
+          },
+        },
+      },
+    });
+    if (!existing) throw new NotFoundException('Booking not found');
+    if (existing.STATUS === 'Cancelled') {
+      throw new ConflictException('Cannot pay a cancelled booking');
+    }
+    if (existing.PAYMENT_STATUS !== 'Pending') {
+      throw new ConflictException(
+        `Booking payment already ${existing.PAYMENT_STATUS}`,
+      );
+    }
+
+    const amountDue = this.amountDueForBooking(existing);
+    const label = actorLabelOf(actor);
+    const now = new Date();
+    const updated = await this.prisma.serviceBookings.update({
+      where: { BOOKING_ID: bookingId },
+      data: {
+        PAYMENT_STATUS: 'Paid',
+        PAYMENT_CHANNEL: input.paymentChannel,
+        PAYMENT_REF: input.paymentRef?.trim() || null,
+        PAID_AT: now,
+        UPDATED_BY: label,
+        UPDATED_DATE: now,
+      },
+      include: {
+        service: {
+          select: {
+            NAME: true,
+            department: { select: { NAME: true } },
+          },
+        },
+        person: {
+          select: {
+            HOSPITAL_NO: true,
+            FIRST_NAME: true,
+            LAST_NAME: true,
+            cards: {
+              orderBy: { CREATED_DATE: 'desc' },
+              take: 1,
+              select: { CARD_ID: true, PAYMENT_STATUS: true, CARD_NO: true },
+            },
+          },
+        },
+      },
+    });
+
+    const response = this.toStaffBookingRow(updated);
+    await this.audit.log({
+      type: 'appointment:payment-confirm',
+      entity: 'service_bookings',
+      entityId: bookingId,
+      personId: existing.PERSON_ID ?? undefined,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Booking ${existing.BOOKING_NO} payment confirmed (${input.paymentChannel})`,
+      oldValue: { paymentStatus: 'Pending' },
+      newValue: {
+        paymentStatus: 'Paid',
+        amountDue,
+        paymentChannel: input.paymentChannel,
+        paymentRef: input.paymentRef ?? null,
+      },
+    });
+
+    return { ...response, collectedAmount: amountDue };
+  }
+
+  async markBookingCheckedIn(
+    bookingId: number,
+    actor?: AuthUser,
+  ) {
+    const existing = await this.prisma.serviceBookings.findUnique({
+      where: { BOOKING_ID: bookingId },
+      include: {
+        service: {
+          select: {
+            NAME: true,
+            department: { select: { NAME: true } },
+          },
+        },
+        person: {
+          select: {
+            HOSPITAL_NO: true,
+            FIRST_NAME: true,
+            LAST_NAME: true,
+            cards: {
+              orderBy: { CREATED_DATE: 'desc' },
+              take: 1,
+              select: { CARD_ID: true, PAYMENT_STATUS: true, CARD_NO: true },
+            },
+          },
+        },
+      },
+    });
+    if (!existing) throw new NotFoundException('Booking not found');
+    if (existing.STATUS === 'Cancelled') {
+      throw new ConflictException('Cannot check in a cancelled booking');
+    }
+    if (existing.STATUS === 'Completed' && existing.CHECKED_IN_AT) {
+      return this.toStaffBookingRow(existing);
+    }
+
+    const label = actorLabelOf(actor);
+    const now = new Date();
+    const updated = await this.prisma.serviceBookings.update({
+      where: { BOOKING_ID: bookingId },
+      data: {
+        STATUS: 'Completed',
+        CHECKED_IN_AT: now,
+        CHECKED_IN_BY: label,
+        UPDATED_BY: label,
+        UPDATED_DATE: now,
+      },
+      include: {
+        service: {
+          select: {
+            NAME: true,
+            department: { select: { NAME: true } },
+          },
+        },
+        person: {
+          select: {
+            HOSPITAL_NO: true,
+            FIRST_NAME: true,
+            LAST_NAME: true,
+            cards: {
+              orderBy: { CREATED_DATE: 'desc' },
+              take: 1,
+              select: { CARD_ID: true, PAYMENT_STATUS: true, CARD_NO: true },
+            },
+          },
+        },
+      },
+    });
+
+    await this.audit.log({
+      type: 'appointment:check-in',
+      entity: 'service_bookings',
+      entityId: bookingId,
+      personId: existing.PERSON_ID ?? undefined,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Booking ${existing.BOOKING_NO} checked in`,
+      newValue: { status: 'Completed', checkedInAt: now.toISOString() },
+    });
+
+    return this.toStaffBookingRow(updated);
   }
 }

@@ -3082,6 +3082,37 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 
 **Audit:** `appointment:public-lookup`, `appointment:public-otp-send`, `appointment:public-otp-confirm`, `appointment:public-book`
 
+#### Records staff online bookings (`/records/bookings`)
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/records/bookings` | List ServiceBookings (`date`, `status`, `paymentStatus`, `patientType`, `q`) — default today | `patient:read` |
+| GET | `/records/bookings/:id` | Booking detail + card payment snapshot | `patient:read` |
+| POST | `/records/bookings/:id/convert` | NEW only — return `resumeRegistration` for Patient Entry wizard | `patient:update` |
+| POST | `/records/bookings/:id/check-in` | RETURNING only — payment gate + triage + mark Completed | `triage:create` |
+| POST | `/records/bookings/:id/complete` | Mark booking Completed after NEW patient triage from wizard | `triage:create` |
+
+**GET list response:** `{ data: { items: [{ bookingId, bookingNo, patientType, patientName, phone, serviceName, appointmentDate, startTime, amountDue, paymentStatus, feeBreakdown, personId, hospitalNo, cardPaymentStatus, … }], meta } }`
+
+**POST convert response:** `{ data: { booking, resume: { person, card, paymentCleared, suggestedStep } } }`
+
+**POST check-in errors:** `409` when `PAYMENT_STATUS=Pending` — body includes `bookingId`, `amountDue`, `feeBreakdown` (frontend deep-links Cashier).
+
+**Audit:** `appointment:convert`, `appointment:check-in`
+
+#### Cashier online booking payments (`/cashier/payments/bookings`)
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/cashier/payments/bookings` | Pending booking service fees (`paymentStatus`, `date`, `q`) | `card:read` |
+| POST | `/cashier/payments/bookings/:bookingId/confirm` | Confirm service fee; writes receipt `sourceType=booking` | `card:confirm-payment` |
+
+**Amount due:** NEW = `feeBreakdown.service` only (reg/card stay on card payment queue). RETURNING = service fee / `PRICE_AMOUNT`.
+
+**POST confirm body:** `{ paymentChannel: "Cash"|"POS Card"|"Bank Transfer"|"Online Card"|"Wallet", paymentRef? }`
+
+**Audit:** `appointment:payment-confirm`
+
 ---
 
 ### Audit (`/audit`) — Admin

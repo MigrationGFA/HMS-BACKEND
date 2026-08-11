@@ -138,6 +138,11 @@ model ServiceBookings {
   NOTES            String?   @db.Text
   /// Booked | Cancelled | Completed
   STATUS           String    @default("Booked") @db.VarChar(30)
+  CHECKED_IN_AT    DateTime?
+  CHECKED_IN_BY    String?   @db.VarChar(100)
+  PAYMENT_CHANNEL  String?   @db.VarChar(50)
+  PAYMENT_REF      String?   @db.VarChar(100)
+  PAID_AT          DateTime?
   CREATED_BY       String?   @db.VarChar(100)
   CREATED_DATE     DateTime?
   UPDATED_BY       String?   @db.VarChar(100)
