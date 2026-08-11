@@ -143,6 +143,10 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Lab Request Center shows Unpaid as Pending Payment (limited detail; Collect/Results locked) | ✅ |
 | Lab Request Center Paid/Waived unlocks full detail + processing | ✅ |
 | Cashier Patient Search live (`/dashboard/cashier/search`) | ✅ | Recent 10 on load + `GET /api/cashier/patients/search`; payment history with partialErrors |
+| Cashier Dashboard live KPIs + recent receipts | ✅ | `/dashboard/cashier` — reports (today) + shift + receipts; no IndexedDB seed |
+| Cashier Revenue Reports date range (MTD default) | ✅ | `/dashboard/cashier/reports` — `from`/`to`; backend MTD when omitted |
+| Cashier Audit Trail date-aligned stats | ✅ | `/dashboard/cashier/audit` — list+stats same `from`/`to`; `cashier-receipt:capture` |
+| Cashier Clinical Payments aggregate + discharge amounts | ✅ | `/dashboard/cashier/pharmacy` — all-queue cards; discharge payment snapshot; mobile admission/discharge |
 | Cashier Pending/Paid bills = live aggregate (cards + pharmacy + Rx + lab + admission + imaging) | ✅ | Hub `/dashboard/cashier/bills` tabs Pending/Paid |
 | Cashier Part Payments empty (no partial for domain bills) | ✅ | Hub tab Part |
 | Cashier Invoice + clinical bills workspace | ✅ | `/dashboard/cashier/bills` (Invoice \| Pending \| Paid \| Part); legacy `/pay|/pending|/paid|/part` redirect |

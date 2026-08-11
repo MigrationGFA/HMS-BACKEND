@@ -800,7 +800,7 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 **Purpose:** Revenue dashboard from `CASHIER_PAYMENT_RECEIPTS` + outstanding unpaid bills. Response may include `partialErrors` when one outstanding-bill source could not be queried.
 
-**Query:** `from`, `to` (optional ISO dates; default today).
+**Query:** `from`, `to` (optional `YYYY-MM-DD`). When both omitted, defaults to **month-to-date** in WAT (UTC+1). Dashboard UI passes today explicitly for daily KPIs.
 
 **Permission:** `cashier:report-read`
 
@@ -809,6 +809,8 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 ```json
 {
   "data": {
+    "from": "2026-08-01T00:00:00.000Z",
+    "to": "2026-08-11T23:00:00.000Z",
     "kpis": { "collected": 120000, "refunds": 1500, "receiptCount": 42, "outstanding": 88000, "discounted": 5000 },
     "bySource": [{ "department": "Pharmacy", "amount": 40000 }],
     "byChannel": [{ "channel": "Cash", "amount": 50000 }],
@@ -865,9 +867,23 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 #### `GET /api/cashier/audit` / `GET /api/cashier/audit/stats`
 
-**Purpose:** Cashier-scoped audits (`cashier-*` + payment confirm types) and today KPI counts.
+**Purpose:** Cashier-scoped audits (`cashier-*` + payment confirm types including `cashier-receipt:capture`) and period KPI counts. List and stats use the same date window so cards match the table.
+
+**Query:** `q`, `page`, `limit`, `from`, `to` (`YYYY-MM-DD`). When `from`/`to` omitted, defaults to **today** (WAT). Stats `payments` count includes domain pay audits plus `cashier-receipt:*`.
 
 **Permission:** `audit:read`
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "items": [{ "auditId": 1, "time": "…", "actor": "Hafsat", "role": "Cashier", "action": "cashier-receipt:capture", "entityId": "12", "status": "Success" }],
+    "meta": { "page": 1, "limit": 50, "total": 12 },
+    "stats": { "totalToday": 12, "payments": 8, "refunds": 1, "discounts": 0, "shifts": 2 }
+  }
+}
+```
 
 **Error cases:** `401`, `403`.
 
@@ -2539,7 +2555,7 @@ Legacy empty `/api/discharge` returns **403** and points clients to `/api/discha
 | Method | URL | Purpose | Permission |
 |--------|-----|---------|------------|
 | POST | `/discharge-drafts` | Create draft for an admission | `discharge:create` |
-| GET | `/discharge-drafts?scope=mine\|queue\|all&status=&personId=&admissionId=&q=&page=&limit=` | List drafts | `discharge:read` |
+| GET | `/discharge-drafts?scope=mine\|queue\|all&status=&personId=&admissionId=&q=&page=&limit=` | List drafts (each item includes `payment` unpaid snapshot) | `discharge:read` |
 | GET | `/discharge-drafts/:id` | Detail + events + payment snapshot | `discharge:read` |
 | GET | `/discharge-drafts/:id/payment-status` | Aggregate unpaid bills for draft person | `discharge:read` |
 | PATCH | `/discharge-drafts/:id` | Update clinical fields (Draft/Returned only) | `discharge:update` |
