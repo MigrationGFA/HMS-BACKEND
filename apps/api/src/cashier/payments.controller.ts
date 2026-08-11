@@ -16,6 +16,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { CardsService } from '../patients/cards.service';
 import { ConfirmCardPaymentDto } from './dto/confirm-card-payment.dto';
+import { ConfirmBookingPaymentDto } from './dto/confirm-booking-payment.dto';
 import { ConfirmWalkInPaymentDto } from '../pharmacy/dto/walk-in-sale.dto';
 import { WalkInSalesService } from '../pharmacy/walk-in-sales.service';
 import { ConfirmPrescriptionPaymentDto } from '../clinical/prescriptions/dto/prescription.dto';
@@ -29,6 +30,7 @@ import { ConfirmImagingRequestPaymentDto } from '../radiology/dto/imaging.dto';
 import { CashierService } from './cashier.service';
 import { PsychiatryService } from '../psychiatry/psychiatry.service';
 import { PayOpcConsultationDto } from '../psychiatry/dto/psychiatric-opc.dto';
+import { AppointmentsService } from '../appointments/appointments.service';
 
 function personLabel(person?: {
   firstName?: string | null;
@@ -55,7 +57,75 @@ export class PaymentsController {
     private readonly radiologyService: RadiologyService,
     private readonly cashierService: CashierService,
     private readonly psychiatryService: PsychiatryService,
+    private readonly appointments: AppointmentsService,
   ) {}
+
+  /**
+   * Method: GET
+   * URL: /api/cashier/payments/bookings?paymentStatus=Pending&date=&q=&page=&limit=
+   * Purpose: Cashier work queue — online appointment service fees awaiting payment
+   * Required permission: card:read
+   * Response: { data: { items, meta } }
+   * Errors: 401, 403
+   */
+  @Get('bookings')
+  @RequirePermissions(PERMISSIONS.CARD_READ)
+  async listBookingPayments(
+    @Query('paymentStatus') paymentStatus?: string,
+    @Query('date') date?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const today = new Date().toISOString().slice(0, 10);
+    const result = await this.appointments.listStaffBookings({
+      paymentStatus: paymentStatus ?? 'Pending',
+      status: 'Booked',
+      date: date || (!from && !to ? today : undefined),
+      from,
+      to,
+      q,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+    });
+    return { data: result };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/cashier/payments/bookings/:bookingId/confirm
+   * Purpose: Confirm pending online booking service fee (NEW = service only; RETURNING = service)
+   * Required permission: card:confirm-payment
+   * Request body: { paymentChannel, paymentRef? }
+   * Errors: 400, 401, 403, 404, 409
+   */
+  @Post('bookings/:bookingId/confirm')
+  @RequirePermissions(PERMISSIONS.CARD_CONFIRM_PAYMENT)
+  async confirmBookingPayment(
+    @Param('bookingId', ParseIntPipe) bookingId: number,
+    @Body() dto: ConfirmBookingPaymentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const booking = await this.appointments.confirmBookingPayment(
+      bookingId,
+      dto,
+      user,
+    );
+    await this.cashierService.recordReceipt({
+      sourceType: 'booking',
+      sourceId: booking.bookingId,
+      personId: booking.personId ?? undefined,
+      amount: booking.collectedAmount,
+      channel: dto.paymentChannel,
+      paymentRef: dto.paymentRef,
+      patientName: booking.patientName,
+      sourceRef: booking.bookingNo,
+      user,
+    });
+    return { data: booking };
+  }
 
   /**
    * Method: GET

@@ -10,6 +10,7 @@ import { ServiceCatalogService } from '../billing/service-catalog.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { TriageService } from '../triage/triage.service';
+import { AppointmentsService } from '../appointments/appointments.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import type { CreatePersonDto } from '../patients/dto/create-person.dto';
 import type { UpdatePersonDto } from '../patients/dto/update-person.dto';
@@ -28,6 +29,7 @@ export class RecordsService {
     private readonly triage: TriageService,
     private readonly audit: AuditService,
     private readonly serviceCatalog: ServiceCatalogService,
+    private readonly appointments: AppointmentsService,
   ) {}
 
   /** Catalog-resolved first-time registration charges (Records role). */
@@ -1173,6 +1175,111 @@ export class RecordsService {
     });
     if (!refreshed) throw new NotFoundException('Triage record not found');
     return this.toArrivalFromTriage(refreshed);
+  }
+
+  /**
+   * NEW online booking → open Patient Entry wizard with existing personId.
+   * Does not auto-complete registration; Records adds remaining demographics.
+   */
+  async convertOnlineBooking(bookingId: number, actor?: AuthUser) {
+    const booking = await this.appointments.getStaffBooking(bookingId);
+    if (booking.patientType !== 'NEW') {
+      throw new BadRequestException(
+        'Only NEW patient bookings can be converted — use Check in for returning patients',
+      );
+    }
+    if (booking.status === 'Cancelled') {
+      throw new ConflictException('Booking is cancelled');
+    }
+    if (!booking.personId) {
+      throw new BadRequestException(
+        'Booking has no linked person — cannot convert',
+      );
+    }
+
+    const resume = await this.resumeRegistration({ personId: booking.personId });
+    const label = actor
+      ? [actor.firstName, actor.lastName].filter(Boolean).join(' ') ||
+        actor.email
+      : 'SYSTEM';
+
+    await this.audit.log({
+      type: 'appointment:convert',
+      entity: 'service_bookings',
+      entityId: bookingId,
+      personId: booking.personId,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Convert online booking ${booking.bookingNo} to registration`,
+      newValue: {
+        bookingId,
+        personId: booking.personId,
+        suggestedStep: resume.suggestedStep,
+      },
+    });
+
+    return { booking, resume };
+  }
+
+  /**
+   * RETURNING online booking check-in: require service payment, create triage, complete booking.
+   */
+  async checkInOnlineBooking(bookingId: number, actor?: AuthUser) {
+    const booking = await this.appointments.getStaffBooking(bookingId);
+    if (booking.patientType !== 'RETURNING') {
+      throw new BadRequestException(
+        'Only RETURNING patient bookings use Check in — use Convert for new patients',
+      );
+    }
+    if (booking.status === 'Cancelled') {
+      throw new ConflictException('Booking is cancelled');
+    }
+    if (!booking.personId) {
+      throw new BadRequestException('Booking has no linked person');
+    }
+    if (booking.paymentStatus === 'Pending') {
+      throw new ConflictException({
+        message:
+          'Service fee is unpaid — send patient to Cashier before check-in',
+        bookingId: booking.bookingId,
+        bookingNo: booking.bookingNo,
+        amountDue: booking.amountDue,
+        feeBreakdown: booking.feeBreakdown,
+        paymentStatus: booking.paymentStatus,
+      });
+    }
+
+    const arrival = await this.routeArrival(
+      {
+        personId: booking.personId,
+        action: 'triage',
+        clinic: booking.department ?? booking.serviceName ?? undefined,
+      },
+      actor,
+    );
+
+    const completed = await this.appointments.markBookingCheckedIn(
+      bookingId,
+      actor,
+    );
+
+    return { booking: completed, arrival };
+  }
+
+  /** Mark booking completed after NEW patient finishes triage from Patient Entry. */
+  async completeBookingAfterTriage(
+    bookingId: number,
+    personId: number,
+    actor?: AuthUser,
+  ) {
+    const booking = await this.appointments.getStaffBooking(bookingId);
+    if (booking.personId != null && booking.personId !== personId) {
+      throw new BadRequestException('Booking does not belong to this person');
+    }
+    if (booking.status === 'Booked') {
+      return this.appointments.markBookingCheckedIn(bookingId, actor);
+    }
+    return booking;
   }
 
   private dayBounds(offsetMin: number) {

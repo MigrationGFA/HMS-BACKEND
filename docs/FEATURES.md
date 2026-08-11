@@ -62,6 +62,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Medical records management (retrieval / archive / reports / analytics) | ✅ |
 | Records My Profile (`/records/profile`, `GET/PATCH /users/me`) | ✅ | Identity, desk/unit, station, duty hours, password — not clinical license/specialty |
 | Public appointment booking (`/appointment` → `/api/appointments/public/*`) | ✅ | New vs Returning wizard; capacity slots (`ONLINE_SLOT_LIMIT`); mock OTP; pay-at-hospital fee breakdown; IT capacity on Service Billing |
+| Records online booking convert / check-in (`/hms/identity` Online channel → `/api/records/bookings`) | ✅ | List today’s bookings; NEW Convert → Patient Entry; RETURNING Check in (payment gate → triage); Cashier `/dashboard/cashier/bookings` for service fees |
 | Walk-in queue | ✅ |
 | Walk-in sales: request → cashier pay → dispense (`/pharmacy/walk-in`, cashier pharmacy-sales) | ✅ |
 | PostgreSQL full-text search | 📋 |
