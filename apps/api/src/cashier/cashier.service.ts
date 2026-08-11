@@ -50,7 +50,7 @@ function dayBounds(from?: string, to?: string, offsetMin = 60) {
       Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()),
     );
     const start = new Date(startLocal.getTime() - offsetMin * 60_000);
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 24 * 60 * 60_000);
     return { start, end };
   }
   const start = from
@@ -59,6 +59,24 @@ function dayBounds(from?: string, to?: string, offsetMin = 60) {
   const end = to
     ? new Date(`${to}T23:59:59.999Z`)
     : new Date(`${(from ?? now.toISOString().slice(0, 10))}T23:59:59.999Z`);
+  return { start, end };
+}
+
+/** Month-to-date in WAT (UTC+1) when no explicit from/to. */
+function reportBounds(from?: string, to?: string, offsetMin = 60) {
+  if (from || to) return dayBounds(from, to, offsetMin);
+  const now = new Date();
+  const localMs = now.getTime() + offsetMin * 60_000;
+  const local = new Date(localMs);
+  const startLocal = new Date(
+    Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1),
+  );
+  const start = new Date(startLocal.getTime() - offsetMin * 60_000);
+  const todayStartLocal = new Date(
+    Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()),
+  );
+  const todayStart = new Date(todayStartLocal.getTime() - offsetMin * 60_000);
+  const end = new Date(todayStart.getTime() + 24 * 60 * 60_000);
   return { start, end };
 }
 
@@ -294,6 +312,20 @@ export class CashierService {
         CREATED_BY: label,
         CREATED_DATE: now,
         DELETED_FLAG: 'N',
+      },
+    });
+    await this.audit.log({
+      type: 'cashier-receipt:capture',
+      entity: 'CashierPaymentReceipts',
+      entityId: row.RECEIPT_ID,
+      userId: input.user?.id,
+      createdBy: label,
+      item: row.RECEIPT_NO,
+      newValue: {
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        amount: input.amount,
+        channel: input.channel,
       },
     });
     return this.mapReceipt(row);
@@ -1465,7 +1497,7 @@ export class CashierService {
   /* ---- Reports ---- */
 
   async getReports(params?: { from?: string; to?: string }) {
-    const { start, end } = dayBounds(params?.from, params?.to);
+    const { start, end } = reportBounds(params?.from, params?.to);
     const receipts = await this.prisma.cashierPaymentReceipts.findMany({
       where: {
         ...this.notDeletedReceipt(),
@@ -1588,14 +1620,19 @@ export class CashierService {
     q?: string;
     page?: number;
     limit?: number;
+    from?: string;
+    to?: string;
   }) {
     const page = Math.max(1, params?.page ?? 1);
     const limit = Math.min(100, Math.max(1, params?.limit ?? 50));
     const term = params?.q?.trim();
+    const { start, end } = dayBounds(params?.from, params?.to);
+    const period = { CREATE_DATE: { gte: start, lt: end } };
     const base = cashierAuditWhere();
     const where: Prisma.AuditsWhereInput = {
       AND: [
         base,
+        period,
         ...(term
           ? [
               {
@@ -1634,7 +1671,7 @@ export class CashierService {
         take: limit,
       }),
       this.prisma.audits.count({ where }),
-      this.auditStats(),
+      this.auditStats({ from: params?.from, to: params?.to }),
     ]);
     return {
       items: rows.map((r) => ({
@@ -1652,27 +1689,26 @@ export class CashierService {
     };
   }
 
-  async auditStats() {
-    const { start, end } = dayBounds();
-    const today = { CREATE_DATE: { gte: start, lt: end } };
+  async auditStats(params?: { from?: string; to?: string }) {
+    const { start, end } = dayBounds(params?.from, params?.to);
+    const period = { CREATE_DATE: { gte: start, lt: end } };
     const base = cashierAuditWhere();
+    const paymentWhere: Prisma.AuditsWhereInput = {
+      OR: [
+        ...CASHIER_AUDIT_TYPES.map((t) => ({ AUDIT_TYPE: t })),
+        { AUDIT_TYPE: { startsWith: 'cashier-receipt' } },
+      ],
+    };
     const [totalToday, payments, refunds, discounts, shifts] =
       await Promise.all([
-        this.prisma.audits.count({ where: { AND: [base, today] } }),
+        this.prisma.audits.count({ where: { AND: [base, period] } }),
         this.prisma.audits.count({
-          where: {
-            AND: [
-              today,
-              {
-                OR: CASHIER_AUDIT_TYPES.map((t) => ({ AUDIT_TYPE: t })),
-              },
-            ],
-          },
+          where: { AND: [period, paymentWhere] },
         }),
         this.prisma.audits.count({
           where: {
             AND: [
-              today,
+              period,
               { AUDIT_TYPE: { startsWith: 'cashier-refund' } },
             ],
           },
@@ -1680,7 +1716,7 @@ export class CashierService {
         this.prisma.audits.count({
           where: {
             AND: [
-              today,
+              period,
               { AUDIT_TYPE: { startsWith: 'cashier-discount' } },
             ],
           },
@@ -1688,7 +1724,7 @@ export class CashierService {
         this.prisma.audits.count({
           where: {
             AND: [
-              today,
+              period,
               { AUDIT_TYPE: { startsWith: 'cashier-shift' } },
             ],
           },
