@@ -4,9 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomBytes, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { CreatePublicBookingDto } from './dto/public-booking.dto';
+import { ServiceCatalogService } from '../billing/service-catalog.service';
+import { CardsService } from '../patients/cards.service';
+import {
+  CreatePublicBookingDto,
+  PublicPatientLookupDto,
+  PublicVerifyConfirmDto,
+  PublicVerifySendDto,
+} from './dto/public-booking.dto';
 
 function parseHhMm(value: string): number {
   const [h, m] = value.split(':').map((x) => Number(x));
@@ -54,12 +62,50 @@ function parseDateOnly(dateStr: string): Date {
   return d;
 }
 
+function maskName(first?: string | null, last?: string | null): string {
+  const f = (first ?? '').trim();
+  const l = (last ?? '').trim();
+  const mask = (s: string) =>
+    s.length <= 1 ? `${s}***` : `${s[0]}${'*'.repeat(Math.min(3, s.length - 1))}`;
+  if (!f && !l) return 'Patient';
+  return [f ? mask(f) : null, l ? mask(l) : null].filter(Boolean).join(' ');
+}
+
+function maskPhone(phone?: string | null): string {
+  const p = (phone ?? '').replace(/\s+/g, '');
+  if (p.length < 7) return '***';
+  return `${p.slice(0, 4)}***${p.slice(-3)}`;
+}
+
+function maskHospitalNo(no?: string | null): string {
+  const n = (no ?? '').trim();
+  if (n.length < 4) return '***';
+  return `${n.slice(0, 3)}***${n.slice(-2)}`;
+}
+
 @Injectable()
 export class AppointmentsService {
+  /** Simple in-memory rate limit: key -> timestamps */
+  private readonly rateBuckets = new Map<string, number[]>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly catalog: ServiceCatalogService,
+    private readonly cards: CardsService,
   ) {}
+
+  private assertRateLimit(key: string, max = 8, windowMs = 60_000) {
+    const now = Date.now();
+    const prev = (this.rateBuckets.get(key) ?? []).filter(
+      (t) => now - t < windowMs,
+    );
+    if (prev.length >= max) {
+      throw new BadRequestException('Too many requests — try again shortly');
+    }
+    prev.push(now);
+    this.rateBuckets.set(key, prev);
+  }
 
   private async loadBookableService(serviceId: number) {
     const service = await this.prisma.masterServices.findUnique({
@@ -75,6 +121,11 @@ export class AppointmentsService {
     if (!onlineBookable) {
       throw new BadRequestException('Service is not bookable online');
     }
+    const staffPool = Math.max(1, settings?.STAFF_POOL_SIZE ?? 1);
+    const onlineSlotLimit = Math.max(
+      1,
+      Math.min(staffPool, settings?.ONLINE_SLOT_LIMIT ?? 1),
+    );
     return {
       service,
       settings: {
@@ -86,8 +137,219 @@ export class AppointmentsService {
           settings?.DURATION_MINUTES ?? service.DURATION_MINUTES ?? 30,
         dayStart: settings?.DAY_START ?? '08:00',
         dayEnd: settings?.DAY_END ?? '17:00',
+        staffPoolSize: staffPool,
+        onlineSlotLimit,
       },
     };
+  }
+
+  async getPublicRegistrationCharges() {
+    const charges = await this.catalog.resolveRegistrationCharges();
+    return {
+      regFee: charges.regFee,
+      cardFee: charges.cardFee,
+      registration: charges.regFee,
+      card: charges.cardFee,
+      items: charges.items.filter(
+        (i) =>
+          i.code === 'SVC-REG-FEE' || i.code === 'SVC-CARD-FEE',
+      ),
+    };
+  }
+
+  async lookupPublicPatient(dto: PublicPatientLookupDto) {
+    const q = dto.q.trim();
+    this.assertRateLimit(`lookup:${q.toLowerCase()}`, 10);
+    const terms = q.split(/\s+/).filter(Boolean);
+    const rows = await this.prisma.persons.findMany({
+      where: {
+        DISCONTINUE_FLAG: { not: 'Y' },
+        OR: [
+          { HOSPITAL_NO: { contains: q, mode: 'insensitive' } },
+          { PATIENT_PHONE_NO: { contains: q } },
+          { FIRST_NAME: { contains: q, mode: 'insensitive' } },
+          { LAST_NAME: { contains: q, mode: 'insensitive' } },
+          ...(terms.length >= 2
+            ? [
+                {
+                  AND: [
+                    {
+                      FIRST_NAME: {
+                        contains: terms[0],
+                        mode: 'insensitive' as const,
+                      },
+                    },
+                    {
+                      LAST_NAME: {
+                        contains: terms[terms.length - 1],
+                        mode: 'insensitive' as const,
+                      },
+                    },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      },
+      take: 8,
+      orderBy: { UPDATED_DATE: 'desc' },
+      select: {
+        PERSON_ID: true,
+        HOSPITAL_NO: true,
+        FIRST_NAME: true,
+        LAST_NAME: true,
+        PATIENT_PHONE_NO: true,
+        E_MAIL: true,
+      },
+    });
+
+    await this.audit.log({
+      type: 'appointment:public-lookup',
+      entity: 'persons',
+      createdBy: 'public',
+      item: `Public patient lookup q=${q.slice(0, 40)}`,
+      newValue: { matchCount: rows.length },
+    });
+
+    return {
+      items: rows.map((r) => ({
+        personId: r.PERSON_ID,
+        displayName: maskName(r.FIRST_NAME, r.LAST_NAME),
+        phoneMasked: maskPhone(r.PATIENT_PHONE_NO),
+        hospitalNoMasked: maskHospitalNo(r.HOSPITAL_NO),
+        hasEmail: Boolean(r.E_MAIL),
+      })),
+    };
+  }
+
+  async sendPublicVerification(dto: PublicVerifySendDto) {
+    this.assertRateLimit(`otp-send:${dto.personId}`, 5);
+    const person = await this.prisma.persons.findUnique({
+      where: { PERSON_ID: dto.personId },
+    });
+    if (!person || person.DISCONTINUE_FLAG === 'Y') {
+      throw new NotFoundException('Patient not found');
+    }
+    const phone = person.PATIENT_PHONE_NO?.trim();
+    if (!phone || phone.length < 10) {
+      throw new BadRequestException('Patient has no phone number on file');
+    }
+
+    const code = String(randomInt(100000, 999999));
+    const token = randomBytes(24).toString('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60_000);
+
+    const row = await this.prisma.publicBookingVerifications.create({
+      data: {
+        TOKEN: token,
+        PERSON_ID: person.PERSON_ID,
+        PHONE: phone,
+        EMAIL: person.E_MAIL,
+        CODE: code,
+        EXPIRES_AT: expiresAt,
+      },
+    });
+
+    await this.audit.log({
+      type: 'appointment:public-otp-send',
+      entity: 'public_booking_verifications',
+      entityId: row.VERIFICATION_ID,
+      personId: person.PERSON_ID,
+      createdBy: 'public',
+      item: `OTP issued for person ${person.PERSON_ID}`,
+    });
+
+    return {
+      personId: person.PERSON_ID,
+      verificationId: row.VERIFICATION_ID,
+      expiresAt: expiresAt.toISOString(),
+      /** Mock channel — in production send via SMS/email instead */
+      displayCode: code,
+      channelHint: person.E_MAIL
+        ? 'Shown on screen for testing (would SMS + email in production)'
+        : 'Shown on screen for testing (would SMS in production)',
+      phoneMasked: maskPhone(phone),
+      emailMasked: person.E_MAIL
+        ? `${person.E_MAIL[0]}***@${person.E_MAIL.split('@')[1] ?? '…'}`
+        : null,
+    };
+  }
+
+  async confirmPublicVerification(dto: PublicVerifyConfirmDto) {
+    this.assertRateLimit(`otp-confirm:${dto.personId}`, 10);
+    const row = await this.prisma.publicBookingVerifications.findFirst({
+      where: {
+        PERSON_ID: dto.personId,
+        CODE: dto.code.trim(),
+        VERIFIED_AT: null,
+        EXPIRES_AT: { gt: new Date() },
+      },
+      orderBy: { CREATED_DATE: 'desc' },
+    });
+    if (!row) {
+      throw new BadRequestException('Invalid or expired verification code');
+    }
+
+    const verifiedAt = new Date();
+    const updated = await this.prisma.publicBookingVerifications.update({
+      where: { VERIFICATION_ID: row.VERIFICATION_ID },
+      data: { VERIFIED_AT: verifiedAt },
+    });
+
+    const person = await this.prisma.persons.findUnique({
+      where: { PERSON_ID: dto.personId },
+      select: {
+        PERSON_ID: true,
+        FIRST_NAME: true,
+        LAST_NAME: true,
+        HOSPITAL_NO: true,
+        PATIENT_PHONE_NO: true,
+        E_MAIL: true,
+      },
+    });
+
+    await this.audit.log({
+      type: 'appointment:public-otp-confirm',
+      entity: 'public_booking_verifications',
+      entityId: updated.VERIFICATION_ID,
+      personId: dto.personId,
+      createdBy: 'public',
+      item: `OTP verified for person ${dto.personId}`,
+    });
+
+    return {
+      verificationToken: updated.TOKEN,
+      personId: dto.personId,
+      expiresAt: updated.EXPIRES_AT.toISOString(),
+      person: person
+        ? {
+            personId: person.PERSON_ID,
+            firstName: person.FIRST_NAME,
+            lastName: person.LAST_NAME,
+            hospitalNo: person.HOSPITAL_NO,
+            phone: person.PATIENT_PHONE_NO,
+            email: person.E_MAIL,
+          }
+        : null,
+    };
+  }
+
+  private async assertVerificationToken(personId: number, token?: string) {
+    if (!token?.trim()) {
+      throw new BadRequestException('verificationToken is required for returning patients');
+    }
+    const row = await this.prisma.publicBookingVerifications.findFirst({
+      where: {
+        TOKEN: token.trim(),
+        PERSON_ID: personId,
+        VERIFIED_AT: { not: null },
+        EXPIRES_AT: { gt: new Date() },
+      },
+    });
+    if (!row) {
+      throw new BadRequestException('Verification expired — please verify again');
+    }
+    return row;
   }
 
   async getPublicAvailability(params: {
@@ -110,6 +372,7 @@ export class AppointmentsService {
     const dayStart = parseHhMm(settings.dayStart);
     const dayEnd = parseHhMm(settings.dayEnd);
     const duration = settings.durationMinutes;
+    const limit = settings.onlineSlotLimit;
     if (duration < 1) {
       throw new BadRequestException('Invalid service duration');
     }
@@ -131,14 +394,25 @@ export class AppointmentsService {
       end: parseHhMm(b.END_TIME),
     }));
 
-    const slots: Array<{ start: string; end: string; available: boolean }> = [];
+    const slots: Array<{
+      start: string;
+      end: string;
+      available: boolean;
+      bookedCount: number;
+      remainingSpots: number;
+    }> = [];
     for (let t = dayStart; t + duration <= dayEnd; t += duration) {
       const end = t + duration;
-      const available = !busy.some((b) => rangesOverlap(t, end, b.start, b.end));
+      const bookedCount = busy.filter((b) =>
+        rangesOverlap(t, end, b.start, b.end),
+      ).length;
+      const remainingSpots = Math.max(0, limit - bookedCount);
       slots.push({
         start: formatHhMm(t),
         end: formatHhMm(end),
-        available,
+        available: remainingSpots > 0,
+        bookedCount,
+        remainingSpots,
       });
     }
 
@@ -151,8 +425,26 @@ export class AppointmentsService {
       price: Number(service.GENERAL_PRICE),
       dayStart: settings.dayStart,
       dayEnd: settings.dayEnd,
+      onlineSlotLimit: limit,
+      staffPoolSize: settings.staffPoolSize,
       slots,
     };
+  }
+
+  private async nextHospitalNo(tx: Prisma.TransactionClient): Promise<string> {
+    const year = new Date().getUTCFullYear();
+    const prefix = `FNPH-${year}-`;
+    const latest = await tx.persons.findFirst({
+      where: { HOSPITAL_NO: { startsWith: prefix } },
+      orderBy: { HOSPITAL_NO: 'desc' },
+      select: { HOSPITAL_NO: true },
+    });
+    let seq = 1;
+    if (latest?.HOSPITAL_NO) {
+      const n = Number(latest.HOSPITAL_NO.slice(prefix.length));
+      if (Number.isFinite(n)) seq = n + 1;
+    }
+    return `${prefix}${String(seq).padStart(5, '0')}`;
   }
 
   async createPublicBooking(dto: CreatePublicBookingDto) {
@@ -175,10 +467,63 @@ export class AppointmentsService {
       throw new BadRequestException('Selected time is outside clinic hours');
     }
 
+    const patientType = dto.patientType ?? 'NEW';
+    const phone = dto.phone.trim();
+    if (phone.length < 10) {
+      throw new BadRequestException('Phone number is required (min 10 digits)');
+    }
+
+    let firstName = dto.firstName?.trim() || '';
+    let lastName = dto.lastName?.trim() || '';
+    if ((!firstName || !lastName) && dto.patientName?.trim()) {
+      const parts = dto.patientName.trim().split(/\s+/);
+      firstName = firstName || parts[0] || 'Patient';
+      lastName = lastName || parts.slice(1).join(' ') || 'Unknown';
+    }
+    if (patientType === 'NEW' && (!firstName || !lastName)) {
+      throw new BadRequestException('firstName and lastName are required for new patients');
+    }
+
+    let personId: number | null = null;
+    let verificationId: string | null = null;
+
+    if (patientType === 'RETURNING') {
+      if (!dto.personId) {
+        throw new BadRequestException('personId is required for returning patients');
+      }
+      const v = await this.assertVerificationToken(dto.personId, dto.verificationToken);
+      personId = dto.personId;
+      verificationId = String(v.VERIFICATION_ID);
+      const existing = await this.prisma.persons.findUnique({
+        where: { PERSON_ID: personId },
+      });
+      if (!existing || existing.DISCONTINUE_FLAG === 'Y') {
+        throw new NotFoundException('Patient not found');
+      }
+      firstName = existing.FIRST_NAME?.trim() || firstName || 'Patient';
+      lastName = existing.LAST_NAME?.trim() || lastName || 'Unknown';
+    }
+
     const appointmentDate = parseDateOnly(dto.date);
     const endTime = formatHhMm(endMin);
-    const price = Number(service.GENERAL_PRICE);
+    const servicePrice = Number(service.GENERAL_PRICE);
     const now = new Date();
+
+    let regFee = 0;
+    let cardFee = 0;
+    if (patientType === 'NEW') {
+      const charges = await this.catalog.resolveRegistrationCharges();
+      regFee = charges.regFee;
+      cardFee = charges.cardFee;
+    }
+    const total = servicePrice + regFee + cardFee;
+    const feeBreakdown = {
+      service: servicePrice,
+      registration: regFee,
+      card: cardFee,
+      total,
+    };
+    const patientName = `${firstName} ${lastName}`.trim();
 
     const booking = await this.prisma.$transaction(async (tx) => {
       const conflicts = await tx.serviceBookings.findMany({
@@ -189,24 +534,53 @@ export class AppointmentsService {
         },
         select: { START_TIME: true, END_TIME: true },
       });
-      const busy = conflicts.some((b) =>
+      const bookedCount = conflicts.filter((b) =>
         rangesOverlap(
           startMin,
           endMin,
           parseHhMm(b.START_TIME),
           parseHhMm(b.END_TIME),
         ),
-      );
-      if (busy) {
+      ).length;
+      if (bookedCount >= settings.onlineSlotLimit) {
         throw new BadRequestException('Selected time slot is no longer available');
+      }
+
+      let linkedPersonId = personId;
+      if (patientType === 'NEW') {
+        const hospitalNo = await this.nextHospitalNo(tx);
+        const createdPerson = await tx.persons.create({
+          data: {
+            HOSPITAL_NO: hospitalNo,
+            FIRST_NAME: firstName,
+            LAST_NAME: lastName,
+            PATIENT_PHONE_NO: phone,
+            E_MAIL: dto.email?.trim() || null,
+            IDENTITY_TYPE: dto.nin?.trim() ? 'NIN' : null,
+            IDENTITY_NO: dto.nin?.trim() || null,
+            SEX: dto.gender?.trim() || null,
+            CARD_NO: hospitalNo,
+            CARD_STATUS: 'Pending Payment',
+            STATUS: 'Pending Payment',
+            REG_TYPE: 'Online Booking',
+            PATIENT_TYPE: 'NEW',
+            DISCONTINUE_FLAG: 'N',
+            DATE_OF_REGISTRATION: now,
+            CREATED_BY: 'public-booking',
+            CREATED_DATE: now,
+          },
+        });
+        linkedPersonId = createdPerson.PERSON_ID;
       }
 
       const created = await tx.serviceBookings.create({
         data: {
           BOOKING_NO: `TMP-${Date.now()}`,
           SERVICE_ID: dto.serviceId,
-          PATIENT_NAME: dto.patientName.trim(),
-          PHONE: dto.phone.trim(),
+          PERSON_ID: linkedPersonId,
+          PATIENT_TYPE: patientType,
+          PATIENT_NAME: patientName,
+          PHONE: phone,
           EMAIL: dto.email?.trim() || null,
           AGE: dto.age?.trim() || null,
           GENDER: dto.gender?.trim() || null,
@@ -214,7 +588,10 @@ export class AppointmentsService {
           START_TIME: dto.startTime,
           END_TIME: endTime,
           DELIVERY_MODE: dto.mode,
-          PRICE_AMOUNT: new Prisma.Decimal(price),
+          PRICE_AMOUNT: new Prisma.Decimal(total),
+          PAYMENT_STATUS: 'Pending',
+          FEE_BREAKDOWN: feeBreakdown,
+          VERIFICATION_ID: verificationId,
           NOTES: dto.notes?.trim() || null,
           STATUS: 'Booked',
           CREATED_BY: 'public',
@@ -226,33 +603,65 @@ export class AppointmentsService {
 
       const year = now.getUTCFullYear();
       const bookingNo = `APT-${year}-${String(created.BOOKING_ID).padStart(5, '0')}`;
-      return tx.serviceBookings.update({
-        where: { BOOKING_ID: created.BOOKING_ID },
-        data: { BOOKING_NO: bookingNo },
-      });
+      return {
+        booking: await tx.serviceBookings.update({
+          where: { BOOKING_ID: created.BOOKING_ID },
+          data: { BOOKING_NO: bookingNo },
+        }),
+        linkedPersonId,
+      };
     });
 
+    // Card creation outside booking txn (uses CardsService audits) for NEW patients
+    if (patientType === 'NEW' && booking.linkedPersonId) {
+      const person = await this.prisma.persons.findUnique({
+        where: { PERSON_ID: booking.linkedPersonId },
+      });
+      if (person) {
+        await this.cards.createForPerson({
+          personId: person.PERSON_ID,
+          cardNo: person.CARD_NO ?? person.HOSPITAL_NO ?? `CARD-${person.PERSON_ID}`,
+          cardFee,
+          regFee,
+          consultFee: 0,
+        });
+        await this.audit.log({
+          type: 'person:create',
+          entity: 'persons',
+          entityId: person.PERSON_ID,
+          personId: person.PERSON_ID,
+          createdBy: 'public-booking',
+          item: `Person registered via public booking ${booking.booking.BOOKING_NO}`,
+        });
+      }
+    }
+
     const response = {
-      bookingId: booking.BOOKING_ID,
-      bookingNo: booking.BOOKING_NO,
-      serviceId: booking.SERVICE_ID,
+      bookingId: booking.booking.BOOKING_ID,
+      bookingNo: booking.booking.BOOKING_NO,
+      serviceId: booking.booking.SERVICE_ID,
       serviceName: service.NAME,
-      patientName: booking.PATIENT_NAME,
-      phone: booking.PHONE,
+      personId: booking.linkedPersonId,
+      patientType,
+      patientName: booking.booking.PATIENT_NAME,
+      phone: booking.booking.PHONE,
       date: dto.date,
-      startTime: booking.START_TIME,
-      endTime: booking.END_TIME,
-      mode: booking.DELIVERY_MODE,
-      priceAmount: Number(booking.PRICE_AMOUNT),
-      status: booking.STATUS,
+      startTime: booking.booking.START_TIME,
+      endTime: booking.booking.END_TIME,
+      mode: booking.booking.DELIVERY_MODE,
+      priceAmount: Number(booking.booking.PRICE_AMOUNT),
+      paymentStatus: booking.booking.PAYMENT_STATUS,
+      feeBreakdown,
+      status: booking.booking.STATUS,
     };
 
     await this.audit.log({
       type: 'appointment:public-book',
       entity: 'service_bookings',
-      entityId: booking.BOOKING_ID,
+      entityId: booking.booking.BOOKING_ID,
+      personId: booking.linkedPersonId ?? undefined,
       createdBy: 'public',
-      item: `Public booking ${booking.BOOKING_NO}`,
+      item: `Public booking ${booking.booking.BOOKING_NO}`,
       newValue: response,
     });
 

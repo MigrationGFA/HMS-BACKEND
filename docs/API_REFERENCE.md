@@ -3049,18 +3049,38 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 
 | Method | URL | Purpose | Permission |
 |--------|-----|---------|------------|
-| GET | `/appointments/public/availability` | Duration-based slots for a date (`serviceId`, `date`, `mode`) | public |
-| POST | `/appointments/public/book` | Create booking + price snapshot | public |
+| GET | `/appointments/public/registration-charges` | Read-only registration + card fees for new-patient payment display | public |
+| GET | `/appointments/public/availability` | Capacity-aware slots for a date (`serviceId`, `date`, `mode`) | public |
+| POST | `/appointments/public/patient-lookup` | Masked patient matches by phone, name, or hospital number | public |
+| POST | `/appointments/public/verify/send` | Issue OTP for returning patient (returns `displayCode` for mock SMS) | public |
+| POST | `/appointments/public/verify/confirm` | Validate OTP → short-lived `verificationToken` | public |
+| POST | `/appointments/public/book` | Create booking + fee snapshot; NEW creates pending person/card | public |
 
-**GET availability response:** `{ data: { serviceId, date, mode, durationMinutes, price, slots: [{ start, end, available }] } }`
+**GET registration-charges response:** `{ data: { regFee, cardFee, items: [{ code, label, amount }] } }`
 
-**POST book body:** `{ serviceId, date, startTime, mode: "PHYSICAL"|"ONLINE", patientName, phone, email?, age?, gender?, notes? }`
+**GET availability response:** `{ data: { serviceId, date, mode, durationMinutes, price, onlineSlotLimit, staffPoolSize, slots: [{ start, end, available, bookedCount, remainingSpots }] } }`
 
-**POST book response:** `{ data: { bookingId, bookingNo, priceAmount, startTime, endTime, mode, status } }`
+**POST patient-lookup body:** `{ q: string }`  
+**Response:** `{ data: { items: [{ personId, displayName, phoneMasked, hospitalNoMasked, hasEmail }] } }` (PII masked until OTP verified)
 
-**Errors:** `400` (mode not allowed / slot taken / unpriced / outside hours), `404`
+**POST verify/send body:** `{ personId: number }`  
+**Response:** `{ data: { verificationId, expiresAt, displayCode, phoneMasked } }` — `displayCode` is for on-screen mock only; production will SMS/email only.
 
-**Audit:** `appointment:public-book`
+**POST verify/confirm body:** `{ personId, code }`  
+**Response:** `{ data: { verificationToken, personId, expiresAt } }`
+
+**POST book body (NEW):** `{ serviceId, date, startTime, mode, patientType: "NEW", firstName, lastName, phone, email?, nin?, notes? }`  
+**POST book body (RETURNING):** `{ serviceId, date, startTime, mode, patientType: "RETURNING", personId, verificationToken, notes? }`
+
+**POST book response:** `{ data: { bookingId, bookingNo, personId?, hospitalNo?, priceAmount, feeBreakdown: { service, registration, card, total }, paymentStatus: "Pending", startTime, endTime, mode, status } }`
+
+**Capacity model:** `ServiceBookingSettings.ONLINE_SLOT_LIMIT` caps concurrent online bookings per overlapping window; `STAFF_POOL_SIZE` is admin metadata (not shown on public UI). Slot remains available while `bookedCount < onlineSlotLimit`.
+
+**Fees:** NEW = service + registration + card (`PAYMENT_STATUS=Pending`, pay at hospital). RETURNING = service only. No public payment gateway in v1.
+
+**Errors:** `400` (mode not allowed / capacity full / invalid OTP / unpriced / outside hours / missing verification), `404`
+
+**Audit:** `appointment:public-lookup`, `appointment:public-otp-send`, `appointment:public-otp-confirm`, `appointment:public-book`
 
 ---
 
