@@ -7,7 +7,12 @@ import {
   Query,
 } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
-import { CreatePublicBookingDto } from './dto/public-booking.dto';
+import {
+  CreatePublicBookingDto,
+  PublicPatientLookupDto,
+  PublicVerifyConfirmDto,
+  PublicVerifySendDto,
+} from './dto/public-booking.dto';
 
 /**
  * Public (no JWT) appointment endpoints for the marketing landing page.
@@ -18,10 +23,23 @@ export class PublicAppointmentsController {
 
   /**
    * Method: GET
-   * URL: /api/appointments/public/availability?serviceId=&date=YYYY-MM-DD&mode=PHYSICAL|ONLINE
-   * Purpose: Slot grid for a bookable service on a date (duration intervals; booked slots marked unavailable)
+   * URL: /api/appointments/public/registration-charges
+   * Purpose: Read-only registration + card fees for new-patient public booking totals
    * Required permission: public (no auth)
-   * Response: { data: { serviceId, date, durationMinutes, mode, price, slots: [{ start, end, available }] } }
+   * Response: { data: { regFee, cardFee, items: [...] } }
+   * Errors: 400 if catalog fees missing
+   */
+  @Get('registration-charges')
+  async registrationCharges() {
+    return { data: await this.appointments.getPublicRegistrationCharges() };
+  }
+
+  /**
+   * Method: GET
+   * URL: /api/appointments/public/availability?serviceId=&date=YYYY-MM-DD&mode=PHYSICAL|ONLINE
+   * Purpose: Slot grid with remainingSpots based on ONLINE_SLOT_LIMIT
+   * Required permission: public (no auth)
+   * Response: { data: { serviceId, date, onlineSlotLimit, slots: [{ start, end, available, bookedCount, remainingSpots }] } }
    * Errors: 400 (mode/price/window), 404 (service)
    */
   @Get('availability')
@@ -50,12 +68,54 @@ export class PublicAppointmentsController {
 
   /**
    * Method: POST
-   * URL: /api/appointments/public/book
-   * Purpose: Create a public service booking (price snapshot + slot lock)
+   * URL: /api/appointments/public/patient-lookup
+   * Purpose: Masked patient search for returning-patient booking
    * Required permission: public (no auth)
-   * Request body: { serviceId, date, startTime, mode, patientName, phone, email?, age?, gender?, notes? }
-   * Response: { data: { bookingId, bookingNo, priceAmount, startTime, endTime, … } }
-   * Errors: 400 (mode/slot taken/unpriced), 404
+   * Request body: { q: string }
+   * Response: { data: { items: [{ personId, displayName, phoneMasked, hospitalNoMasked }] } }
+   * Errors: 400 rate limit
+   */
+  @Post('patient-lookup')
+  async patientLookup(@Body() dto: PublicPatientLookupDto) {
+    return { data: await this.appointments.lookupPublicPatient(dto) };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/appointments/public/verify/send
+   * Purpose: Issue OTP for returning patient (returns displayCode for mock/testing)
+   * Required permission: public (no auth)
+   * Request body: { personId }
+   * Response: { data: { displayCode, phoneMasked, expiresAt, … } }
+   * Errors: 400, 404
+   */
+  @Post('verify/send')
+  async verifySend(@Body() dto: PublicVerifySendDto) {
+    return { data: await this.appointments.sendPublicVerification(dto) };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/appointments/public/verify/confirm
+   * Purpose: Confirm OTP and return verificationToken for booking
+   * Required permission: public (no auth)
+   * Request body: { personId, code }
+   * Response: { data: { verificationToken, personId, person } }
+   * Errors: 400 invalid/expired, 404
+   */
+  @Post('verify/confirm')
+  async verifyConfirm(@Body() dto: PublicVerifyConfirmDto) {
+    return { data: await this.appointments.confirmPublicVerification(dto) };
+  }
+
+  /**
+   * Method: POST
+   * URL: /api/appointments/public/book
+   * Purpose: Create public booking; NEW creates person+card; RETURNING requires verificationToken
+   * Required permission: public (no auth)
+   * Request body: { serviceId, date, startTime, mode, patientType, phone, firstName?, lastName?, personId?, verificationToken?, nin?, email?, notes? }
+   * Response: { data: { bookingNo, feeBreakdown, paymentStatus, personId, … } }
+   * Errors: 400 (mode/slot/capacity/verification), 404
    */
   @Post('book')
   async book(@Body() dto: CreatePublicBookingDto) {

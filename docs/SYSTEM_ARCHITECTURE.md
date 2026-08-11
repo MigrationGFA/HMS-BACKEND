@@ -93,11 +93,12 @@ Pluggable payer integration under `apps/api/src/insurance/broker/`:
 - **Persistence:** eligibility snapshots, benefit TTL cache, authorizations, claims + immutable status events, integration logs (PHI redacted in prod guidance).
 - **Async:** `HmoClaimPollProcessor` polls open claims; `POST …/webhooks/:payerCode` for Curably/direct callbacks.
 - **Billing boundary:** broker returns coverage % / auth / claim status; hospital charges stay on `ServicePayerPrices` / cashier co-pay split.
-- **Booking settings (1:1):** `ServiceBookingSettings` is write source of truth for online bookable, delivery mode (`PHYSICAL`|`ONLINE`|`BOTH`), duration, and day window; mirrored onto `MasterServices.ONLINE_BOOKABLE` / `DURATION_MINUTES`.
-- **Public bookings:** `ServiceBookings` blocks slots; `GET /api/appointments/public/availability` + `POST /api/appointments/public/book` (no JWT). Price snapshot from `GENERAL_PRICE`. Capacity: one booking per service per slot (no doctor calendar yet).
+- **Booking settings (1:1):** `ServiceBookingSettings` is write source of truth for online bookable, delivery mode (`PHYSICAL`|`ONLINE`|`BOTH`), duration, day window, `STAFF_POOL_SIZE` (clinicians who can deliver the service), and `ONLINE_SLOT_LIMIT` (max concurrent public bookings per overlapping time window). Mirrored onto `MasterServices.ONLINE_BOOKABLE` / `DURATION_MINUTES`. IT configures capacity on Service Billing when `onlineBookable` is true.
+- **Public bookings capacity:** Availability counts overlapping `Booked` rows per slot; a slot stays open while `bookedCount < ONLINE_SLOT_LIMIT` (e.g. 5 staff, limit 1 online → remaining capacity for walk-ins). Public UI never shows doctor names (“A clinician will be assigned”). No doctor calendar in this phase.
+- **Public booking identity:** NEW patients create a minimal `PERSONS` + pending `PATIENT_CARDS` on book; RETURNING patients use masked lookup + mock OTP (`PUBLIC_BOOKING_VERIFICATIONS`) → `verificationToken`. Fees: NEW = service + reg + card; RETURNING = service only; `PAYMENT_STATUS=Pending` (pay at cashier).
 - **Public catalog:** `GET /api/billing/services/bookable` returns mode, duration, and `generalPrice` for landing.
-- **Frontend:** Superadmin Service Billing wires create → price → approve (mode/duration on create); landing `/appointment` loads bookable services, duration slots, and books via public APIs.
-- **Still out of scope:** doctor-specific calendars, payment capture on book, NHIA claims, moving `DRUGS.UNIT_PRICE` into the catalog.
+- **Frontend:** Superadmin Service Billing wires create → price → approve (mode/duration/capacity on create or Capacity dialog); landing `/appointment` wizard: patient type → identity → searchable service → capacity slots → fee breakdown → confirm.
+- **Still out of scope:** doctor-specific calendars, public Paystack/payment capture on book, NHIA claims, moving `DRUGS.UNIT_PRICE` into the catalog.
 
 ## Configuration
 

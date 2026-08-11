@@ -61,7 +61,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Person search (`GET /patients?q=`) | ✅ |
 | Medical records management (retrieval / archive / reports / analytics) | ✅ |
 | Records My Profile (`/records/profile`, `GET/PATCH /users/me`) | ✅ | Identity, desk/unit, station, duty hours, password — not clinical license/specialty |
-| Appointment booking | 📋 |
+| Public appointment booking (`/appointment` → `/api/appointments/public/*`) | ✅ | New vs Returning wizard; capacity slots (`ONLINE_SLOT_LIMIT`); mock OTP; pay-at-hospital fee breakdown; IT capacity on Service Billing |
 | Walk-in queue | ✅ |
 | Walk-in sales: request → cashier pay → dispense (`/pharmacy/walk-in`, cashier pharmacy-sales) | ✅ |
 | PostgreSQL full-text search | 📋 |
@@ -269,8 +269,12 @@ Adapters: `mock` (sandbox ACTIVE), `curably` (aggregator; env `CURABLY_*`), dire
 | GET | `/api/billing/services` | Paginated catalog | `service:read` | filters | `{ data: { items, meta } }` | 401, 403 |
 | GET | `/api/billing/services/orderable` | ACTIVE only | `service:read` | filters | `{ data: { items, meta } }` | 401, 403 |
 | GET | `/api/billing/services/bookable` | Landing ONLINE_BOOKABLE catalog (price, mode, duration) | public | `?q=&categoryId=` | `{ data: { items } }` | 500 |
-| GET | `/api/appointments/public/availability` | Slot grid by service duration | public | `serviceId`, `date`, `mode` | `{ data: { slots, price } }` | 400, 404 |
-| POST | `/api/appointments/public/book` | Create public booking | public | patient + slot | `{ data: booking }` | 400, 404 |
+| GET | `/api/appointments/public/registration-charges` | Reg + card fees for new-patient payment step | public | — | `{ data: { regFee, cardFee, items } }` | 500 |
+| GET | `/api/appointments/public/availability` | Capacity-aware slot grid (`remainingSpots`) | public | `serviceId`, `date`, `mode` | `{ data: { slots, price, onlineSlotLimit } }` | 400, 404 |
+| POST | `/api/appointments/public/patient-lookup` | Masked patient search (phone/name/hospital no) | public | `{ q }` | `{ data: { items } }` | 400 |
+| POST | `/api/appointments/public/verify/send` | Mock OTP (returns `displayCode` on screen) | public | `{ personId }` | `{ data: { verificationId, displayCode } }` | 400, 404 |
+| POST | `/api/appointments/public/verify/confirm` | Confirm OTP → `verificationToken` | public | `{ verificationId, code }` | `{ data: { verificationToken, personId } }` | 400 |
+| POST | `/api/appointments/public/book` | Create booking; NEW creates pending person/card | public | NEW or RETURNING payload | `{ data: booking + feeBreakdown }` | 400, 404 |
 | GET | `/api/billing/services/:id` | Detail + prices | `service:read` | — | `{ data: service }` | 401, 403, 404 |
 | POST | `/api/billing/services` | Create (no prices) | `service:create` | metadata | `{ data: service }` `PENDING_PRICING` | 400 (prices), 401, 403 |
 | PATCH | `/api/billing/services/:id` | Metadata | `service:update` | partial | `{ data: service }` | 400, 401, 403, 404 |

@@ -116,6 +116,8 @@ model Persons {
   opcAssessments            OpcAssessments[]
   opcRiskAssessments        OpcRiskAssessments[]
   opcNotes                  OpcNotes[]
+  serviceBookings           ServiceBookings[]
+  publicBookingVerifications PublicBookingVerifications[]
   hmoPayer                  ServicePayers?           @relation(fields: [HMO_ID], references: [PAYER_ID])
   hmoCoverages              PatientHmoCoverage[]
   hmoEligibilityChecks      HmoEligibilityChecks[]

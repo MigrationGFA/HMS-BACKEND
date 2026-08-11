@@ -7,6 +7,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 export class PublicAvailabilityQueryDto {
@@ -43,11 +44,27 @@ export class CreatePublicBookingDto {
   @IsIn(['PHYSICAL', 'ONLINE'])
   mode!: 'PHYSICAL' | 'ONLINE';
 
+  @IsIn(['NEW', 'RETURNING'])
+  patientType!: 'NEW' | 'RETURNING';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  lastName?: string;
+
+  /** Legacy combined name; preferred: firstName + lastName */
+  @IsOptional()
   @IsString()
   @MaxLength(255)
-  patientName!: string;
+  patientName?: string;
 
   @IsString()
+  @MinLength(10)
   @MaxLength(40)
   phone!: string;
 
@@ -55,6 +72,11 @@ export class CreatePublicBookingDto {
   @IsString()
   @MaxLength(255)
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  nin?: string;
 
   @IsOptional()
   @IsString()
@@ -70,4 +92,41 @@ export class CreatePublicBookingDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  personId?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  verificationToken?: string;
+}
+
+export class PublicPatientLookupDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(100)
+  q!: string;
+}
+
+export class PublicVerifySendDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  personId!: number;
+}
+
+export class PublicVerifyConfirmDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  personId!: number;
+
+  @IsString()
+  @MinLength(4)
+  @MaxLength(10)
+  code!: string;
 }

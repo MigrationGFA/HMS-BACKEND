@@ -75,6 +75,16 @@ export class CreateMasterServiceDto {
   dayEnd?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  staffPoolSize?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  onlineSlotLimit?: number;
+
+  @IsOptional()
   @IsBoolean()
   appointmentRequired?: boolean;
 
@@ -137,6 +147,16 @@ export class UpdateMasterServiceDto {
   @IsString()
   @MaxLength(5)
   dayEnd?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  staffPoolSize?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  onlineSlotLimit?: number;
 
   @IsOptional()
   @IsBoolean()
