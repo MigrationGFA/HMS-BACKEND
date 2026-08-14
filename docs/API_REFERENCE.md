@@ -101,7 +101,7 @@ Returns a hello message from the default scaffold.
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | `/auth/login` | Login with email/password | None |
+| POST | `/auth/login` | Login with phone/password (staff) or email/password (seed/IT) | None |
 | POST | `/auth/refresh` | Rotate access token | None (refresh token body) |
 | POST | `/auth/logout` | Revoke refresh token (body only; access JWT optional) | None |
 | GET | `/auth/me` | Current user JWT identity + roles | Bearer |
@@ -109,7 +109,18 @@ Returns a hello message from the default scaffold.
 
 #### `POST /auth/login`
 
-**Body:**
+**Body (migrated staff — preferred):**
+
+```json
+{
+  "phone": "08103540682",
+  "password": "0682"
+}
+```
+
+Temporary password/PIN for migrated staff is the **last 4 digits** of `PHONE_NO`. When `GENERATE_PIN=Y`, response includes `mustResetPassword: true` and the client must call `POST /auth/change-password` before normal use.
+
+**Body (seed / email accounts):**
 
 ```json
 {
@@ -126,10 +137,13 @@ Returns a hello message from the default scaffold.
     "accessToken": "eyJ...",
     "refreshToken": "base64url...",
     "expiresIn": 3600,
+    "mustResetPassword": true,
     "user": {
-      "id": 1,
-      "email": "doctor@hospital.com",
-      "roles": ["RECORDS"]
+      "id": 4254,
+      "email": "",
+      "phone": "08103540682",
+      "roles": ["NURSE"],
+      "mustResetPassword": true
     }
   }
 }

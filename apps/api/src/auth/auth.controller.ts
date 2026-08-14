@@ -16,9 +16,9 @@ export class AuthController {
    * URL: /api/auth/login
    * Purpose: Authenticate staff and issue access (1h) + refresh (12h) tokens
    * Required permission: none
-   * Request body: { email, password }
-   * Response example: { data: { accessToken, refreshToken, expiresIn: 3600, user } }
-   * Error cases: 401 invalid credentials / locked / expired account
+   * Request body: { phone, password } for migrated staff, or { email, password } for seed/IT
+   * Response example: { data: { accessToken, refreshToken, expiresIn: 3600, user, mustResetPassword } }
+   * Error cases: 400 missing identifier, 401 invalid credentials / locked / expired account
    */
   @Post('login')
   async login(@Body() dto: LoginDto) {
@@ -62,7 +62,7 @@ export class AuthController {
    * Purpose: Current authenticated user profile
    * Required permission: valid access JWT
    * Request body: none
-   * Response example: { data: { id, email, firstName, lastName, roles } }
+   * Response example: { data: { id, email, phone, firstName, lastName, roles, mustResetPassword } }
    * Error cases: 401
    */
   @Get('me')
@@ -76,10 +76,10 @@ export class AuthController {
    * URL: /api/auth/change-password
    * Purpose: Change password for the authenticated user
    * Required permission: valid access JWT
-   * Request body: { currentPassword, newPassword }
-   * Response example: { data: { success: true } }
+   * Request body: { currentPassword, newPassword } (newPassword min 4 for PIN reset)
+   * Response example: { data: { success: true, mustResetPassword: false } }
    * Error cases: 400 same password, 401 wrong current / invalid session
-   * Audit: auth:change-password
+   * Audit: auth:change-password — clears GENERATE_PIN so mustResetPassword becomes false
    */
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
