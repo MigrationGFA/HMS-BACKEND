@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { StorageService } from '../files/storage.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import type {
   CompleteImagingDto,
@@ -87,6 +88,7 @@ export class RadiologyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   private async ensureStudiesSeeded() {
@@ -235,21 +237,37 @@ export class RadiologyService {
     };
     const rows = await this.prisma.imagingStudies.findMany({
       where,
+      include: {
+        masterService: {
+          select: { SERVICE_ID: true, SERVICE_CODE: true, GENERAL_PRICE: true, STATUS: true },
+        },
+      },
       orderBy: [{ MODALITY: 'asc' }, { NAME: 'asc' }],
     });
     return {
-      items: rows.map((s) => ({
-        imagingStudyId: s.IMAGING_STUDY_ID,
-        studyCode: s.STUDY_CODE,
-        name: s.NAME,
-        modality: s.MODALITY,
-        bodyRegion: s.BODY_REGION,
-        turnaround: s.TURNAROUND,
-        unitPrice: num(s.UNIT_PRICE),
-        status: s.STATUS,
-        createdAt: s.CREATED_DATE?.toISOString() ?? null,
-        updatedAt: s.UPDATED_DATE?.toISOString() ?? null,
-      })),
+      items: rows.map((s) => {
+        const masterPrice =
+          s.SERVICE_ID != null &&
+          s.masterService?.STATUS === 'ACTIVE' &&
+          s.masterService.GENERAL_PRICE != null
+            ? num(s.masterService.GENERAL_PRICE)
+            : null;
+        return {
+          imagingStudyId: s.IMAGING_STUDY_ID,
+          studyCode: s.STUDY_CODE,
+          name: s.NAME,
+          modality: s.MODALITY,
+          bodyRegion: s.BODY_REGION,
+          turnaround: s.TURNAROUND,
+          unitPrice: masterPrice ?? num(s.UNIT_PRICE),
+          serviceId: s.SERVICE_ID,
+          masterServiceCode: s.masterService?.SERVICE_CODE ?? null,
+          priceSource: masterPrice != null ? 'master' : 'study',
+          status: s.STATUS,
+          createdAt: s.CREATED_DATE?.toISOString() ?? null,
+          updatedAt: s.UPDATED_DATE?.toISOString() ?? null,
+        };
+      }),
     };
   }
 
@@ -889,7 +907,7 @@ export class RadiologyService {
     };
   }
 
-  /** Consumer surface for EMR / ICU / Doctor ΓÇö released (+ optional critical) results with patient context. */
+  /** Consumer surface for EMR / ICU / Doctor — released (+ optional critical) results with patient context. */
   async listConsumerResults(params?: {
     status?: string;
     personId?: number;
@@ -917,21 +935,25 @@ export class RadiologyService {
               },
             },
             items: { include: { study: true }, take: 3 },
+            studyFiles: { orderBy: { CREATED_DATE: 'desc' } },
           },
         },
       },
       orderBy: { RELEASED_AT: 'desc' },
       take: params?.limit ?? 100,
     });
-    return {
-      items: rows.map((r) => {
+    const items = await Promise.all(
+      rows.map(async (r) => {
         const person = r.request?.person;
         const name = person
           ? [person.FIRST_NAME, person.MIDDLE_NAME, person.LAST_NAME].filter(Boolean).join(' ')
-          : 'ΓÇö';
+          : '—';
         const item = r.request?.items?.[0];
         const modality = item?.study?.MODALITY ?? item?.MODALITY ?? 'Imaging';
         const studyName = item?.study?.NAME ?? item?.STUDY_NAME ?? 'Study';
+        const files = await Promise.all(
+          (r.request?.studyFiles ?? []).map((f) => this.mapStudyFile(f)),
+        );
         return {
           ...this.mapReport(r),
           personId: r.request?.PERSON_ID ?? null,
@@ -941,9 +963,161 @@ export class RadiologyService {
           studyName,
           studyUid: r.request?.STUDY_UID ?? null,
           requestNo: r.request?.REQUEST_NO ?? null,
+          files,
         };
       }),
+    );
+    return { items };
+  }
+
+  private async mapStudyFile(row: {
+    FILE_ID: number;
+    IMAGING_REQUEST_ID: number;
+    STUDY_UID: string | null;
+    KIND: string;
+    ORIGINAL_NAME: string;
+    CONTENT_TYPE: string;
+    SIZE_BYTES: number;
+    STORAGE_PROVIDER: string;
+    BLOB_PATH: string;
+    UPLOADED_BY: string | null;
+    CREATED_DATE: Date;
+  }) {
+    const url = await this.storage.resolveUrl(row.BLOB_PATH);
+    return {
+      fileId: row.FILE_ID,
+      imagingRequestId: row.IMAGING_REQUEST_ID,
+      studyUid: row.STUDY_UID,
+      kind: row.KIND,
+      originalName: row.ORIGINAL_NAME,
+      contentType: row.CONTENT_TYPE,
+      sizeBytes: row.SIZE_BYTES,
+      storageProvider: row.STORAGE_PROVIDER,
+      blobPath: row.BLOB_PATH,
+      url,
+      uploadedBy: row.UPLOADED_BY,
+      createdAt: row.CREATED_DATE.toISOString(),
     };
+  }
+
+  async listStudyFiles(imagingRequestId: number) {
+    const request = await this.prisma.imagingRequests.findUnique({
+      where: { IMAGING_REQUEST_ID: imagingRequestId },
+      select: { IMAGING_REQUEST_ID: true },
+    });
+    if (!request) throw new NotFoundException(`Imaging request ${imagingRequestId} not found`);
+    const rows = await this.prisma.imagingStudyFiles.findMany({
+      where: { IMAGING_REQUEST_ID: imagingRequestId },
+      orderBy: { CREATED_DATE: 'desc' },
+    });
+    return {
+      items: await Promise.all(rows.map((r) => this.mapStudyFile(r))),
+    };
+  }
+
+  async uploadStudyFile(
+    imagingRequestId: number,
+    file: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+    opts?: { kind?: string },
+    actor?: AuthUser,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('File is required');
+    }
+    const maxBytes = 40 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      throw new BadRequestException('File exceeds 40MB limit');
+    }
+
+    const request = await this.prisma.imagingRequests.findUnique({
+      where: { IMAGING_REQUEST_ID: imagingRequestId },
+    });
+    if (!request) throw new NotFoundException(`Imaging request ${imagingRequestId} not found`);
+
+    const mime = (file.mimetype || 'application/octet-stream').toLowerCase();
+    const allowed =
+      mime.startsWith('image/') ||
+      mime === 'application/pdf' ||
+      mime === 'application/dicom' ||
+      mime === 'application/octet-stream';
+    if (!allowed) {
+      throw new BadRequestException(
+        'Unsupported file type. Upload image, PDF, or DICOM files.',
+      );
+    }
+
+    let kind = (opts?.kind ?? '').trim().toLowerCase();
+    if (!kind) {
+      if (mime.startsWith('image/')) kind = 'preview';
+      else if (mime === 'application/pdf') kind = 'pdf';
+      else if (mime === 'application/dicom') kind = 'dicom';
+      else kind = 'other';
+    }
+
+    const stored = await this.storage.putObject({
+      prefix: `radiology/${imagingRequestId}`,
+      originalName: file.originalname || 'study-file',
+      contentType: mime,
+      buffer: file.buffer,
+    });
+
+    const row = await this.prisma.imagingStudyFiles.create({
+      data: {
+        IMAGING_REQUEST_ID: imagingRequestId,
+        STUDY_UID: request.STUDY_UID,
+        KIND: kind,
+        ORIGINAL_NAME: stored.originalName,
+        CONTENT_TYPE: stored.contentType,
+        SIZE_BYTES: stored.size,
+        STORAGE_PROVIDER: stored.provider,
+        BLOB_PATH: stored.blobPath,
+        UPLOADED_BY_ID: actor?.id ?? null,
+        UPLOADED_BY: actorLabelOf(actor),
+      },
+    });
+
+    await this.audit.log({
+      type: 'radiology-file:upload',
+      entity: 'imaging-study-file',
+      entityId: String(row.FILE_ID),
+      personId: request.PERSON_ID,
+      userId: actor?.id,
+      createdBy: actorLabelOf(actor),
+      newValue: {
+        imagingRequestId,
+        blobPath: stored.blobPath,
+        provider: stored.provider,
+        kind,
+      },
+    });
+
+    return this.mapStudyFile(row);
+  }
+
+  async deleteStudyFile(imagingRequestId: number, fileId: number, actor?: AuthUser) {
+    const row = await this.prisma.imagingStudyFiles.findFirst({
+      where: { FILE_ID: fileId, IMAGING_REQUEST_ID: imagingRequestId },
+    });
+    if (!row) throw new NotFoundException(`Study file ${fileId} not found`);
+
+    await this.storage.deleteObject(row.BLOB_PATH);
+    await this.prisma.imagingStudyFiles.delete({ where: { FILE_ID: fileId } });
+
+    await this.audit.log({
+      type: 'radiology-file:delete',
+      entity: 'imaging-study-file',
+      entityId: String(fileId),
+      userId: actor?.id,
+      createdBy: actorLabelOf(actor),
+      oldValue: { imagingRequestId, blobPath: row.BLOB_PATH },
+    });
+
+    return { deleted: true, fileId };
   }
 
   async metrics() {

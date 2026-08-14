@@ -1,14 +1,18 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
@@ -116,5 +120,45 @@ export class ImagingController {
     @CurrentUser() user: AuthUser,
   ) {
     return { data: await this.radiology.completeImaging(id, dto, user) };
+  }
+
+  @Get('requests/:id/files')
+  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_READ, PERMISSIONS.IMAGING_READ)
+  async listFiles(@Param('id', ParseIntPipe) id: number) {
+    return { data: await this.radiology.listStudyFiles(id) };
+  }
+
+  @Post('requests/:id/files')
+  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE, PERMISSIONS.IMAGING_UPDATE)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 40 * 1024 * 1024 } }))
+  async uploadFile(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('kind') kind: string | undefined,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return {
+      data: await this.radiology.uploadStudyFile(
+        id,
+        {
+          originalname: file?.originalname ?? 'file',
+          mimetype: file?.mimetype ?? 'application/octet-stream',
+          size: file?.size ?? 0,
+          buffer: file?.buffer ?? Buffer.alloc(0),
+        },
+        { kind },
+        user,
+      ),
+    };
+  }
+
+  @Delete('requests/:id/files/:fileId')
+  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE, PERMISSIONS.IMAGING_UPDATE)
+  async deleteFile(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('fileId', ParseIntPipe) fileId: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.radiology.deleteStudyFile(id, fileId, user) };
   }
 }

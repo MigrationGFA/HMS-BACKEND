@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { ServiceCatalogService } from '../billing/service-catalog.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import {
   PERMISSIONS,
@@ -21,6 +22,10 @@ import type {
   SaveOpcRiskDto,
 } from './dto/psychiatric-opc.dto';
 import { OPC_STATUSES } from './dto/psychiatric-opc.dto';
+import {
+  OPC_CONSULT_FALLBACK_AMOUNT,
+  OPC_CONSULT_SERVICE_CODES,
+} from './opc-consult.constants';
 
 const PERSON_SELECT = {
   PERSON_ID: true,
@@ -119,7 +124,36 @@ export class PsychiatryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly serviceCatalog: ServiceCatalogService,
   ) {}
+
+  /** Resolve OPC consult fee from Master Services (source of truth). */
+  private async resolveOpcConsultAmount(): Promise<number> {
+    for (const code of OPC_CONSULT_SERVICE_CODES) {
+      try {
+        const service = await this.serviceCatalog.findActiveByCode(code);
+        if (service.GENERAL_PRICE != null) {
+          return Number(service.GENERAL_PRICE);
+        }
+      } catch {
+        /* try next code */
+      }
+    }
+    const row = await this.prisma.masterServices.findFirst({
+      where: {
+        STATUS: 'ACTIVE',
+        GENERAL_PRICE: { not: null },
+        OR: [
+          { NAME: { contains: 'OPC Consult', mode: 'insensitive' } },
+          { NAME: { contains: 'Psychiatric Consultation', mode: 'insensitive' } },
+          { SERVICE_CODE: { contains: 'OPC', mode: 'insensitive' } },
+        ],
+      },
+      orderBy: { SERVICE_ID: 'asc' },
+    });
+    if (row?.GENERAL_PRICE != null) return Number(row.GENERAL_PRICE);
+    return OPC_CONSULT_FALLBACK_AMOUNT;
+  }
 
   opcHealth() {
     return {
@@ -253,11 +287,12 @@ export class PsychiatryService {
     const label = actorLabelOf(actor);
     const now = new Date();
     const visitNo = await this.nextVisitNo();
+    const consultAmount = await this.resolveOpcConsultAmount();
     const auditJson = appendAudit(null, {
       at: now.toISOString(),
       by: label,
       action: 'check-in',
-      detail: dto.visitType,
+      detail: `${dto.visitType}; consult=${consultAmount}`,
     });
 
     const row = await this.prisma.opcVisits.create({
@@ -271,6 +306,7 @@ export class PsychiatryService {
         ASSIGNED_DOCTOR: dto.assignedDoctor?.trim() || null,
         CLINIC: dto.clinic?.trim() || null,
         REASON: dto.reason?.trim() || null,
+        CONSULT_AMOUNT: consultAmount,
         BILLING_STATUS: 'NotBilled',
         CHECK_IN_AT: now,
         CREATED_BY_ID: actor?.id ?? null,
@@ -401,16 +437,18 @@ export class PsychiatryService {
 
     const label = actorLabelOf(actor);
     const now = new Date();
+    const consultAmount = await this.resolveOpcConsultAmount();
     const row = await this.prisma.opcVisits.update({
       where: { OPC_VISIT_ID: id },
       data: {
         BILLING_STATUS: 'Unpaid',
+        CONSULT_AMOUNT: consultAmount,
         UPDATED_DATE: now,
         AUDIT_JSON: appendAudit(existing.AUDIT_JSON, {
           at: now.toISOString(),
           by: label,
           action: 'bill',
-          detail: `Consult amount ${money(existing.CONSULT_AMOUNT)}`,
+          detail: `Consult amount ${money(consultAmount)}`,
         }),
       },
       include: VISIT_INCLUDE,

@@ -79,7 +79,6 @@ const REQUEST_INCLUDE = {
 } as const;
 
 type RequestRow = Prisma.LabRequestsGetPayload<{ include: typeof REQUEST_INCLUDE }>;
-type TestRow = Prisma.LabTestsGetPayload<object>;
 
 export type LabTestResponse = {
   labTestId: number;
@@ -90,12 +89,71 @@ export type LabTestResponse = {
   container: string | null;
   turnaround: string;
   unitPrice: number;
+  serviceId: number | null;
+  masterServiceCode: string | null;
+  priceSource: 'master' | 'test';
   loincCode: string | null;
   isPanel: boolean;
   status: string;
   createdAt: string | null;
   updatedAt: string | null;
 };
+
+type TestRow = Prisma.LabTestsGetPayload<{
+  include: {
+    masterService: {
+      select: { SERVICE_ID: true; SERVICE_CODE: true; GENERAL_PRICE: true; STATUS: true };
+    };
+  };
+}>;
+
+function toTestResponse(row: {
+  LAB_TEST_ID: number;
+  TEST_CODE: string;
+  NAME: string;
+  CATEGORY: string;
+  SPECIMEN_TYPE: string;
+  CONTAINER: string | null;
+  TURNAROUND: string;
+  UNIT_PRICE: Prisma.Decimal | number;
+  SERVICE_ID?: number | null;
+  LOINC_CODE: string | null;
+  IS_PANEL: boolean;
+  STATUS: string;
+  CREATED_DATE: Date | null;
+  UPDATED_DATE: Date | null;
+  masterService?: {
+    SERVICE_ID: number;
+    SERVICE_CODE: string;
+    GENERAL_PRICE: Prisma.Decimal | number | null;
+    STATUS: string;
+  } | null;
+}): LabTestResponse {
+  const masterPrice =
+    row.SERVICE_ID != null &&
+    row.masterService?.STATUS === 'ACTIVE' &&
+    row.masterService.GENERAL_PRICE != null
+      ? Number(row.masterService.GENERAL_PRICE)
+      : null;
+  return {
+    labTestId: row.LAB_TEST_ID,
+    testCode: row.TEST_CODE,
+    name: row.NAME,
+    category: row.CATEGORY,
+    specimenType: row.SPECIMEN_TYPE,
+    container: row.CONTAINER,
+    turnaround: row.TURNAROUND,
+    unitPrice: masterPrice ?? Number(row.UNIT_PRICE),
+    serviceId: row.SERVICE_ID ?? null,
+    masterServiceCode: row.masterService?.SERVICE_CODE ?? null,
+    priceSource: masterPrice != null ? 'master' : 'test',
+    loincCode: row.LOINC_CODE,
+    isPanel: row.IS_PANEL,
+    status: row.STATUS,
+    createdAt: row.CREATED_DATE?.toISOString() ?? null,
+    updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
+  };
+}
 
 export type LabRequestItemResponse = {
   itemId: number;
@@ -176,24 +234,6 @@ function redactUnpaidForLab(res: LabRequestResponse): LabRequestResponse {
           dateOfBirth: null,
         }
       : null,
-  };
-}
-
-function toTestResponse(row: TestRow): LabTestResponse {
-  return {
-    labTestId: row.LAB_TEST_ID,
-    testCode: row.TEST_CODE,
-    name: row.NAME,
-    category: row.CATEGORY,
-    specimenType: row.SPECIMEN_TYPE,
-    container: row.CONTAINER,
-    turnaround: row.TURNAROUND,
-    unitPrice: Number(row.UNIT_PRICE),
-    loincCode: row.LOINC_CODE,
-    isPanel: row.IS_PANEL,
-    status: row.STATUS,
-    createdAt: row.CREATED_DATE?.toISOString() ?? null,
-    updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
   };
 }
 
@@ -573,6 +613,16 @@ export class LaboratoryService {
       this.prisma.labTests.count({ where }),
       this.prisma.labTests.findMany({
         where,
+        include: {
+          masterService: {
+            select: {
+              SERVICE_ID: true,
+              SERVICE_CODE: true,
+              GENERAL_PRICE: true,
+              STATUS: true,
+            },
+          },
+        },
         orderBy: [{ CATEGORY: 'asc' }, { NAME: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
@@ -587,6 +637,16 @@ export class LaboratoryService {
   async findTestById(id: number): Promise<LabTestResponse> {
     const row = await this.prisma.labTests.findUnique({
       where: { LAB_TEST_ID: id },
+      include: {
+        masterService: {
+          select: {
+            SERVICE_ID: true,
+            SERVICE_CODE: true,
+            GENERAL_PRICE: true,
+            STATUS: true,
+          },
+        },
+      },
     });
     if (!row) throw new NotFoundException('Lab test not found');
     return toTestResponse(row);

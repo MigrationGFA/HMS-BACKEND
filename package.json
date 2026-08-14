@@ -30,6 +30,7 @@
     "db:drop-extra:confirm": "node scripts/drop-extra-tables.mjs --yes"
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.33.0",
     "@golevelup/nestjs-rabbitmq": "^9.0.2",
     "@nest-lab/throttler-storage-redis": "^1.2.0",
     "@nestjs/bullmq": "^11.0.4",
@@ -79,6 +80,7 @@
     "@types/express": "^5.0.0",
     "@types/express-session": "^1.19.0",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^24.0.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
