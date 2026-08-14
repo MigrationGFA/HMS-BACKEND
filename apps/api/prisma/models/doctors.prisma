@@ -1,0 +1,12 @@
+// Legacy doctor catalog (Migration-Documents/DOCTORS.csv)
+// Keep CSV column spelling QULIFICATION as-is.
+
+model Doctors {
+  DOCTOR_ID         Int     @id
+  DOCTOR_NAME       String  @db.VarChar(255)
+  DOCTORS_TYPE      String? @db.VarChar(100)
+  QULIFICATION      String? @db.VarChar(255)
+  GLOBAL_DOCTOR_ID  Int?
+
+  @@map("DOCTORS")
+}

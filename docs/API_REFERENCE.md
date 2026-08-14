@@ -101,7 +101,7 @@ Returns a hello message from the default scaffold.
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | `/auth/login` | Login with email/password | None |
+| POST | `/auth/login` | Login with phone/password (staff) or email/password (seed/IT) | None |
 | POST | `/auth/refresh` | Rotate access token | None (refresh token body) |
 | POST | `/auth/logout` | Revoke refresh token (body only; access JWT optional) | None |
 | GET | `/auth/me` | Current user JWT identity + roles | Bearer |
@@ -109,7 +109,18 @@ Returns a hello message from the default scaffold.
 
 #### `POST /auth/login`
 
-**Body:**
+**Body (migrated staff — preferred):**
+
+```json
+{
+  "phone": "08103540682",
+  "password": "0682"
+}
+```
+
+Temporary password/PIN for migrated staff is the **last 4 digits** of `PHONE_NO`. When `GENERATE_PIN=Y`, response includes `mustResetPassword: true` and the client must call `POST /auth/change-password` before normal use.
+
+**Body (seed / email accounts):**
 
 ```json
 {
@@ -126,10 +137,13 @@ Returns a hello message from the default scaffold.
     "accessToken": "eyJ...",
     "refreshToken": "base64url...",
     "expiresIn": 3600,
+    "mustResetPassword": true,
     "user": {
-      "id": 1,
-      "email": "doctor@hospital.com",
-      "roles": ["RECORDS"]
+      "id": 4254,
+      "email": "",
+      "phone": "08103540682",
+      "roles": ["NURSE"],
+      "mustResetPassword": true
     }
   }
 }
@@ -800,7 +814,7 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 **Purpose:** Revenue dashboard from `CASHIER_PAYMENT_RECEIPTS` + outstanding unpaid bills. Response may include `partialErrors` when one outstanding-bill source could not be queried.
 
-**Query:** `from`, `to` (optional ISO dates; default today).
+**Query:** `from`, `to` (optional `YYYY-MM-DD`). When both omitted, defaults to **month-to-date** in WAT (UTC+1). Dashboard UI passes today explicitly for daily KPIs.
 
 **Permission:** `cashier:report-read`
 
@@ -809,6 +823,8 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 ```json
 {
   "data": {
+    "from": "2026-08-01T00:00:00.000Z",
+    "to": "2026-08-11T23:00:00.000Z",
     "kpis": { "collected": 120000, "refunds": 1500, "receiptCount": 42, "outstanding": 88000, "discounted": 5000 },
     "bySource": [{ "department": "Pharmacy", "amount": 40000 }],
     "byChannel": [{ "channel": "Cash", "amount": 50000 }],
@@ -865,9 +881,23 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 #### `GET /api/cashier/audit` / `GET /api/cashier/audit/stats`
 
-**Purpose:** Cashier-scoped audits (`cashier-*` + payment confirm types) and today KPI counts.
+**Purpose:** Cashier-scoped audits (`cashier-*` + payment confirm types including `cashier-receipt:capture`) and period KPI counts. List and stats use the same date window so cards match the table.
+
+**Query:** `q`, `page`, `limit`, `from`, `to` (`YYYY-MM-DD`). When `from`/`to` omitted, defaults to **today** (WAT). Stats `payments` count includes domain pay audits plus `cashier-receipt:*`.
 
 **Permission:** `audit:read`
+
+**Response example:**
+
+```json
+{
+  "data": {
+    "items": [{ "auditId": 1, "time": "…", "actor": "Hafsat", "role": "Cashier", "action": "cashier-receipt:capture", "entityId": "12", "status": "Success" }],
+    "meta": { "page": 1, "limit": 50, "total": 12 },
+    "stats": { "totalToday": 12, "payments": 8, "refunds": 1, "discounts": 0, "shifts": 2 }
+  }
+}
+```
 
 **Error cases:** `401`, `403`.
 
@@ -2539,7 +2569,7 @@ Legacy empty `/api/discharge` returns **403** and points clients to `/api/discha
 | Method | URL | Purpose | Permission |
 |--------|-----|---------|------------|
 | POST | `/discharge-drafts` | Create draft for an admission | `discharge:create` |
-| GET | `/discharge-drafts?scope=mine\|queue\|all&status=&personId=&admissionId=&q=&page=&limit=` | List drafts | `discharge:read` |
+| GET | `/discharge-drafts?scope=mine\|queue\|all&status=&personId=&admissionId=&q=&page=&limit=` | List drafts (each item includes `payment` unpaid snapshot) | `discharge:read` |
 | GET | `/discharge-drafts/:id` | Detail + events + payment snapshot | `discharge:read` |
 | GET | `/discharge-drafts/:id/payment-status` | Aggregate unpaid bills for draft person | `discharge:read` |
 | PATCH | `/discharge-drafts/:id` | Update clinical fields (Draft/Returned only) | `discharge:update` |
@@ -3033,18 +3063,69 @@ Catalog + doctor/walk-in lab requests + full LIS pipeline (templates → sample 
 
 | Method | URL | Purpose | Permission |
 |--------|-----|---------|------------|
-| GET | `/appointments/public/availability` | Duration-based slots for a date (`serviceId`, `date`, `mode`) | public |
-| POST | `/appointments/public/book` | Create booking + price snapshot | public |
+| GET | `/appointments/public/registration-charges` | Read-only registration + card fees for new-patient payment display | public |
+| GET | `/appointments/public/availability` | Capacity-aware slots for a date (`serviceId`, `date`, `mode`) | public |
+| POST | `/appointments/public/patient-lookup` | Masked patient matches by phone, name, or hospital number | public |
+| POST | `/appointments/public/verify/send` | Issue OTP for returning patient (returns `displayCode` for mock SMS) | public |
+| POST | `/appointments/public/verify/confirm` | Validate OTP → short-lived `verificationToken` | public |
+| POST | `/appointments/public/book` | Create booking + fee snapshot; NEW creates pending person/card | public |
 
-**GET availability response:** `{ data: { serviceId, date, mode, durationMinutes, price, slots: [{ start, end, available }] } }`
+**GET registration-charges response:** `{ data: { regFee, cardFee, items: [{ code, label, amount }] } }`
 
-**POST book body:** `{ serviceId, date, startTime, mode: "PHYSICAL"|"ONLINE", patientName, phone, email?, age?, gender?, notes? }`
+**GET availability response:** `{ data: { serviceId, date, mode, durationMinutes, price, onlineSlotLimit, staffPoolSize, slots: [{ start, end, available, bookedCount, remainingSpots }] } }`
 
-**POST book response:** `{ data: { bookingId, bookingNo, priceAmount, startTime, endTime, mode, status } }`
+**POST patient-lookup body:** `{ q: string }`  
+**Response:** `{ data: { items: [{ personId, displayName, phoneMasked, hospitalNoMasked, hasEmail }] } }` (PII masked until OTP verified)
 
-**Errors:** `400` (mode not allowed / slot taken / unpriced / outside hours), `404`
+**POST verify/send body:** `{ personId: number }`  
+**Response:** `{ data: { verificationId, expiresAt, displayCode, phoneMasked } }` — `displayCode` is for on-screen mock only; production will SMS/email only.
 
-**Audit:** `appointment:public-book`
+**POST verify/confirm body:** `{ personId, code }`  
+**Response:** `{ data: { verificationToken, personId, expiresAt } }`
+
+**POST book body (NEW):** `{ serviceId, date, startTime, mode, patientType: "NEW", firstName, lastName, phone, email?, nin?, notes? }`  
+**POST book body (RETURNING):** `{ serviceId, date, startTime, mode, patientType: "RETURNING", personId, verificationToken, notes? }`
+
+**POST book response:** `{ data: { bookingId, bookingNo, personId?, hospitalNo?, priceAmount, feeBreakdown: { service, registration, card, total }, paymentStatus: "Pending", startTime, endTime, mode, status } }`
+
+**Capacity model:** `ServiceBookingSettings.ONLINE_SLOT_LIMIT` caps concurrent online bookings per overlapping window; `STAFF_POOL_SIZE` is admin metadata (not shown on public UI). Slot remains available while `bookedCount < onlineSlotLimit`.
+
+**Fees:** NEW = service + registration + card (`PAYMENT_STATUS=Pending`, pay at hospital). RETURNING = service only. No public payment gateway in v1.
+
+**Errors:** `400` (mode not allowed / capacity full / invalid OTP / unpriced / outside hours / missing verification), `404`
+
+**Audit:** `appointment:public-lookup`, `appointment:public-otp-send`, `appointment:public-otp-confirm`, `appointment:public-book`
+
+#### Records staff online bookings (`/records/bookings`)
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/records/bookings` | List ServiceBookings (`date`, `status`, `paymentStatus`, `patientType`, `q`) — default today | `patient:read` |
+| GET | `/records/bookings/:id` | Booking detail + card payment snapshot | `patient:read` |
+| POST | `/records/bookings/:id/convert` | NEW only — return `resumeRegistration` for Patient Entry wizard | `patient:update` |
+| POST | `/records/bookings/:id/check-in` | RETURNING only — payment gate + triage + mark Completed | `triage:create` |
+| POST | `/records/bookings/:id/complete` | Mark booking Completed after NEW patient triage from wizard | `triage:create` |
+
+**GET list response:** `{ data: { items: [{ bookingId, bookingNo, patientType, patientName, phone, serviceName, appointmentDate, startTime, amountDue, paymentStatus, feeBreakdown, personId, hospitalNo, cardPaymentStatus, … }], meta } }`
+
+**POST convert response:** `{ data: { booking, resume: { person, card, paymentCleared, suggestedStep } } }`
+
+**POST check-in errors:** `409` when `PAYMENT_STATUS=Pending` — body includes `bookingId`, `amountDue`, `feeBreakdown` (frontend deep-links Cashier).
+
+**Audit:** `appointment:convert`, `appointment:check-in`
+
+#### Cashier online booking payments (`/cashier/payments/bookings`)
+
+| Method | URL | Purpose | Permission |
+|--------|-----|---------|------------|
+| GET | `/cashier/payments/bookings` | Pending booking service fees (`paymentStatus`, `date`, `q`) | `card:read` |
+| POST | `/cashier/payments/bookings/:bookingId/confirm` | Confirm service fee; writes receipt `sourceType=booking` | `card:confirm-payment` |
+
+**Amount due:** NEW = `feeBreakdown.service` only (reg/card stay on card payment queue). RETURNING = service fee / `PRICE_AMOUNT`.
+
+**POST confirm body:** `{ paymentChannel: "Cash"|"POS Card"|"Bank Transfer"|"Online Card"|"Wallet", paymentRef? }`
+
+**Audit:** `appointment:payment-confirm`
 
 ---
 

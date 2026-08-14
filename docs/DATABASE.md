@@ -23,13 +23,16 @@ apps/api/prisma/
 ├── models/
 │   ├── auth.prisma           # ROLES, REFRESH_TOKENS
 │   ├── users.prisma          # USERS
+│   ├── user-types.prisma     # USER_TYPES (legacy lookup)
+│   ├── clinics.prisma        # CLINICS (legacy lookup)
+│   ├── doctors.prisma        # DOCTORS (legacy catalog; QULIFICATION spelling)
 │   ├── patients.prisma       # PERSONS
 │   ├── cards.prisma          # PATIENT_CARDS (registration card + payment gate)
 │   ├── triage.prisma         # TRIAGE
 │   ├── encounters.prisma     # ENCOUNTERS
 │   ├── followups.prisma      # FOLLOW_UPS
 │   ├── clinical-notes.prisma # CLINICAL_NOTES + CLINICAL_NOTE_VERSIONS
-│   ├── admissions.prisma     # WARDS (+GENDER), BEDS, ADMISSIONS, ADMISSION_REQUESTS, ADMISSION_BILLING_ITEMS, ADMISSION_BILLS, ADMISSION_BILL_LINES
+│   ├── admissions.prisma     # WARDS (+GENDER, DESCRIPTION, HOSPITAL_ID, BRANCH_ID, DISCONTINUE_FLAG), BEDS, ADMISSIONS, ADMISSION_REQUESTS, ADMISSION_BILLING_ITEMS, ADMISSION_BILLS, ADMISSION_BILL_LINES
 │   ├── transfers.prisma      # PATIENT_TRANSFERS, PATIENT_TRANSFER_EVENTS, NOTIFICATIONS
 │   ├── referrals.prisma      # CLINICAL_REFERRALS, CLINICAL_REFERRAL_EVENTS
 │   ├── discharge.prisma      # DISCHARGE_DRAFTS, DISCHARGE_DRAFT_EVENTS
@@ -63,12 +66,15 @@ Do not reintroduce unused tables without an owning module and migration plan.
 |-------|-------|---------|
 | `PERSONS` | `Persons` | Patient identity (single source of truth for demographics / NOK) |
 | `USERS` | `Users` | Staff accounts; clinical profile fields `LICENSE_NUMBER`, `SPECIALTIES`, `SUB_SPECIALTY`, `QUALIFICATIONS`, `DEPARTMENT_NAME`, `CLINIC_NAME`, `CONSULTATION_HOURS`, `WARD_ASSIGNMENT` |
-| `ROLES` | `Roles` | RBAC roles (seeded) |
+| `USER_TYPES` | `UserTypes` | Legacy staff user-type lookup (`USER_TYPE_ID`, `NAME`); migration `20260813160000_legacy_lookup_tables` |
+| `CLINICS` | `Clinics` | Legacy clinic lookup (exact `CLINIC_ID`); see [LEGACY_DATA_MIGRATION.md](./LEGACY_DATA_MIGRATION.md) |
+| `DOCTORS` | `Doctors` | Legacy doctor catalog (exact `DOCTOR_ID`, column `QULIFICATION`) |
+| `ROLES` | `Roles` | RBAC roles (seeded); legacy import may add additional exact `ROLE_ID`s |
 | `REFRESH_TOKENS` | `RefreshToken` | JWT refresh sessions |
 | `TRIAGE` | `Triage` | Queue + vitals; stores `PERSON_ID` only (no duplicated demographics). Also backing store for Nursing Patient Queues (`/api/nursing/patient-queues*`) |
 | `PATIENT_CARDS` | `PatientCards` | Registration card per person; `PAYMENT_STATUS` starts `Pending` and gates the workflow until a cashier confirms |
 | `AUDITS` | `Audits` | Immutable audit trail with filterable `AUDIT_TYPE` |
-| `WARDS` | `Wards` | Inpatient wards; `CODE`, `NAME`, `WARD_CLASS`, `GENDER` (Male\|Female\|Mixed), rates, `STATUS` Active\|Inactive. Standard testing codes: MGEN, FGEN, MIXG, MVIP, FVIP, GEN, PRIV, SEMI, VIP, ICU, W1C (20 beds each via migration `20260721160000_standard_wards_beds`) |
+| `WARDS` | `Wards` | Inpatient wards; `CODE`, `NAME`, `WARD_CLASS`, `GENDER` (Male\|Female\|Mixed), rates, `STATUS` Active\|Inactive; optional legacy `DESCRIPTION`, `HOSPITAL_ID`, `BRANCH_ID`, `DISCONTINUE_FLAG` (`20260813160000_legacy_lookup_tables`). Standard testing codes: MGEN, FGEN, MIXG, MVIP, FVIP, GEN, PRIV, SEMI, VIP, ICU, W1C (20 beds each via migration `20260721160000_standard_wards_beds`) |
 | `BEDS` | `Beds` | Beds per ward; `LABEL` (01–20), `STATUS` (`AVAILABLE` / `OCCUPIED` / `CLEANING` / `RESERVED` / `OUT_OF_SERVICE`). Admit sets OCCUPIED; discharge frees AVAILABLE |
 | `IMAGING_STUDIES` | `ImagingStudies` | Priced radiology catalog (modality + unit price); migration `20260721170000_imaging_requests` |
 | `IMAGING_REQUESTS` | `ImagingRequests` | Doctor imaging orders; `PAYMENT_STATUS` Unpaid\|Paid\|Waived (cashier confirms) |

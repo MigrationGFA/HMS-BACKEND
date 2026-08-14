@@ -1,0 +1,19 @@
+USER_TYPE_ID,NAME
+1,Admin
+2,Doctor
+3,Nurse
+4,Record
+5,Pharmasict
+6,Lab
+7,Radiologist
+11,Audit
+8,Revenue
+9,Accountant
+10,NHIS
+14,Supper Admin
+17,Reagents Stores
+12,Physiotherapy
+13,Social Service
+16,General Store
+15,Blood Bank Store
+100,Patient

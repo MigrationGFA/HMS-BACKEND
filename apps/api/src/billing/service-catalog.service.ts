@@ -83,6 +83,8 @@ export class ServiceCatalogService {
       durationMinutes: s?.DURATION_MINUTES ?? row.DURATION_MINUTES ?? 30,
       dayStart: s?.DAY_START ?? '08:00',
       dayEnd: s?.DAY_END ?? '17:00',
+      staffPoolSize: s?.STAFF_POOL_SIZE ?? 1,
+      onlineSlotLimit: s?.ONLINE_SLOT_LIMIT ?? 1,
     };
   }
 
@@ -322,6 +324,8 @@ export class ServiceCatalogService {
             (r.ONLINE_BOOKABLE ? 'BOTH' : 'PHYSICAL'),
           dayStart: settings?.DAY_START ?? '08:00',
           dayEnd: settings?.DAY_END ?? '17:00',
+          staffPoolSize: settings?.STAFF_POOL_SIZE ?? 1,
+          onlineSlotLimit: settings?.ONLINE_SLOT_LIMIT ?? 1,
           appointmentRequired: r.APPOINTMENT_REQUIRED,
         };
       }),
@@ -375,6 +379,11 @@ export class ServiceCatalogService {
     const deliveryMode = resolveDeliveryMode(dto.deliveryMode, onlineBookable);
     const dayStart = normalizeHhMm(dto.dayStart, '08:00');
     const dayEnd = normalizeHhMm(dto.dayEnd, '17:00');
+    const staffPoolSize = Math.max(1, dto.staffPoolSize ?? 1);
+    const onlineSlotLimit = Math.max(
+      1,
+      Math.min(staffPoolSize, dto.onlineSlotLimit ?? 1),
+    );
 
     const row = await this.prisma.$transaction(async (tx) => {
       const created = await tx.masterServices.create({
@@ -405,6 +414,8 @@ export class ServiceCatalogService {
               DURATION_MINUTES: durationMinutes,
               DAY_START: dayStart,
               DAY_END: dayEnd,
+              STAFF_POOL_SIZE: staffPoolSize,
+              ONLINE_SLOT_LIMIT: onlineSlotLimit,
               CREATED_BY: label,
               CREATED_DATE: now,
               UPDATED_BY: label,
@@ -464,7 +475,9 @@ export class ServiceCatalogService {
       dto.deliveryMode != null ||
       dto.durationMinutes !== undefined ||
       dto.dayStart != null ||
-      dto.dayEnd != null;
+      dto.dayEnd != null ||
+      dto.staffPoolSize != null ||
+      dto.onlineSlotLimit != null;
 
     const row = await this.prisma.$transaction(async (tx) => {
       let onlineBookable = existing.ONLINE_BOOKABLE;
@@ -479,6 +492,20 @@ export class ServiceCatalogService {
       );
       const dayStart = normalizeHhMm(dto.dayStart, '08:00');
       const dayEnd = normalizeHhMm(dto.dayEnd, '17:00');
+      const existingSettings = await tx.serviceBookingSettings.findUnique({
+        where: { SERVICE_ID: id },
+      });
+      const staffPoolSize = Math.max(
+        1,
+        dto.staffPoolSize ?? existingSettings?.STAFF_POOL_SIZE ?? 1,
+      );
+      const onlineSlotLimit = Math.max(
+        1,
+        Math.min(
+          staffPoolSize,
+          dto.onlineSlotLimit ?? existingSettings?.ONLINE_SLOT_LIMIT ?? 1,
+        ),
+      );
 
       if (settingsTouch) {
         await tx.serviceBookingSettings.upsert({
@@ -490,6 +517,8 @@ export class ServiceCatalogService {
             DURATION_MINUTES: durationMinutes,
             DAY_START: dayStart,
             DAY_END: dayEnd,
+            STAFF_POOL_SIZE: staffPoolSize,
+            ONLINE_SLOT_LIMIT: onlineSlotLimit,
             CREATED_BY: label,
             CREATED_DATE: now,
             UPDATED_BY: label,
@@ -507,6 +536,12 @@ export class ServiceCatalogService {
               : {}),
             ...(dto.dayStart != null ? { DAY_START: dayStart } : {}),
             ...(dto.dayEnd != null ? { DAY_END: dayEnd } : {}),
+            ...(dto.staffPoolSize != null
+              ? { STAFF_POOL_SIZE: staffPoolSize }
+              : {}),
+            ...(dto.onlineSlotLimit != null || dto.staffPoolSize != null
+              ? { ONLINE_SLOT_LIMIT: onlineSlotLimit }
+              : {}),
             UPDATED_BY: label,
             UPDATED_DATE: now,
           },

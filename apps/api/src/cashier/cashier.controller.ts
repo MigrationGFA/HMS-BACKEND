@@ -35,7 +35,8 @@ export class CashierController {
    * Purpose: Revenue KPIs, by-source/channel breakdowns, outstanding unpaid bills
    * Required permission: cashier:report-read
    * Request body: none
-   * Response example: { data: { kpis: { collected, refunds, receiptCount, outstanding, discounted }, bySource, byChannel, outstandingItems } }
+   * Query: from, to (YYYY-MM-DD). When omitted, defaults to month-to-date (WAT).
+   * Response example: { data: { from, to, kpis: { collected, refunds, receiptCount, outstanding, discounted }, bySource, byChannel, outstandingItems } }
    * Error cases: 401, 403
    */
   @Get('reports')
@@ -383,10 +384,11 @@ export class CashierController {
 
   /**
    * Method: GET
-   * URL: /api/cashier/audit?q=&page=&limit=
+   * URL: /api/cashier/audit?q=&page=&limit=&from=&to=
    * Purpose: Cashier-scoped audit trail (payments, refunds, discounts, shifts, settings)
    * Required permission: audit:read
    * Request body: none
+   * Query: from, to (YYYY-MM-DD). When omitted, defaults to today (WAT) so list matches stats cards.
    * Response example: { data: { items: [...], meta, stats } }
    * Error cases: 401, 403
    */
@@ -396,28 +398,33 @@ export class CashierController {
     @Query('q') q?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     const data = await this.cashierService.listAudit({
       q,
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 50,
+      from,
+      to,
     });
     return { data };
   }
 
   /**
    * Method: GET
-   * URL: /api/cashier/audit/stats
-   * Purpose: Today counts for payments / refunds / discounts / shifts
+   * URL: /api/cashier/audit/stats?from=&to=
+   * Purpose: Period counts for payments / refunds / discounts / shifts
    * Required permission: audit:read
    * Request body: none
+   * Query: from, to (YYYY-MM-DD). When omitted, defaults to today (WAT).
    * Response example: { data: { totalToday, payments, refunds, discounts, shifts } }
    * Error cases: 401, 403
    */
   @Get('audit/stats')
   @RequirePermissions(PERMISSIONS.AUDIT_READ)
-  async auditStats() {
-    const data = await this.cashierService.auditStats();
+  async auditStats(@Query('from') from?: string, @Query('to') to?: string) {
+    const data = await this.cashierService.auditStats({ from, to });
     return { data };
   }
 

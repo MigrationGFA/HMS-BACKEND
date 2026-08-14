@@ -551,8 +551,15 @@ export class DischargeService {
       }),
     ]);
 
+    const items = await Promise.all(
+      rows.map(async (r) => {
+        const payment = await this.getPaymentSnapshot(r.PERSON_ID);
+        return this.toResponse(r, payment);
+      }),
+    );
+
     return {
-      items: rows.map((r) => this.toResponse(r)),
+      items,
       meta: { page, limit, total },
     };
   }
