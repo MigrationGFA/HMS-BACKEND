@@ -28,7 +28,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 
 | Sub-feature | Status |
 |-------------|--------|
-| JWT login / refresh (access 1h, refresh 12h, auto-refresh then logout on hard 401) | ✅ |
+| JWT login / refresh (access 1h, refresh 12h, auto-refresh then logout on hard 401); phone or email login; migrated staff temp PIN = last 4 of phone + forced PIN reset (`GENERATE_PIN`) | ✅ |
 | bcrypt password hashing | ✅ |
 | RBAC guards (`PermissionsGuard` + `@RequirePermissions`, role map in `permissions.constants.ts`) | ✅ |
 | Standard RECORDS front-desk role permission set | ✅ |

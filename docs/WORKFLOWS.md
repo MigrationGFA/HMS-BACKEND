@@ -6,7 +6,8 @@ Core hospital business workflows. Each workflow maps to one or more API modules 
 
 ```
 Receptionist opens app
-  → POST /auth/login (email + password)
+  → POST /auth/login (phone + temp PIN for migrated staff, or email + password for seed/IT)
+  → if mustResetPassword: POST /auth/change-password (forced PIN reset)
   → Server validates bcrypt hash
   → Issues access JWT (1h) + refresh token (12h, stored in DB)
   → Client stores access + refresh tokens

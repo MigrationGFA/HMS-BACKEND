@@ -1,0 +1,8 @@
+// Legacy staff user-type lookup (Migration-Documents/USER_TYPE.csv)
+
+model UserTypes {
+  USER_TYPE_ID Int    @id
+  NAME         String @db.VarChar(100)
+
+  @@map("USER_TYPES")
+}

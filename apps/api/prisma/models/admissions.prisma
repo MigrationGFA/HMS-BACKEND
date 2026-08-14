@@ -15,6 +15,11 @@ model Wards {
   ADMISSION_DEPOSIT_DEFAULT Decimal @default(0) @db.Decimal(14, 2)
   /// Active | Inactive
   STATUS       String    @default("Active") @db.VarChar(30)
+  /// Legacy CSV DESCRIPTION
+  DESCRIPTION  String?   @db.VarChar(500)
+  HOSPITAL_ID  Int?
+  BRANCH_ID    Int?
+  DISCONTINUE_FLAG String? @db.VarChar(10)
   CREATED_BY   String?   @db.VarChar(100)
   CREATED_DATE DateTime?
   UPDATED_BY   String?   @db.VarChar(100)
@@ -32,6 +37,7 @@ model Wards {
 
   @@index([GENDER])
   @@index([STATUS])
+  @@index([HOSPITAL_ID, BRANCH_ID])
   @@map("WARDS")
 }
 

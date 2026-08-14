@@ -1,0 +1,18 @@
+// Legacy clinic lookup (Migration-Documents/CLINICS.csv)
+
+model Clinics {
+  CLINIC_ID             Int     @id
+  CLINIC_NAME           String  @db.VarChar(255)
+  DESCRIPTION           String? @db.VarChar(500)
+  DEPARTMENT_ID         Int?
+  IS_CONSULTATION_FREE  String? @db.VarChar(10)
+  HOSPITAL_ID           Int?
+  BRANCH_ID             Int?
+  CLINIC_CATEGORY       String? @db.VarChar(50)
+  CLINIC_CODE           String? @db.VarChar(50)
+  DISCONTINUE_FLAG      String? @db.VarChar(10)
+
+  @@index([HOSPITAL_ID, BRANCH_ID])
+  @@index([DEPARTMENT_ID])
+  @@map("CLINICS")
+}
