@@ -36,7 +36,8 @@ const MONTHS = {
 };
 
 const ALL_SMALL = ['user_types', 'roles', 'wards', 'clinics', 'doctors', 'users'];
-const ALL_TABLES = [...ALL_SMALL, 'persons'];
+const CLINICAL_TABLES = ['follow_ups', 'admissions', 'nursing_care_plans', 'nursing_notes'];
+const ALL_TABLES = [...ALL_SMALL, 'departments', 'persons', ...CLINICAL_TABLES];
 
 const CSV_FILES = {
   user_types: 'USER_TYPE.csv',
@@ -45,7 +46,42 @@ const CSV_FILES = {
   clinics: 'CLINICS.csv',
   doctors: 'DOCTORS.csv',
   users: 'USERS.csv',
+  departments: 'DEPARTMENTS.csv',
   persons: 'PERSONS.csv',
+  follow_ups: 'APPOINTMENTS.csv',
+  admissions: 'ADMISSION_HISTORY.csv',
+  nursing_care_plans: 'NURS_CARE_PLAN.csv',
+  nursing_notes: 'NOTES.csv',
+};
+
+/** Seed catalog codes that must not keep colliding Aro DEPARTMENT_IDs. */
+const SEED_DEPT_CODES = new Set([
+  'LAB',
+  'RAD',
+  'ADM',
+  'GMPC',
+  'OPC',
+  'CAP',
+  'PSY',
+  'ADD',
+  'PHARM',
+  'ER',
+  'TELE',
+]);
+
+/** Invented CODE values for DEPARTMENTS.csv (never reuse seed PHARM). */
+const DEPT_CODE_BY_ID = {
+  2: 'REV',
+  6: 'NURS',
+  8: 'DIAG',
+  9: 'PHARMACY',
+  12: 'CLIN',
+  13: 'SPEC',
+  18: 'ECG',
+  19: 'NUTR',
+  20: 'NEURO',
+  21: 'PAED',
+  22: 'RES',
 };
 
 function parseArgs(argv) {
@@ -116,6 +152,60 @@ function parseLegacyDate(v) {
   if (year < 100) year = year >= 70 ? 1900 + year : 2000 + year;
   const d = new Date(Date.UTC(year, mon, day));
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Oracle timestamps: 02-FEB-20 09.27.52.000000 PM, 11-NOV-21 12.00.00.000000 AM */
+function parseOracleTimestamp(v) {
+  const s = emptyToNull(v);
+  if (s === null) return null;
+  const oracle = /^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})\s+(\d{1,2})\.(\d{2})\.(\d{2})(?:\.\d+)?\s*(AM|PM)$/i.exec(s);
+  if (oracle) {
+    const day = Number(oracle[1]);
+    const monKey = oracle[2].slice(0, 1).toUpperCase() + oracle[2].slice(1, 3).toLowerCase();
+    const mon = MONTHS[monKey];
+    if (mon === undefined) return null;
+    let year = Number(oracle[3]);
+    if (year < 100) year = year >= 70 ? 1900 + year : 2000 + year;
+    let hour = Number(oracle[4]);
+    const minute = Number(oracle[5]);
+    const second = Number(oracle[6]);
+    const ampm = oracle[7].toUpperCase();
+    if (ampm === 'PM' && hour < 12) hour += 12;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+    const d = new Date(Date.UTC(year, mon, day, hour, minute, second));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return parseLegacyDate(s);
+}
+
+async function loadIdSet(client, table, pk) {
+  const res = await client.query(`SELECT "${pk}" FROM "${table}"`);
+  return new Set(res.rows.map((r) => Number(r[pk])));
+}
+
+async function loadClinicNameMap(client) {
+  const res = await client.query(`SELECT "CLINIC_ID", "CLINIC_NAME" FROM "CLINICS"`);
+  const map = new Map();
+  for (const r of res.rows) {
+    map.set(Number(r.CLINIC_ID), String(r.CLINIC_NAME).trim());
+  }
+  return map;
+}
+
+function mapFollowUpStatus(raw) {
+  const s = String(raw ?? '').trim().toUpperCase();
+  if (s === 'FULFILLED') return 'Attended';
+  if (s === 'CANCELLED') return 'Cancelled';
+  return 'Scheduled';
+}
+
+function isEmptyCarePlanToken(v) {
+  const s = String(v ?? '').trim().toLowerCase();
+  return !s || s === 'nil' || s === 'none' || s === 'null';
+}
+
+function isLegacyAroWardId(wardId) {
+  return wardId !== null && wardId >= 502 && wardId <= 645;
 }
 
 /** RFC4180-ish CSV field split (handles quotes). */
@@ -329,7 +419,8 @@ async function importWards(client, filePath, logger, stats) {
     }
     const discontinue = emptyToNull(row.DISCONTINUE_FLAG);
     const status = discontinue && discontinue !== '0' && discontinue.toUpperCase() !== 'N' ? 'Inactive' : 'Active';
-    const gender = emptyToNull(row.GENDER) || 'Mixed';
+    const genderRaw = emptyToNull(row.GENDER) || 'Mixed';
+    const gender = genderRaw.toLowerCase() === 'unisex' ? 'Mixed' : genderRaw;
     try {
       await upsertRow(
         client,
@@ -371,8 +462,11 @@ async function importClinics(client, filePath, logger, stats) {
   for await (const { row, lineNo } of streamCsvRows(filePath)) {
     const id = toInt(row.CLINIC_ID);
     const name = emptyToNull(row.CLINIC_NAME);
-    if (id === null || !name) {
+    if (id === null || !name || /^x+$/i.test(name)) {
       stats.skipped++;
+      if (id !== null && name && /^x+$/i.test(name)) {
+        logger.log(`CLINICS line ${lineNo} CLINIC_ID=${id}: skipped junk name`);
+      }
       continue;
     }
     try {
@@ -407,9 +501,161 @@ async function importClinics(client, filePath, logger, stats) {
       );
       stats.upserted++;
     } catch (e) {
+      if (e.code === '23503' && toInt(row.DEPARTMENT_ID) != null) {
+        try {
+          await upsertRow(
+            client,
+            'CLINICS',
+            'CLINIC_ID',
+            [
+              'CLINIC_ID',
+              'CLINIC_NAME',
+              'DESCRIPTION',
+              'DEPARTMENT_ID',
+              'IS_CONSULTATION_FREE',
+              'HOSPITAL_ID',
+              'BRANCH_ID',
+              'CLINIC_CATEGORY',
+              'CLINIC_CODE',
+              'DISCONTINUE_FLAG',
+            ],
+            [
+              id,
+              name,
+              emptyToNull(row.DESCRIPTION),
+              null,
+              emptyToNull(row.IS_CONSULTATION_FREE),
+              toInt(row.HOSPITAL_ID),
+              toInt(row.BRANCH_ID),
+              emptyToNull(row.CLINIC_CATEGORY),
+              emptyToNull(row.CLINIC_CODE),
+              emptyToNull(row.DISCONTINUE_FLAG),
+            ],
+          );
+          stats.upserted++;
+          logger.log(
+            `CLINICS line ${lineNo} CLINIC_ID=${id}: DEPARTMENT_ID cleared (FK mismatch)`,
+          );
+          continue;
+        } catch (e2) {
+          stats.errors++;
+          logger.log(`CLINICS line ${lineNo}: ${e2.message}`);
+          continue;
+        }
+      }
       stats.errors++;
       logger.log(`CLINICS line ${lineNo}: ${e.message}`);
     }
+  }
+}
+
+function inventDeptCode(id, name) {
+  if (DEPT_CODE_BY_ID[id]) return DEPT_CODE_BY_ID[id];
+  const slug = String(name ?? '')
+    .replace(/[^A-Za-z0-9]+/g, '')
+    .slice(0, 8)
+    .toUpperCase();
+  return slug || `D${id}`;
+}
+
+/**
+ * Relocate seed billing departments off colliding Aro ids (2/6/8/9), then upsert
+ * DEPARTMENTS.csv with exact DEPARTMENT_ID. Disregard DEPT.csv (Oracle sample).
+ */
+async function importDepartments(client, filePath, logger, stats) {
+  const csvRows = [];
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const id = toInt(row.DEPARTMENT_ID);
+    const name = emptyToNull(row.NAME);
+    if (id === null || !name) {
+      stats.skipped++;
+      logger.log(`DEPARTMENTS line ${lineNo}: skipped (missing id or name)`);
+      continue;
+    }
+    csvRows.push({ id, name, lineNo });
+  }
+
+  await client.query('BEGIN');
+  try {
+    const existingRes = await client.query(
+      `SELECT "DEPARTMENT_ID", "NAME", "CODE" FROM "DEPARTMENTS"`,
+    );
+    const usedIds = new Set(existingRes.rows.map((r) => Number(r.DEPARTMENT_ID)));
+    const byId = new Map(existingRes.rows.map((r) => [Number(r.DEPARTMENT_ID), r]));
+
+    const nextFreeId = () => {
+      let n = 100;
+      while (usedIds.has(n)) n += 1;
+      usedIds.add(n);
+      return n;
+    };
+
+    const csvIds = [...new Set(csvRows.map((r) => r.id))];
+    for (const csvId of csvIds) {
+      const live = byId.get(csvId);
+      if (!live) continue;
+      const liveCode = String(live.CODE ?? '').trim().toUpperCase();
+      if (!SEED_DEPT_CODES.has(liveCode)) continue;
+      const newId = nextFreeId();
+      await client.query(
+        `UPDATE "DEPARTMENTS" SET "DEPARTMENT_ID" = $1 WHERE "DEPARTMENT_ID" = $2`,
+        [newId, csvId],
+      );
+      logger.log(
+        `DEPARTMENTS: relocated seed id ${csvId} (${liveCode} ${live.NAME}) → ${newId}`,
+      );
+      byId.delete(csvId);
+      byId.set(newId, { ...live, DEPARTMENT_ID: newId });
+      usedIds.delete(csvId);
+    }
+
+    for (const { id, name, lineNo } of csvRows) {
+      let code = inventDeptCode(id, name);
+      const codeKey = code.toUpperCase();
+      const occupant = [...byId.values()].find(
+        (r) =>
+          Number(r.DEPARTMENT_ID) !== id &&
+          String(r.CODE ?? '').trim().toUpperCase() === codeKey,
+      );
+      if (occupant) {
+        code = `${code}_${id}`;
+      }
+      try {
+        await upsertRow(
+          client,
+          'DEPARTMENTS',
+          'DEPARTMENT_ID',
+          ['DEPARTMENT_ID', 'NAME', 'CODE', 'STATUS'],
+          [id, name, code, 'Active'],
+        );
+        stats.upserted++;
+        byId.set(id, { DEPARTMENT_ID: id, NAME: name, CODE: code });
+        usedIds.add(id);
+      } catch (e) {
+        stats.errors++;
+        logger.log(`DEPARTMENTS line ${lineNo} DEPARTMENT_ID=${id}: ${e.message}`);
+      }
+    }
+
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  }
+
+  await resetSequence(client, 'DEPARTMENTS', 'DEPARTMENT_ID');
+
+  const verify = await client.query(
+    `SELECT d."DEPARTMENT_ID", d."NAME", d."CODE",
+            (SELECT COUNT(*)::int FROM "MASTER_SERVICES" ms WHERE ms."DEPARTMENT_ID" = d."DEPARTMENT_ID") AS services
+     FROM "DEPARTMENTS" d
+     WHERE d."DEPARTMENT_ID" IN (2,6,8,9) OR d."CODE" IN ('PHARM','DIAG','PHARMACY','RAD')
+     ORDER BY d."DEPARTMENT_ID"`,
+  );
+  for (const r of verify.rows) {
+    logger.log(
+      `DEPARTMENTS verify id=${r.DEPARTMENT_ID} name=${r.NAME} code=${r.CODE} services=${r.services}`,
+    );
   }
 }
 
@@ -708,46 +954,66 @@ const PERSON_INT_COLS = new Set([
   'GLOBAL_PERSON_ID',
 ]);
 
+function mapPersonStatus(_raw) {
+  return 'Active';
+}
+
 function mapPersonValue(col, row) {
   const raw = row[col];
+  if (col === 'STATUS') return mapPersonStatus(raw);
   if (PERSON_DATE_COLS.has(col)) return parseLegacyDate(raw);
   if (PERSON_INT_COLS.has(col)) return toInt(raw);
-  return emptyToNull(raw);
+  const v = emptyToNull(raw);
+  if (col === 'PATIENT_PHONE_NO' && v && v.length > 50) return v.slice(0, 50);
+  return v;
 }
 
 async function importPersons(client, filePath, logger, stats, { offset, limit, batch }) {
   let dataIndex = -1; // 0-based among non-header data rows
   let processed = 0;
   let batchBuf = [];
+  const seenHospitalNos = new Set();
 
   const hmoIdx = PERSON_COLUMNS.indexOf('HMO_ID');
+  const hospIdx = PERSON_COLUMNS.indexOf('HOSPITAL_NO');
 
   const flush = async () => {
     if (batchBuf.length === 0) return;
     for (const item of batchBuf) {
-      try {
-        await upsertRow(client, 'PERSONS', 'PERSON_ID', PERSON_COLUMNS, item.values);
-        stats.upserted++;
-      } catch (e) {
-        // Legacy HMO_ID often does not match SERVICE_PAYERS.PAYER_ID — retry without it.
-        if (e.code === '23503' && hmoIdx >= 0 && item.values[hmoIdx] != null) {
-          try {
-            const retry = item.values.slice();
-            retry[hmoIdx] = null;
-            await upsertRow(client, 'PERSONS', 'PERSON_ID', PERSON_COLUMNS, retry);
-            stats.upserted++;
+      const values = item.values.slice();
+      let upserted = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await upsertRow(client, 'PERSONS', 'PERSON_ID', PERSON_COLUMNS, values);
+          stats.upserted++;
+          upserted = true;
+          break;
+        } catch (e) {
+          if (e.code === '23503' && hmoIdx >= 0 && values[hmoIdx] != null) {
+            values[hmoIdx] = null;
             logger.log(
               `PERSONS line ${item.lineNo} PERSON_ID=${item.id}: HMO_ID cleared (FK mismatch)`,
             );
             continue;
-          } catch (e2) {
-            stats.errors++;
-            logger.log(`PERSONS line ${item.lineNo} PERSON_ID=${item.id}: ${e2.message}`);
+          }
+          if (e.code === '23505' && hospIdx >= 0 && values[hospIdx] != null) {
+            values[hospIdx] = null;
+            logger.log(
+              `PERSONS line ${item.lineNo} PERSON_ID=${item.id}: HOSPITAL_NO cleared (unique constraint)`,
+            );
             continue;
           }
+          stats.errors++;
+          logger.log(`PERSONS line ${item.lineNo} PERSON_ID=${item.id}: ${e.message}`);
+          upserted = true;
+          break;
         }
+      }
+      if (!upserted) {
         stats.errors++;
-        logger.log(`PERSONS line ${item.lineNo} PERSON_ID=${item.id}: ${e.message}`);
+        logger.log(
+          `PERSONS line ${item.lineNo} PERSON_ID=${item.id}: exhausted retries`,
+        );
       }
     }
     batchBuf = [];
@@ -768,6 +1034,17 @@ async function importPersons(client, filePath, logger, stats, { offset, limit, b
     }
 
     const values = PERSON_COLUMNS.map((c) => mapPersonValue(c, row));
+    if (hospIdx >= 0 && values[hospIdx]) {
+      const key = String(values[hospIdx]).trim().toLowerCase();
+      if (seenHospitalNos.has(key)) {
+        logger.log(
+          `PERSONS line ${lineNo} PERSON_ID=${id}: HOSPITAL_NO cleared (duplicate in CSV; first occurrence kept)`,
+        );
+        values[hospIdx] = null;
+      } else {
+        seenHospitalNos.add(key);
+      }
+    }
     batchBuf.push({ id, lineNo, values });
     processed++;
 
@@ -782,14 +1059,331 @@ async function importPersons(client, filePath, logger, stats, { offset, limit, b
   await resetSequence(client, 'PERSONS', 'PERSON_ID');
 }
 
+async function importFollowUps(client, filePath, logger, stats) {
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const userIds = await loadIdSet(client, 'USERS', 'USER_ID');
+  const clinicNames = await loadClinicNameMap(client);
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const followUpId = toInt(row.APPOINTMENT_ID);
+    const personId = toInt(row.PERSON_ID);
+    const doctorId = toInt(row.DOCTOR_ID);
+    const scheduledDate = parseLegacyDate(row.APPOINTMENT_DATE);
+
+    if (followUpId === null) {
+      stats.skipped++;
+      continue;
+    }
+    if (personId === null || !personIds.has(personId)) {
+      stats.skipped++;
+      logger.log(`FOLLOW_UPS line ${lineNo} APPOINTMENT_ID=${followUpId}: skip missing PERSON_ID=${personId}`);
+      continue;
+    }
+    if (doctorId === null || !userIds.has(doctorId)) {
+      stats.skipped++;
+      logger.log(`FOLLOW_UPS line ${lineNo} APPOINTMENT_ID=${followUpId}: skip missing DOCTOR_ID=${doctorId}`);
+      continue;
+    }
+    if (!scheduledDate) {
+      stats.skipped++;
+      logger.log(`FOLLOW_UPS line ${lineNo} APPOINTMENT_ID=${followUpId}: skip missing APPOINTMENT_DATE`);
+      continue;
+    }
+
+    const clinicId = toInt(row.CLINIC_ID);
+    let clinic = clinicId !== null ? clinicNames.get(clinicId) ?? null : null;
+    if (clinic && clinic.length > 100) clinic = clinic.slice(0, 100);
+
+    try {
+      await upsertRow(
+        client,
+        'FOLLOW_UPS',
+        'FOLLOW_UP_ID',
+        [
+          'FOLLOW_UP_ID',
+          'PERSON_ID',
+          'ENCOUNTER_ID',
+          'DOCTOR_ID',
+          'CLINIC',
+          'SCHEDULED_DATE',
+          'SCHEDULED_TIME',
+          'PRIORITY',
+          'STATUS',
+          'CREATOR_TYPE',
+          'REASON',
+        ],
+        [
+          followUpId,
+          personId,
+          null,
+          doctorId,
+          clinic,
+          scheduledDate,
+          emptyToNull(row.APPOINTMENT_TIME),
+          'Routine',
+          mapFollowUpStatus(row.STATUS),
+          'staff',
+          emptyToNull(row.DESCIPTION),
+        ],
+      );
+      stats.upserted++;
+    } catch (e) {
+      stats.errors++;
+      logger.log(`FOLLOW_UPS line ${lineNo} APPOINTMENT_ID=${followUpId}: ${e.message}`);
+    }
+  }
+  await resetSequence(client, 'FOLLOW_UPS', 'FOLLOW_UP_ID');
+}
+
+async function importAdmissions(client, filePath, logger, stats) {
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const wardIds = await loadIdSet(client, 'WARDS', 'WARD_ID');
+  const groups = new Map();
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const admissionId = toInt(row.ADMISSION_ID);
+    const personId = toInt(row.PERSON_ID);
+    if (admissionId === null) {
+      stats.skipped++;
+      continue;
+    }
+    if (admissionId < 100) {
+      stats.skipped++;
+      logger.log(`ADMISSIONS line ${lineNo} ADMISSION_ID=${admissionId}: skip id < 100 (protect live 1–4)`);
+      continue;
+    }
+    if (personId === null || !personIds.has(personId)) {
+      stats.skipped++;
+      continue;
+    }
+
+    const admittedAt = parseOracleTimestamp(row.ADMISSION_DATE);
+    const dischargedAt = parseOracleTimestamp(row.DISCHARGE_DATE);
+    const wardId = toInt(row.WARD_ID);
+
+    if (!groups.has(admissionId)) {
+      groups.set(admissionId, {
+        admissionId,
+        personId,
+        admittedAt,
+        dischargedAt,
+        dischargeReason: emptyToNull(row.DISCHARGE_TYPE),
+        wardId: isLegacyAroWardId(wardId) && wardIds.has(wardId) ? wardId : null,
+        lineNo,
+      });
+      continue;
+    }
+
+    const g = groups.get(admissionId);
+    if (admittedAt && (!g.admittedAt || admittedAt < g.admittedAt)) {
+      g.admittedAt = admittedAt;
+    }
+    if (dischargedAt && (!g.dischargedAt || dischargedAt > g.dischargedAt)) {
+      g.dischargedAt = dischargedAt;
+      g.dischargeReason = emptyToNull(row.DISCHARGE_TYPE) ?? g.dischargeReason;
+    }
+    if (isLegacyAroWardId(wardId) && wardIds.has(wardId)) {
+      g.wardId = wardId;
+    }
+  }
+
+  for (const g of groups.values()) {
+    if (!g.admittedAt) {
+      stats.skipped++;
+      logger.log(`ADMISSIONS ADMISSION_ID=${g.admissionId}: skip missing ADMISSION_DATE`);
+      continue;
+    }
+
+    const status = g.dischargedAt ? 'DISCHARGED' : 'ADMITTED';
+    try {
+      await upsertRow(
+        client,
+        'ADMISSIONS',
+        'ADMISSION_ID',
+        [
+          'ADMISSION_ID',
+          'PERSON_ID',
+          'WARD_ID',
+          'BED_ID',
+          'STATUS',
+          'ADMITTED_AT',
+          'DISCHARGED_AT',
+          'DISCHARGE_REASON',
+        ],
+        [
+          g.admissionId,
+          g.personId,
+          g.wardId,
+          null,
+          status,
+          g.admittedAt,
+          g.dischargedAt,
+          g.dischargeReason,
+        ],
+      );
+      stats.upserted++;
+    } catch (e) {
+      stats.errors++;
+      logger.log(`ADMISSIONS ADMISSION_ID=${g.admissionId}: ${e.message}`);
+    }
+  }
+  await resetSequence(client, 'ADMISSIONS', 'ADMISSION_ID');
+}
+
+async function importNursingCarePlans(client, filePath, logger, stats) {
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const carePlanId = toInt(row.NURS_CARE_PLAN_ID);
+    const personId = toInt(row.PERSON_ID);
+
+    if (carePlanId === null) {
+      stats.skipped++;
+      continue;
+    }
+    if (personId === null || !personIds.has(personId)) {
+      stats.skipped++;
+      continue;
+    }
+    if (
+      isEmptyCarePlanToken(row.NURS_DIAGNOSIS) &&
+      isEmptyCarePlanToken(row.OBJECTIVES) &&
+      isEmptyCarePlanToken(row.NURS_ACTION) &&
+      isEmptyCarePlanToken(row.EVALUATION)
+    ) {
+      stats.skipped++;
+      continue;
+    }
+
+    const createdByRaw =
+      emptyToNull(row.NURSES_INITIALS) ?? emptyToNull(row.CREATED_BY) ?? null;
+    const createdBy =
+      createdByRaw && createdByRaw.length > 100 ? createdByRaw.slice(0, 100) : createdByRaw;
+    const createdDate = parseOracleTimestamp(row.DATE_TIME) ?? new Date();
+
+    try {
+      await upsertRow(
+        client,
+        'NURSING_CARE_PLANS',
+        'CARE_PLAN_ID',
+        [
+          'CARE_PLAN_ID',
+          'ADMISSION_ID',
+          'PERSON_ID',
+          'DIAGNOSIS',
+          'GOAL',
+          'INTERVENTION',
+          'EVALUATION',
+          'STATUS',
+          'CREATED_BY',
+          'CREATED_DATE',
+        ],
+        [
+          carePlanId,
+          null,
+          personId,
+          emptyToNull(row.NURS_DIAGNOSIS),
+          emptyToNull(row.OBJECTIVES),
+          emptyToNull(row.NURS_ACTION),
+          emptyToNull(row.EVALUATION),
+          'active',
+          createdBy,
+          createdDate,
+        ],
+      );
+      stats.upserted++;
+    } catch (e) {
+      stats.errors++;
+      logger.log(`NURSING_CARE_PLANS line ${lineNo} CARE_PLAN_ID=${carePlanId}: ${e.message}`);
+    }
+  }
+  await resetSequence(client, 'NURSING_CARE_PLANS', 'CARE_PLAN_ID');
+}
+
+function mapNursingNoteType(nurseDoctor) {
+  const s = String(nurseDoctor ?? '').trim().toUpperCase();
+  if (s === 'NURSE') return 'Progress';
+  if (s === 'DOCTOR') return 'General';
+  return 'General';
+}
+
+async function importNursingNotes(client, filePath, logger, stats) {
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const admissionIds = await loadIdSet(client, 'ADMISSIONS', 'ADMISSION_ID');
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const noteId = toInt(row.NOTE_ID);
+    const personId = toInt(row.PERSON_ID);
+    const body = emptyToNull(row.DESCRIPTION);
+
+    if (noteId === null) {
+      stats.skipped++;
+      continue;
+    }
+    if (personId === null || !personIds.has(personId)) {
+      stats.skipped++;
+      logger.log(`NURSING_NOTES line ${lineNo} NOTE_ID=${noteId}: skip missing PERSON_ID=${personId}`);
+      continue;
+    }
+    if (!body) {
+      stats.skipped++;
+      continue;
+    }
+
+    const admissionIdRaw = toInt(row.ADMISSION_ID);
+    const admissionId =
+      admissionIdRaw !== null && admissionIds.has(admissionIdRaw) ? admissionIdRaw : null;
+    const createdDate = parseLegacyDate(row.CREATED_DATE) ?? new Date();
+    const authorBy = emptyToNull(row.CREATED_BY);
+
+    try {
+      await upsertRow(
+        client,
+        'NURSING_NOTES',
+        'NOTE_ID',
+        [
+          'NOTE_ID',
+          'ADMISSION_ID',
+          'PERSON_ID',
+          'NOTE_TYPE',
+          'FORMAT',
+          'BODY',
+          'AUTHOR_BY',
+          'CREATED_DATE',
+        ],
+        [
+          noteId,
+          admissionId,
+          personId,
+          mapNursingNoteType(row.NURSE_DOCTOR),
+          'Narrative',
+          body,
+          authorBy,
+          createdDate,
+        ],
+      );
+      stats.upserted++;
+    } catch (e) {
+      stats.errors++;
+      logger.log(`NURSING_NOTES line ${lineNo} NOTE_ID=${noteId}: ${e.message}`);
+    }
+  }
+  await resetSequence(client, 'NURSING_NOTES', 'NOTE_ID');
+}
+
 const IMPORTERS = {
   user_types: importUserTypes,
   roles: importRoles,
   wards: importWards,
+  departments: importDepartments,
   clinics: importClinics,
   doctors: importDoctors,
   users: importUsers,
   persons: importPersons,
+  follow_ups: importFollowUps,
+  admissions: importAdmissions,
+  nursing_care_plans: importNursingCarePlans,
+  nursing_notes: importNursingNotes,
 };
 
 async function main() {

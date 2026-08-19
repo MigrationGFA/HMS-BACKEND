@@ -16,6 +16,10 @@ Central documentation for the Hospital Management System (HMS) backend API.
 | [CHANGELOG.md](./CHANGELOG.md) | Version history and notable changes |
 | [DECISIONS.md](./DECISIONS.md) | Architecture and technology decisions (ADR log) |
 | [TODO.md](./TODO.md) | Active tasks and backlog |
+| [LEGACY_DATA_MIGRATION.md](./LEGACY_DATA_MIGRATION.md) | Legacy CSV → Postgres importer |
+| [LEGACY_CSV_IMPORT_WARDS_PERSONS.md](./LEGACY_CSV_IMPORT_WARDS_PERSONS.md) | 2026-08-14 run: WARDS + first 10k PERSONS |
+| [LEGACY_CSV_CLINICAL_IMPORT_PLAN.md](./LEGACY_CSV_CLINICAL_IMPORT_PLAN.md) | Plan: appointments / admissions / nursing CSVs without breaking live data |
+| [LEGACY_CSV_INTERN_GUIDE.md](./LEGACY_CSV_INTERN_GUIDE.md) | Plain-language briefing of the whole legacy CSV story |
 | [NURSING_MODULE.md](./NURSING_MODULE.md) | Nursing Patient Queues tracker — phases and checklist |
 
 ## Project Status
