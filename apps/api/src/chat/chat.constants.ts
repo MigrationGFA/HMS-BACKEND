@@ -1,3 +1,5 @@
+import { normalizeRoleName } from '../common/constants/permissions.constants';
+
 /** Extensible chat module registry — add radiology later by extending this map. */
 export const CHAT_MODULES = [
   'doctor',
@@ -50,7 +52,10 @@ export const ROLE_TO_CHAT_MODULES: Record<string, ChatModuleId[]> = {
   PHARMACIST: ['pharmacy'],
   CASHIER: ['cashier'],
   RECORDS: ['records'],
+  RECORD_OFFICER: ['records'],
+  RECORD_ADMIN: ['records'],
   ADMIN: ['doctor', 'laboratory', 'pharmacy', 'cashier', 'records'],
+  SUPER_ADMIN: ['doctor', 'laboratory', 'pharmacy', 'cashier', 'records'],
   SUPERADMIN: ['doctor', 'laboratory', 'pharmacy', 'cashier', 'records'],
   IT: ['doctor', 'laboratory', 'pharmacy', 'cashier', 'records'],
 };
@@ -58,7 +63,8 @@ export const ROLE_TO_CHAT_MODULES: Record<string, ChatModuleId[]> = {
 export function modulesForRoles(roles: string[]): ChatModuleId[] {
   const set = new Set<ChatModuleId>();
   for (const role of roles) {
-    const mapped = ROLE_TO_CHAT_MODULES[role.toUpperCase()] ?? [];
+    const key = normalizeRoleName(role) ?? role.toUpperCase().replace(/[\s\-/]+/g, '_');
+    const mapped = ROLE_TO_CHAT_MODULES[key] ?? [];
     for (const m of mapped) set.add(m);
   }
   return [...set];

@@ -63,13 +63,13 @@ Defined in `apps/api/src/common/constants/roles.constants.ts`:
 | `SOCIAL_WORK` | Social work |
 | `ICU` | Intensive care unit |
 | `CASHIER` | Point-of-sale payments |
-| `RECORDS` | Medical records |
+| `RECORDS` | Medical records (`RECORD OFFICER`, `RECORD ADMIN`, and related production labels alias here) |
 | `IT` | IT administration |
 | `STAFF` | General staff |
 | `STUDENT` | Clinical students / trainees |
 | `PATIENT` | Patient portal (future) |
 
-RBAC uses `Role`, `Permission`, and join tables. Permissions follow `resource:action` (e.g. `patient:read`).
+RBAC uses role names on the JWT/`AuthUser`, resolved at request time via `ROLE_PERMISSIONS` + `normalizeRoleName` (production FNPH labels such as `RECORD OFFICER` map to canonical keys). Permissions follow `resource:action` (e.g. `patient:read`). There is no separate permissions table — changing grants requires a code deploy. `GET /api/users/me` and `GET /api/auth/me` return the resolved `permissions` array for debugging.
 
 ## Technical Constraints
 

@@ -16,9 +16,9 @@ export class UsersController {
   /**
    * Method: GET
    * URL: /api/users/me
-   * Purpose: Current user clinical/professional profile
+   * Purpose: Current user clinical/professional profile + resolved RBAC permissions
    * Required permission: authenticated JWT
-   * Response example: { data: { userId, email, licenseNumber, specialties, …, roles } }
+   * Response example: { data: { userId, email, licenseNumber, specialties, …, roles, permissions } }
    * Errors: 401, 404
    */
   @Get('me')

@@ -192,9 +192,17 @@ Patients are stored in the **`PERSONS`** table (Prisma model `Persons`). API res
 | GET | `/patients/:id/history` | Visit history | `patient:read` (planned) |
 
 RBAC is enforced via `PermissionsGuard` + `@RequirePermissions()`. The role→permission
-map lives in `apps/api/src/common/constants/permissions.constants.ts`. The standard
-front-desk **RECORDS** role has: `patient:create/read/update`, `card:create/read`,
-`triage:create/read`, `audit:read`, `user:read`.
+map lives in `apps/api/src/common/constants/permissions.constants.ts`.
+
+**Records department roles** (production `ROLE_NAME` values are aliased via `normalizeRoleName`):
+
+| DB / JWT `roles[]` label | Canonical map |
+|---|---|
+| `RECORDS`, `RECORD OFFICER`, `RECORD_OFFICER`, `RECORD ADMIN`, `RECORD_ADMIN`, `RECORD STATISTICAL OFFICER`, `CLINICAL CODING AND INDEXING` | `RECORDS_PERMISSIONS` |
+
+**RECORDS permission set** (non-exhaustive; full list in code): `patient:create/read/update`, `card:create/read`, `triage:create/read/update`, `admission:read/create/update`, `transfer:read/update/allocate/receive`, `referral:read/update/allocate`, `discharge:read/update/finalize`, `records-file:*`, `records-archive:*`, `records-report:*`, `records-analytics:read`, `comms:read/send/broadcast`, `audit:read`, `user:read`, `insurance:read/eligibility`.
+
+**Troubleshooting 403 Missing permission:** Call `GET /api/users/me` or `GET /api/auth/me` and confirm `permissions` includes the required key (e.g. `patient:read`). If `roles` is set but `permissions` is empty, the `ROLE_NAME` is not aliased — add it to `ROLE_ALIASES` / `normalizeRoleName`. Re-login after backend deploy.
 
 #### `POST /api/patients` — Register person
 
@@ -923,7 +931,7 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 **PATCH `/users/me` body:** `{ licenseNumber?, specialties?, subSpecialty?, qualifications?, departmentName?, clinicName?, consultationHours?, wardAssignment?, phoneNo?, firstName?, lastName? }`
 
-**Response example (me):** `{ data: { userId, email, licenseNumber, specialties, subSpecialty, clinicName, consultationHours, roles: ["DOCTOR"] } }`
+**Response example (me):** `{ data: { userId, email, licenseNumber, specialties, subSpecialty, clinicName, consultationHours, roles: ["RECORD OFFICER"], permissions: ["patient:read", "card:read", "…"] } }`
 
 **Errors:** `400` validation; `401`; `403` (search); `404` user.
 

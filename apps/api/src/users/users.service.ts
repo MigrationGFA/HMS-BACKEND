@@ -4,6 +4,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
+import {
+  permissionsForRoles,
+  type PermissionName,
+} from '../common/constants';
 
 export type UserSummary = {
   userId: number;
@@ -31,6 +35,8 @@ export type UserProfile = {
   consultationHours: string | null;
   wardAssignment: string | null;
   roles: string[];
+  /** Resolved RBAC permissions for the user's roles (for debugging / UI gates). */
+  permissions: PermissionName[];
 };
 
 @Injectable()
@@ -139,6 +145,7 @@ export class UsersService {
     WARD_ASSIGNMENT: string | null;
     role: { ROLE_NAME: string | null } | null;
   }): UserProfile {
+    const roles = user.role?.ROLE_NAME ? [user.role.ROLE_NAME] : [];
     return {
       userId: user.USER_ID,
       email: user.EMAIL_ADDRESS,
@@ -153,7 +160,8 @@ export class UsersService {
       clinicName: user.CLINIC_NAME,
       consultationHours: user.CONSULTATION_HOURS,
       wardAssignment: user.WARD_ASSIGNMENT,
-      roles: user.role?.ROLE_NAME ? [user.role.ROLE_NAME] : [],
+      roles,
+      permissions: [...permissionsForRoles(roles)].sort(),
     };
   }
 
