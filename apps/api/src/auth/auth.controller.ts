@@ -6,6 +6,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { AuthUser } from './types/auth-user.type';
+import { permissionsForRoles } from '../common/constants';
 
 @Controller('auth')
 export class AuthController {
@@ -59,16 +60,17 @@ export class AuthController {
   /**
    * Method: GET
    * URL: /api/auth/me
-   * Purpose: Current authenticated user profile
+   * Purpose: Current authenticated user profile + resolved RBAC permissions
    * Required permission: valid access JWT
    * Request body: none
-   * Response example: { data: { id, email, phone, firstName, lastName, roles, mustResetPassword } }
+   * Response example: { data: { id, email, phone, firstName, lastName, roles, permissions, mustResetPassword } }
    * Error cases: 401
    */
   @Get('me')
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser) {
-    return { data: user };
+    const permissions = [...permissionsForRoles(user.roles ?? [])].sort();
+    return { data: { ...user, permissions } };
   }
 
   /**
