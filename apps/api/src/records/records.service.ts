@@ -624,7 +624,13 @@ export class RecordsService {
       },
       _count: { _all: true },
     });
-    const duplicatesFlagged = phoneGroups.filter((g) => g._count._all > 1).length;
+    const duplicatesFlagged = phoneGroups.filter((g) => {
+      const count =
+        typeof g._count === 'object' && g._count !== null && '_all' in g._count
+          ? Number(g._count._all ?? 0)
+          : 0;
+      return count > 1;
+    }).length;
 
     return {
       asOf: now.toISOString(),
