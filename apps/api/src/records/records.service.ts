@@ -15,6 +15,7 @@ import type { AuthUser } from '../auth/types/auth-user.type';
 import type { CreatePersonDto } from '../patients/dto/create-person.dto';
 import type { UpdatePersonDto } from '../patients/dto/update-person.dto';
 import type { RegistrationChargesResult } from './registration-charge.constants';
+import { ACTIVE_PERSON_WHERE } from '../patients/active-person.where';
 
 /**
  * Records / front-desk workflows for Patient Entry Engine.
@@ -546,7 +547,7 @@ export class RecordsService {
       Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1),
     );
     const startOfMonth = new Date(startOfMonthLocal.getTime() - offsetMin * 60_000);
-    const base = { DISCONTINUE_FLAG: { not: 'Y' as const } };
+    const base = ACTIVE_PERSON_WHERE;
 
     const [
       totalPatients,
@@ -559,45 +560,59 @@ export class RecordsService {
     ] = await Promise.all([
       this.prisma.persons.count({ where: base }),
       this.prisma.persons.count({
-        where: { ...base, CREATED_DATE: { gte: startOfMonth } },
+        where: { AND: [base, { CREATED_DATE: { gte: startOfMonth } }] },
       }),
       this.prisma.persons.count({
-        where: { ...base, STATUS: 'Active' },
+        where: { AND: [base, { STATUS: 'Active' }] },
       }),
       this.prisma.persons.count({
         where: {
-          ...base,
-          OR: [
-            { PATIENT_TYPE: { contains: 'Inpatient', mode: 'insensitive' } },
-            { PATIENT_TYPE: { contains: 'IPD', mode: 'insensitive' } },
-            { REG_TYPE: { contains: 'Inpatient', mode: 'insensitive' } },
+          AND: [
+            base,
+            {
+              OR: [
+                { PATIENT_TYPE: { contains: 'Inpatient', mode: 'insensitive' } },
+                { PATIENT_TYPE: { contains: 'IPD', mode: 'insensitive' } },
+                { REG_TYPE: { contains: 'Inpatient', mode: 'insensitive' } },
+              ],
+            },
           ],
         },
       }),
       this.prisma.persons.count({
         where: {
-          ...base,
-          OR: [
-            { PATIENT_TYPE: { contains: 'Out', mode: 'insensitive' } },
-            { PATIENT_TYPE: { contains: 'OPD', mode: 'insensitive' } },
-            { REG_TYPE: { contains: 'Walk', mode: 'insensitive' } },
-            { REG_TYPE: { contains: 'Out', mode: 'insensitive' } },
+          AND: [
+            base,
+            {
+              OR: [
+                { PATIENT_TYPE: { contains: 'Out', mode: 'insensitive' } },
+                { PATIENT_TYPE: { contains: 'OPD', mode: 'insensitive' } },
+                { REG_TYPE: { contains: 'Walk', mode: 'insensitive' } },
+                { REG_TYPE: { contains: 'Out', mode: 'insensitive' } },
+              ],
+            },
           ],
         },
       }),
       this.prisma.persons.count({
         where: {
-          ...base,
-          OR: [
-            { NHIS_NO: { not: null } },
-            { HMO_ID: { not: null } },
+          AND: [
+            base,
+            {
+              OR: [
+                { NHIS_NO: { not: null } },
+                { HMO_ID: { not: null } },
+              ],
+            },
           ],
         },
       }),
       this.prisma.persons.count({
         where: {
-          ...base,
-          STATUS: { in: ['Pending Payment', 'Incomplete'] },
+          AND: [
+            base,
+            { STATUS: { in: ['Pending Payment', 'Incomplete'] } },
+          ],
         },
       }),
     ]);
@@ -605,8 +620,7 @@ export class RecordsService {
     const phoneGroups = await this.prisma.persons.groupBy({
       by: ['PATIENT_PHONE_NO'],
       where: {
-        ...base,
-        PATIENT_PHONE_NO: { not: null },
+        AND: [base, { PATIENT_PHONE_NO: { not: null } }],
       },
       _count: { _all: true },
     });
@@ -634,41 +648,43 @@ export class RecordsService {
     limit?: number;
   }) {
     const page = Math.max(params?.page ?? 1, 1);
-    const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
+    const limit = Math.min(Math.max(params?.limit ?? 50, 1), 200);
     const term = params?.q?.trim();
     const sex = params?.sex?.trim();
     const insurance = params?.insurance?.trim();
 
-    const where: Record<string, unknown> = {
-      DISCONTINUE_FLAG: { not: 'Y' },
-      ...(sex && sex !== 'all' ? { SEX: sex } : {}),
-      ...(insurance === 'NHIS'
-        ? { NHIS_NO: { not: null } }
-        : insurance === 'HMO'
-          ? { HMO_ID: { not: null } }
-          : insurance === 'Private'
-            ? { NHIS_NO: null, HMO_ID: null }
-            : {}),
-      ...(term
-        ? {
-            OR: [
-              { HOSPITAL_NO: { contains: term, mode: 'insensitive' } },
-              { FIRST_NAME: { contains: term, mode: 'insensitive' } },
-              { LAST_NAME: { contains: term, mode: 'insensitive' } },
-              { MIDDLE_NAME: { contains: term, mode: 'insensitive' } },
-              { PATIENT_PHONE_NO: { contains: term } },
-              { IDENTITY_NO: { contains: term } },
-              { NHIS_NO: { contains: term } },
-              { E_MAIL: { contains: term, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    };
+    const and: Record<string, unknown>[] = [ACTIVE_PERSON_WHERE];
+    if (sex && sex !== 'all') {
+      and.push({ SEX: sex });
+    }
+    if (insurance === 'NHIS') {
+      and.push({ NHIS_NO: { not: null } });
+    } else if (insurance === 'HMO') {
+      and.push({ HMO_ID: { not: null } });
+    } else if (insurance === 'Private') {
+      and.push({ NHIS_NO: null, HMO_ID: null });
+    }
+    if (term) {
+      and.push({
+        OR: [
+          { HOSPITAL_NO: { contains: term, mode: 'insensitive' } },
+          { FIRST_NAME: { contains: term, mode: 'insensitive' } },
+          { LAST_NAME: { contains: term, mode: 'insensitive' } },
+          { MIDDLE_NAME: { contains: term, mode: 'insensitive' } },
+          { PATIENT_PHONE_NO: { contains: term } },
+          { IDENTITY_NO: { contains: term } },
+          { NHIS_NO: { contains: term } },
+          { E_MAIL: { contains: term, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    const where = { AND: and };
 
     const [rows, total] = await Promise.all([
       this.prisma.persons.findMany({
         where,
-        orderBy: { CREATED_DATE: 'desc' },
+        orderBy: [{ PERSON_ID: 'desc' }, { CREATED_DATE: 'desc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -724,7 +740,7 @@ export class RecordsService {
             include: { role: true },
           },
         },
-        orderBy: { CREATE_DATE: 'desc' },
+        orderBy: [{ AUDIT_ID: 'desc' }, { CREATE_DATE: 'desc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -922,14 +938,18 @@ export class RecordsService {
     // Paid / Active registrations today that have not been checked into triage yet
     const pendingCheckIn = await this.prisma.persons.findMany({
       where: {
-        CREATED_DATE: { gte: startOfDay, lt: endOfDay },
-        DISCONTINUE_FLAG: { not: 'Y' },
-        PERSON_ID: { notIn: [...triagePersonIds] },
-        cards: {
-          some: {
-            PAYMENT_STATUS: { in: ['Paid', 'Waived'] },
+        AND: [
+          ACTIVE_PERSON_WHERE,
+          { CREATED_DATE: { gte: startOfDay, lt: endOfDay } },
+          { PERSON_ID: { notIn: [...triagePersonIds] } },
+          {
+            cards: {
+              some: {
+                PAYMENT_STATUS: { in: ['Paid', 'Waived'] },
+              },
+            },
           },
-        },
+        ],
       },
       include: {
         cards: { orderBy: { CREATED_DATE: 'desc' }, take: 1 },
@@ -938,7 +958,7 @@ export class RecordsService {
           take: 1,
         },
       },
-      orderBy: { CREATED_DATE: 'desc' },
+      orderBy: [{ PERSON_ID: 'desc' }, { CREATED_DATE: 'desc' }],
       take: 200,
     });
 
