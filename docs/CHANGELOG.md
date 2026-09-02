@@ -7,6 +7,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Records Patient Directory only ~9 rows:** `DISCONTINUE_FLAG: { not: 'Y' }` excluded SQL `NULL` (common on legacy `PERSONS`), so `GET /api/records/directory?limit=100` returned a handful of rows. Active-person filter is now `NULL OR not 'Y'` (shared `ACTIVE_PERSON_WHERE`) in directory, directory-stats, arrivals pending persons, and patient list/search. Directory orders by `PERSON_ID desc`, `CREATED_DATE desc`; limit max raised to **200** (default 50). fnph-aro Records lists (directory, arrivals, audit, retrieval, archive, admissions, referrals, transfers, discharge) use page size 50 + `RecordsListPagination`. **Deploy:** redeploy API + frontend (no migration).
 - **Records dashboard 403 (role label mismatch):** Production FNPH roles `RECORD OFFICER`, `RECORD ADMIN`, `RECORD STATISTICAL OFFICER`, and `CLINICAL CODING AND INDEXING` did not match the code key `RECORDS`, so `permissionsForRoles` returned an empty set and every Records screen got `403 Missing permission: patient:read` (and related keys). Added `normalizeRoleName` / `ROLE_ALIASES` (plus other production labels → existing maps), granted `transfer:receive` to Records, ensured canonical role rows via migration `20260831120000_records_role_rbac_aliases`, and expose resolved `permissions` on `GET /api/users/me` and `GET /api/auth/me`. **Deploy:** redeploy API (`prisma migrate deploy`); users should re-login. No frontend change required.
 
 ### Added

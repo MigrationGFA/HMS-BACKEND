@@ -501,9 +501,14 @@ Optional request fields `regFee`, `consultFee`, `cardFee` set the card charges.
 
 **Purpose:** Searchable Patient Directory list.
 
-**Query:** `q`, `sex` (`Male`|`Female`), `insurance` (`NHIS`|`HMO`|`Private`), `page`, `limit`
+**Query:** `q`, `sex` (`Male`|`Female`), `insurance` (`NHIS`|`HMO`|`Private`), `page` (default `1`), `limit` (default `50`, max `200`)
 
 **Required permission:** `patient:read`
+
+**Notes:**
+- Active persons include `DISCONTINUE_FLAG IS NULL` or not `'Y'` (legacy rows with NULL are included; discontinued `'Y'` are excluded).
+- Default sort is highest `PERSON_ID` first, then `CREATED_DATE` desc (newest / last-on-table first).
+- Response: `{ data: { items, meta: { page, limit, total } } }`.
 
 #### `GET /api/records/audit-stats`
 
