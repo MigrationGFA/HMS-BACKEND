@@ -146,7 +146,7 @@ export class CardsService {
     const [rows, total] = await Promise.all([
       this.prisma.patientCards.findMany({
         where,
-        orderBy: { CREATED_DATE: 'desc' },
+        orderBy: [{ CARD_ID: 'desc' }, { CREATED_DATE: 'desc' }],
         skip: (page - 1) * limit,
         take: limit,
         include: { person: { select: PERSON_SELECT } },

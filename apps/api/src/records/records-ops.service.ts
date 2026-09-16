@@ -199,7 +199,7 @@ export class RecordsOpsService {
       await Promise.all([
         this.prisma.recordFileRequests.findMany({
           where,
-          orderBy: { CREATED_DATE: 'desc' },
+          orderBy: [{ REQUEST_ID: 'desc' }, { CREATED_DATE: 'desc' }],
           skip: (page - 1) * limit,
           take: limit,
         }),
@@ -459,7 +459,7 @@ export class RecordsOpsService {
     const [rows, total] = await Promise.all([
       this.prisma.recordArchives.findMany({
         where,
-        orderBy: { ARCHIVED_AT: 'desc' },
+        orderBy: [{ ARCHIVE_ID: 'desc' }, { ARCHIVED_AT: 'desc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),

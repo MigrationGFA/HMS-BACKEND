@@ -311,6 +311,7 @@ const RECORDS_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.TRANSFER_READ,
   PERMISSIONS.TRANSFER_UPDATE,
   PERMISSIONS.TRANSFER_ALLOCATE,
+  PERMISSIONS.TRANSFER_RECEIVE,
   PERMISSIONS.NOTIFICATION_READ,
   PERMISSIONS.REFERRAL_READ,
   PERMISSIONS.REFERRAL_UPDATE,
@@ -562,6 +563,8 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
   ],
 
   [ROLES.RECORDS]: RECORDS_PERMISSIONS,
+  [ROLES.RECORD_OFFICER]: RECORDS_PERMISSIONS,
+  [ROLES.RECORD_ADMIN]: RECORDS_PERMISSIONS,
   [ROLES.CASHIER]: CASHIER_PERMISSIONS,
   [ROLES.FINANCE]: [
     PERMISSIONS.PATIENT_READ,
@@ -674,10 +677,130 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
   ],
 };
 
+/**
+ * Collapse production / legacy role labels to a lookup key.
+ * "RECORD OFFICER", "Record-Admin", "records" → "RECORD_OFFICER" / "RECORD_ADMIN" / "RECORDS".
+ */
+export function canonicalizeRoleKey(role: string): string {
+  return String(role ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s\-/]+/g, '_');
+}
+
+/**
+ * Map FNPH production ROLE_NAME values (and common variants) to a canonical
+ * RoleName that exists in ROLE_PERMISSIONS. Unmapped roles yield no permissions.
+ */
+const ROLE_ALIASES: Record<string, RoleName> = {
+  // Records department (exact production labels + variants)
+  RECORDS: ROLES.RECORDS,
+  RECORD: ROLES.RECORDS,
+  RECORD_OFFICER: ROLES.RECORDS,
+  RECORDS_OFFICER: ROLES.RECORDS,
+  RECORD_ADMIN: ROLES.RECORDS,
+  RECORDS_ADMIN: ROLES.RECORDS,
+  MEDICAL_RECORDS: ROLES.RECORDS,
+  HEALTH_RECORDS: ROLES.RECORDS,
+  RECORD_STATISTICAL_OFFICER: ROLES.RECORDS,
+  RECORDS_STATISTICAL_OFFICER: ROLES.RECORDS,
+  CLINICAL_CODING_AND_INDEXING: ROLES.RECORDS,
+  CLINICAL_CODING: ROLES.RECORDS,
+
+  // Leadership / admin
+  CMD: ROLES.CMD,
+  CMD_ROLE: ROLES.CMD,
+  ADMIN: ROLES.ADMIN,
+  SUPER_ADMIN: ROLES.SUPER_ADMIN,
+  ICT_STAFF: ROLES.IT,
+  ICT_ADMIN: ROLES.IT,
+  IT: ROLES.IT,
+
+  // Clinical
+  DOCTOR: ROLES.DOCTOR,
+  CONSULTANT: ROLES.DOCTOR,
+  NEUROLOGIST: ROLES.DOCTOR,
+  ANATOMIST: ROLES.DOCTOR,
+  PHYSIOLOGIST: ROLES.DOCTOR,
+  NURSE: ROLES.NURSE,
+  NURSE_ADMIN: ROLES.NURSE,
+  ICU: ROLES.ICU,
+
+  // Pharmacy
+  PHARMACIST: ROLES.PHARMACIST,
+  PHARMACIST_ADMIN: ROLES.PHARMACIST,
+  PHARMACY_STORE_OFFICER: ROLES.PHARMACIST,
+  PHARMACY_STORE_ADMIN: ROLES.PHARMACIST,
+  NHIS_PHARMACY_OFFICER: ROLES.PHARMACIST,
+
+  // Lab / radiology
+  LAB: ROLES.LAB,
+  LAB_OFFICER: ROLES.LAB,
+  LAB_RECEPTIONIST: ROLES.LAB,
+  LAB_ADMIN: ROLES.LAB,
+  LAB_REPORT_OFFICER: ROLES.LAB,
+  RADIOLOGY: ROLES.RADIOLOGY,
+  RADIOLOGIST: ROLES.RADIOLOGY,
+  RADIOLOGIST_ADMIN: ROLES.RADIOLOGY,
+  EEG_OFFICER: ROLES.RADIOLOGY,
+
+  // Allied health
+  PSYCHOLOGY: ROLES.PSYCHOLOGY,
+  PHYSIOTHERAPIST: ROLES.PHYSIOTHERAPY,
+  PHYSIOTHERAPY: ROLES.PHYSIOTHERAPY,
+  SPEECH_THERAPIST: ROLES.SPEECH_THERAPY,
+  SPEECH_THERAPY: ROLES.SPEECH_THERAPY,
+  SOCIAL_WORKER: ROLES.SOCIAL_WORK,
+  SOCIAL_WORK: ROLES.SOCIAL_WORK,
+  NUTRITIONIST: ROLES.NUTRITION,
+  NUTRITION: ROLES.NUTRITION,
+  OCCUPATIONAL_THERAPIST: ROLES.PHYSIOTHERAPY,
+
+  // Finance / cashier (revenue-facing production labels)
+  CASHIER: ROLES.CASHIER,
+  REVENUE_OFFICER: ROLES.CASHIER,
+  REVENUE_APPROVING_OFFICER: ROLES.CASHIER,
+  REVENUE_HEAD_OFFICER: ROLES.CASHIER,
+  HEAD_OF_ACCOUNT: ROLES.FINANCE,
+  ACCOUNT_REPORTING_OFFICER: ROLES.FINANCE,
+  ACCOUNT_CREDIT_NHIS_OFFICER: ROLES.FINANCE,
+  ACCOUNT_GENERAL_REPORTING_OFFICER: ROLES.FINANCE,
+  NHIS_OFFICER: ROLES.FINANCE,
+  NHIS_RETAINERSHIP_ACCOUNT_OFFICER: ROLES.FINANCE,
+  NHIS_SELF_PAY_REPORT_OFFICER: ROLES.FINANCE,
+  REMITAL: ROLES.FINANCE,
+  REMITAL_SUPERVISOR: ROLES.FINANCE,
+  FINANCE: ROLES.FINANCE,
+
+  // Other
+  BOARD: ROLES.BOARD,
+  HR: ROLES.HR,
+  STAFF: ROLES.STAFF,
+  STUDENT: ROLES.STUDENT,
+  PATIENT: ROLES.PATIENT,
+};
+
+/**
+ * Resolve a raw ROLE_NAME (any casing / spacing) to a RoleName used in
+ * ROLE_PERMISSIONS, or null if the role has no mapped permissions.
+ */
+export function normalizeRoleName(role: string): RoleName | null {
+  const key = canonicalizeRoleKey(role);
+  if (!key) return null;
+  if (ROLE_ALIASES[key]) return ROLE_ALIASES[key];
+  // Direct match against known RoleName constants
+  if ((Object.values(ROLES) as string[]).includes(key)) {
+    return key as RoleName;
+  }
+  return null;
+}
+
 export function permissionsForRoles(roles: string[]): Set<PermissionName> {
   const granted = new Set<PermissionName>();
   for (const role of roles) {
-    const perms = ROLE_PERMISSIONS[role as RoleName];
+    const canonical = normalizeRoleName(role);
+    if (!canonical) continue;
+    const perms = ROLE_PERMISSIONS[canonical];
     if (perms) {
       for (const p of perms) granted.add(p);
     }

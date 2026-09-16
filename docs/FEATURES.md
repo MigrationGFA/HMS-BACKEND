@@ -51,7 +51,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Registration card auto-opened (`PATIENT_CARDS`, payment Pending) | ✅ |
 | Patient Entry dashboard stats (`GET /records/dashboard-stats`) | ✅ |
 | Records Officer Overview (`GET /records/overview` → `/dashboard/records`) | ✅ |
-| Patient Directory (`GET /records/directory` + `/directory-stats`) | ✅ |
+| Patient Directory (`GET /records/directory` + `/directory-stats`) | ✅ | Active = `DISCONTINUE_FLAG` NULL or not `Y`; ordered `PERSON_ID` desc; paginated (default 50, max 200) |
 | Records Audit Trail (`GET /records/audit` + `/audit-stats`) | ✅ |
 | Patient Arrival / Check-In (`GET /records/arrivals`, `POST /records/arrivals/route`) | ✅ |
 | Records registration queue + payment gate (`/api/records/*`) | ✅ |

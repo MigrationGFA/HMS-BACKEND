@@ -22,6 +22,10 @@ export const ROLES = {
   ICU: 'ICU',
   CASHIER: 'CASHIER',
   RECORDS: 'RECORDS',
+  /** Production FNPH role label (aliases to RECORDS permissions). */
+  RECORD_OFFICER: 'RECORD_OFFICER',
+  /** Production FNPH role label (aliases to RECORDS permissions). */
+  RECORD_ADMIN: 'RECORD_ADMIN',
   IT: 'IT',
   STAFF: 'STAFF',
   STUDENT: 'STUDENT',

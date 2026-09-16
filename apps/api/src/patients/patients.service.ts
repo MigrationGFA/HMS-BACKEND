@@ -9,6 +9,7 @@ import { CardsService, type CardResponse } from './cards.service';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import type { AuthUser } from '../auth/types/auth-user.type';
+import { ACTIVE_PERSON_WHERE } from './active-person.where';
 
 export type PersonResponse = {
   personId: number;
@@ -63,8 +64,7 @@ export class PatientsService {
     if (identityNo) {
       const byIdentity = await this.prisma.persons.findFirst({
         where: {
-          IDENTITY_NO: identityNo,
-          DISCONTINUE_FLAG: { not: 'Y' },
+          AND: [ACTIVE_PERSON_WHERE, { IDENTITY_NO: identityNo }],
         },
       });
       if (byIdentity) {
@@ -78,10 +78,14 @@ export class PatientsService {
 
     const byPhone = await this.prisma.persons.findFirst({
       where: {
-        PATIENT_PHONE_NO: phone,
-        LAST_NAME: { equals: dto.lastName.trim(), mode: 'insensitive' },
-        FIRST_NAME: { equals: dto.firstName.trim(), mode: 'insensitive' },
-        DISCONTINUE_FLAG: { not: 'Y' },
+        AND: [
+          ACTIVE_PERSON_WHERE,
+          {
+            PATIENT_PHONE_NO: phone,
+            LAST_NAME: { equals: dto.lastName.trim(), mode: 'insensitive' },
+            FIRST_NAME: { equals: dto.firstName.trim(), mode: 'insensitive' },
+          },
+        ],
       },
     });
     if (byPhone) {
@@ -299,22 +303,26 @@ export class PatientsService {
 
     const where = term
       ? {
-          DISCONTINUE_FLAG: { not: 'Y' as const },
-          OR: [
-            { HOSPITAL_NO: { contains: term, mode: 'insensitive' as const } },
-            { FIRST_NAME: { contains: term, mode: 'insensitive' as const } },
-            { LAST_NAME: { contains: term, mode: 'insensitive' as const } },
-            { PATIENT_PHONE_NO: { contains: term } },
-            { IDENTITY_NO: { contains: term } },
-            { NHIS_NO: { contains: term } },
+          AND: [
+            ACTIVE_PERSON_WHERE,
+            {
+              OR: [
+                { HOSPITAL_NO: { contains: term, mode: 'insensitive' as const } },
+                { FIRST_NAME: { contains: term, mode: 'insensitive' as const } },
+                { LAST_NAME: { contains: term, mode: 'insensitive' as const } },
+                { PATIENT_PHONE_NO: { contains: term } },
+                { IDENTITY_NO: { contains: term } },
+                { NHIS_NO: { contains: term } },
+              ],
+            },
           ],
         }
-      : { DISCONTINUE_FLAG: { not: 'Y' as const } };
+      : ACTIVE_PERSON_WHERE;
 
     const [rows, total] = await Promise.all([
       this.prisma.persons.findMany({
         where,
-        orderBy: { CREATED_DATE: 'desc' },
+        orderBy: [{ PERSON_ID: 'desc' }, { CREATED_DATE: 'desc' }],
         skip,
         take,
       }),
