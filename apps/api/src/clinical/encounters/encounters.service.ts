@@ -98,17 +98,19 @@ function dec(v: Prisma.Decimal | null | undefined): number | null {
   return Number(v);
 }
 
-function mapVitals(t: {
-  WEIGHT_KG?: Prisma.Decimal | null;
-  HEIGHT_CM?: Prisma.Decimal | null;
-  BMI?: Prisma.Decimal | null;
-  BLOOD_PRESSURE?: string | null;
-  TEMPERATURE_C?: Prisma.Decimal | null;
-  PULSE_BPM?: number | null;
-  RESPIRATORY_RATE?: number | null;
-  SPO2_PCT?: Prisma.Decimal | null;
-  NOTES?: string | null;
-} | null) {
+function mapVitals(
+  t: {
+    WEIGHT_KG?: Prisma.Decimal | null;
+    HEIGHT_CM?: Prisma.Decimal | null;
+    BMI?: Prisma.Decimal | null;
+    BLOOD_PRESSURE?: string | null;
+    TEMPERATURE_C?: Prisma.Decimal | null;
+    PULSE_BPM?: number | null;
+    RESPIRATORY_RATE?: number | null;
+    SPO2_PCT?: Prisma.Decimal | null;
+    NOTES?: string | null;
+  } | null,
+) {
   if (!t) {
     return {
       status: 'Pending' as const,
@@ -337,7 +339,10 @@ export class EncountersService {
     };
   }
 
-  async listActive(actor: AuthUser, params?: { page?: number; limit?: number }) {
+  async listActive(
+    actor: AuthUser,
+    params?: { page?: number; limit?: number },
+  ) {
     const page = Math.max(params?.page ?? 1, 1);
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
     const where: Prisma.EncountersWhereInput = {
@@ -369,7 +374,9 @@ export class EncountersService {
       const message = err instanceof Error ? err.message : String(err);
       if (
         /ENCOUNTERS/i.test(message) &&
-        /(does not exist|Unknown column|column .* does not exist)/i.test(message)
+        /(does not exist|Unknown column|column .* does not exist)/i.test(
+          message,
+        )
       ) {
         throw new ServiceUnavailableException(
           'Encounters schema is not applied on this database. Run: npx prisma migrate deploy',
@@ -397,8 +404,12 @@ export class EncountersService {
     const y = localNow.getUTCFullYear();
     const m = localNow.getUTCMonth();
     const d = localNow.getUTCDate();
-    const dayStartUtc = new Date(Date.UTC(y, m, d, 0, 0, 0) - offsetMinutes * 60_000);
-    const dayEndUtc = new Date(Date.UTC(y, m, d + 1, 0, 0, 0) - offsetMinutes * 60_000);
+    const dayStartUtc = new Date(
+      Date.UTC(y, m, d, 0, 0, 0) - offsetMinutes * 60_000,
+    );
+    const dayEndUtc = new Date(
+      Date.UTC(y, m, d + 1, 0, 0, 0) - offsetMinutes * 60_000,
+    );
 
     const where: Prisma.EncountersWhereInput = {
       DOCTOR_ID: actor.id,
@@ -432,7 +443,9 @@ export class EncountersService {
       const message = err instanceof Error ? err.message : String(err);
       if (
         /ENCOUNTERS/i.test(message) &&
-        /(does not exist|Unknown column|column .* does not exist)/i.test(message)
+        /(does not exist|Unknown column|column .* does not exist)/i.test(
+          message,
+        )
       ) {
         throw new ServiceUnavailableException(
           'Encounters schema is not applied on this database. Run: npx prisma migrate deploy',
@@ -454,7 +467,9 @@ export class EncountersService {
     if (triage.person.DISCONTINUE_FLAG === 'Y') {
       throw new NotFoundException('Person not found');
     }
-    if (!QUEUE_STATUSES.includes(triage.STATUS as (typeof QUEUE_STATUSES)[number])) {
+    if (
+      !QUEUE_STATUSES.includes(triage.STATUS as (typeof QUEUE_STATUSES)[number])
+    ) {
       throw new BadRequestException(
         `Patient is not awaiting consultation (status: ${triage.STATUS})`,
       );
@@ -542,7 +557,9 @@ export class EncountersService {
     });
     if (!existing) throw new NotFoundException('Encounter not found');
     if (existing.STATUS !== 'In Consultation') {
-      throw new BadRequestException('Only in-progress consultations can be edited');
+      throw new BadRequestException(
+        'Only in-progress consultations can be edited',
+      );
     }
 
     if (dto.idempotencyKey) {
@@ -627,11 +644,7 @@ export class EncountersService {
     );
   }
 
-  async complete(
-    id: number,
-    dto: CompleteEncounterDto,
-    actor: AuthUser,
-  ) {
+  async complete(id: number, dto: CompleteEncounterDto, actor: AuthUser) {
     const existing = await this.prisma.encounters.findUnique({
       where: { ENCOUNTER_ID: id },
       include: { triage: true },
@@ -644,7 +657,8 @@ export class EncountersService {
     const actorLabel = actorLabelOf(actor);
     const now = new Date();
     const outcome = dto.outcome?.trim() || 'Completed';
-    const wantsFollowUp = isFollowUpOutcome(outcome) || Boolean(dto.followUpDate);
+    const wantsFollowUp =
+      isFollowUpOutcome(outcome) || Boolean(dto.followUpDate);
 
     if (wantsFollowUp && !dto.followUpDate) {
       throw new BadRequestException(
@@ -913,7 +927,8 @@ export class EncountersService {
       meta: {
         page,
         limit,
-        total: params?.status && params.status !== 'all' ? filtered.length : total,
+        total:
+          params?.status && params.status !== 'all' ? filtered.length : total,
         from: dateOnlyIso(fromDate),
         to: dateOnlyIso(toDate),
       },
@@ -927,7 +942,9 @@ export class EncountersService {
         where: { ENCOUNTER_ID: dto.encounterId },
       });
       if (!enc || enc.PERSON_ID !== dto.personId) {
-        throw new BadRequestException('Encounter does not belong to this patient');
+        throw new BadRequestException(
+          'Encounter does not belong to this patient',
+        );
       }
     }
 
@@ -1001,11 +1018,7 @@ export class EncountersService {
     };
   }
 
-  async updateFollowUp(
-    id: number,
-    dto: UpdateFollowUpDto,
-    actor: AuthUser,
-  ) {
+  async updateFollowUp(id: number, dto: UpdateFollowUpDto, actor: AuthUser) {
     const existing = await this.prisma.followUps.findUnique({
       where: { FOLLOW_UP_ID: id },
     });
@@ -1061,7 +1074,10 @@ export class EncountersService {
       userId: actor.id,
       createdBy: actorLabel,
       item: `Follow-up updated${dto.status ? ` → ${dto.status}` : ''}`,
-      newValue: { status: updated.STATUS, scheduledDate: dateOnlyIso(updated.SCHEDULED_DATE) },
+      newValue: {
+        status: updated.STATUS,
+        scheduledDate: dateOnlyIso(updated.SCHEDULED_DATE),
+      },
     });
 
     const todayIso = todayDateOnlyUtc(60);
@@ -1151,7 +1167,10 @@ export class EncountersService {
       allergies.push(inProgress.ALLERGY_HISTORY.trim());
     }
     for (const rx of rxResult.items) {
-      if (rx.allergiesNote?.trim() && !allergies.includes(rx.allergiesNote.trim())) {
+      if (
+        rx.allergiesNote?.trim() &&
+        !allergies.includes(rx.allergiesNote.trim())
+      ) {
         allergies.push(rx.allergiesNote.trim());
       }
     }

@@ -104,6 +104,8 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Patient clinical summary + encounter notes timeline (`GET …/clinical-summary`, `GET …/notes`) | ✅ |
 | Full clinical note sections on encounters (PMH, drug/allergy/family/social Hx, follow-up) | ✅ |
 | Clinical Documentation notes (`/api/clinical-notes/*` — drafts, review, sign, versions; patient search via `/api/patients`) | ✅ |
+| Legacy clinical notes import (`LEG-*` NOTE_NO; types Legacy Complaint / Physical Exam / Call Note / Prophylactic Drugs / Legacy Comment; filter on Completed tab) | ✅ |
+| Legacy HTML note templates (`CLINICAL_NOTE_TEMPLATES` + `GET /api/clinical-notes/legacy-templates`) | ✅ |
 | Prescriptions (`POST/GET/PATCH /prescriptions`) | ✅ |
 | Diagnoses & care plans | 📋 |
 | Ward & bed management | ✅ (API) |
@@ -226,7 +228,7 @@ Feature inventory for HMS backend. Status: ✅ Scaffolded · 🚧 Partial · �
 | Cashier | ✅ | `/api/cashier/*` — receipts, refunds, discounts, shifts, reports, patient payment-history, verify, audit, settings; FE desk `/dashboard/cashier` (+ profile); `/billing/*` visits/gate kept |
 | Finance | ✅ | `/api/finance/*` |
 | Insurance | ✅ | `/api/insurance/*` — NHIA stubs + **HMO Integration Broker** (`/api/insurance/hmo/*`) |
-| Inventory | ✅ | `/api/inventory/*` |
+| Inventory | ⏳ | General hospital stores now live under `/api/stores/*` (Phase H). Empty Nest `/api/inventory/*` scaffold deprecated. Pharmacy inventory remains ✅ `/api/pharmacy/*` |
 
 | Sub-feature | Status |
 |-------------|--------|
@@ -315,7 +317,18 @@ Adapters: `mock` (sandbox ACTIVE), `curably` (aggregator; env `CURABLY_*`), dire
 | Super Admin | ✅ | `/api/super-admin` |
 | Governance | ✅ | `/api/governance/*` |
 | Administration | ✅ | `/api/administration` |
-| HR | ✅ | `/api/hr/*` |
+| HR | ✅ | `/api/hr/*` — Phases A–E live (employees, attendance, leave, appraisals, disciplinary, documents, payroll). FE `/dashboard/hr/*` |
+
+## Non-Clinical Operations (Phases F–K)
+
+| Module | Status | Backend route |
+|--------|--------|---------------|
+| Patient portal | ✅ | `/api/portal/*` — me, dashboard, appointments, invoices, lab (validated), prescriptions, records summary, notifications, profile (`PATIENT` + `PERSON_ID`) |
+| ICT dashboard metrics | ✅ | `/api/it/dashboard` — refresh tokens, support tickets, audit volume, user count (honest server/backup flags) |
+| General stores | ✅ | `/api/stores/*` — dashboard, items, stock receive/issue/adjust, requisitions (separate from pharmacy inventory) |
+| Hospital SCM | ✅ | `/api/scm/*` — suppliers, PO, GRN → `STORE_BATCHES` / movements (not pharmacy procurement) |
+| Kitchen / catering | ✅ | `/api/kitchen/*` — menus, orders, wastage, diet-signals stub |
+| Transport / fleet | ✅ | `/api/fleet/*` — vehicles, drivers, trips, trip-requests, fuel, maintenance |
 
 | Sub-feature | Status |
 |-------------|--------|
@@ -328,14 +341,14 @@ Adapters: `mock` (sandbox ACTIVE), `curably` (aggregator; env `CURABLY_*`), dire
 
 | Module | Status |
 |--------|--------|
-| Transportation | ⏳ |
+| Transportation | ✅ backend (`/api/fleet/*`); FE routes pending |
 | Laundry | ⏳ |
-| Kitchen | ⏳ |
+| Kitchen | ✅ backend (`/api/kitchen/*`); nutrition catering FE still mock |
 | Maintenance | ⏳ |
 | Facility Management | ⏳ |
 | Security | ⏳ |
 | Mortuary | ⏳ |
-| Procurement (standalone) | ⏳ |
+| Procurement (standalone) | ✅ hospital SCM backend (`/api/scm/*`); pharmacy procurement unchanged |
 | Asset Management | ⏳ |
 
 ## Infrastructure

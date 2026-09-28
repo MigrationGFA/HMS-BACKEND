@@ -31,11 +31,13 @@ function actorLabelOf(actor?: AuthUser): string {
   );
 }
 
-function personName(p: {
-  FIRST_NAME: string | null;
-  MIDDLE_NAME: string | null;
-  LAST_NAME: string | null;
-} | null): string {
+function personName(
+  p: {
+    FIRST_NAME: string | null;
+    MIDDLE_NAME: string | null;
+    LAST_NAME: string | null;
+  } | null,
+): string {
   if (!p) return 'Unknown';
   return (
     [p.FIRST_NAME, p.MIDDLE_NAME, p.LAST_NAME].filter(Boolean).join(' ') ||
@@ -68,6 +70,9 @@ export class DiagnosesService {
     KEYWORDS: string | null;
     IS_PSYCHIATRIC: boolean;
     STATUS: string;
+    ICPC_CODE?: string | null;
+    LEGACY_THESAURUS_ID?: number | null;
+    LEGACY_DISEASE_ID?: number | null;
   }) {
     return {
       diagnosisCodeId: row.DIAGNOSIS_CODE_ID,
@@ -82,55 +87,56 @@ export class DiagnosesService {
       keywords: row.KEYWORDS,
       isPsychiatric: row.IS_PSYCHIATRIC,
       status: row.STATUS,
+      icpcCode: row.ICPC_CODE ?? null,
+      legacyThesaurusId: row.LEGACY_THESAURUS_ID ?? null,
+      legacyDiseaseId: row.LEGACY_DISEASE_ID ?? null,
     };
   }
 
-  toPatientDxResponse(
-    row: {
-      PATIENT_DIAGNOSIS_ID: number;
+  toPatientDxResponse(row: {
+    PATIENT_DIAGNOSIS_ID: number;
+    PERSON_ID: number;
+    ENCOUNTER_ID: number | null;
+    CODE: string;
+    DSM_CODE: string | null;
+    SYSTEM: string;
+    NAME: string;
+    TYPE: string;
+    SEVERITY: string | null;
+    STATUS: string;
+    CERTAINTY: string | null;
+    ONSET_DATE: Date | null;
+    NOTES: string | null;
+    CLINIC: string | null;
+    ON_PROBLEM_LIST: boolean;
+    IS_PSYCHIATRIC: boolean;
+    REASON_CONSIDERED: string | null;
+    SUPPORTING_FINDINGS: string | null;
+    AGAINST_FINDINGS: string | null;
+    CONTROL_STATUS: string | null;
+    LAST_REVIEW: Date | null;
+    NEXT_REVIEW: Date | null;
+    RISK_LEVEL: string | null;
+    LINKED_SYMPTOMS: string | null;
+    LINKED_LAB: string | null;
+    LINKED_IMAGING: string | null;
+    LINKED_RX: string | null;
+    CLOSED_REASON: string | null;
+    CLOSED_BY: string | null;
+    CLOSED_DATE: Date | null;
+    CREATED_BY: string | null;
+    CREATED_DATE: Date | null;
+    person?: {
       PERSON_ID: number;
-      ENCOUNTER_ID: number | null;
-      CODE: string;
-      DSM_CODE: string | null;
-      SYSTEM: string;
-      NAME: string;
-      TYPE: string;
-      SEVERITY: string | null;
-      STATUS: string;
-      CERTAINTY: string | null;
-      ONSET_DATE: Date | null;
-      NOTES: string | null;
-      CLINIC: string | null;
-      ON_PROBLEM_LIST: boolean;
-      IS_PSYCHIATRIC: boolean;
-      REASON_CONSIDERED: string | null;
-      SUPPORTING_FINDINGS: string | null;
-      AGAINST_FINDINGS: string | null;
-      CONTROL_STATUS: string | null;
-      LAST_REVIEW: Date | null;
-      NEXT_REVIEW: Date | null;
-      RISK_LEVEL: string | null;
-      LINKED_SYMPTOMS: string | null;
-      LINKED_LAB: string | null;
-      LINKED_IMAGING: string | null;
-      LINKED_RX: string | null;
-      CLOSED_REASON: string | null;
-      CLOSED_BY: string | null;
-      CLOSED_DATE: Date | null;
-      CREATED_BY: string | null;
-      CREATED_DATE: Date | null;
-      person?: {
-        PERSON_ID: number;
-        HOSPITAL_NO: string | null;
-        FIRST_NAME: string | null;
-        LAST_NAME: string | null;
-        MIDDLE_NAME: string | null;
-        SEX: string | null;
-        DATE_OF_BIRTH: Date | null;
-        PATIENT_PHONE_NO: string | null;
-      } | null;
-    },
-  ) {
+      HOSPITAL_NO: string | null;
+      FIRST_NAME: string | null;
+      LAST_NAME: string | null;
+      MIDDLE_NAME: string | null;
+      SEX: string | null;
+      DATE_OF_BIRTH: Date | null;
+      PATIENT_PHONE_NO: string | null;
+    } | null;
+  }) {
     return {
       patientDiagnosisId: row.PATIENT_DIAGNOSIS_ID,
       id: String(row.PATIENT_DIAGNOSIS_ID),
@@ -201,12 +207,14 @@ export class DiagnosesService {
         { KEYWORDS: { contains: q, mode: 'insensitive' } },
         { SYMPTOMS: { contains: q, mode: 'insensitive' } },
         { CATEGORY: { contains: q, mode: 'insensitive' } },
+        { ICPC_CODE: { contains: q, mode: 'insensitive' } },
+        { DESCRIPTION: { contains: q, mode: 'insensitive' } },
       ];
     }
     const rows = await this.prisma.diagnosisCodes.findMany({
       where,
       orderBy: { NAME: 'asc' },
-      take: 100,
+      take: params?.q?.trim() ? 100 : 50,
     });
     return { items: rows.map((r) => this.toCatalogResponse(r)) };
   }
@@ -225,11 +233,17 @@ export class DiagnosesService {
     const where: Prisma.PatientDiagnosesWhereInput = {};
     if (params.personId != null) where.PERSON_ID = params.personId;
     if (params.status?.trim()) {
-      const parts = params.status.split(',').map((s) => s.trim()).filter(Boolean);
+      const parts = params.status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       where.STATUS = parts.length === 1 ? parts[0] : { in: parts };
     }
     if (params.type?.trim()) {
-      const parts = params.type.split(',').map((s) => s.trim()).filter(Boolean);
+      const parts = params.type
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       where.TYPE = parts.length === 1 ? parts[0] : { in: parts };
     }
     if (params.tab === 'psychiatric') where.IS_PSYCHIATRIC = true;
@@ -240,10 +254,7 @@ export class DiagnosesService {
       where.TYPE = { not: 'Ruled out' };
     }
     if (params.tab === 'resolved') {
-      where.OR = [
-        { STATUS: 'Resolved' },
-        { TYPE: 'Ruled out' },
-      ];
+      where.OR = [{ STATUS: 'Resolved' }, { TYPE: 'Ruled out' }];
     }
     if (params.tab === 'provisional') where.TYPE = 'Provisional';
     if (params.tab === 'new') {
@@ -254,7 +265,11 @@ export class DiagnosesService {
     if (params.q?.trim()) {
       const q = params.q.trim();
       where.AND = [
-        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        ...(Array.isArray(where.AND)
+          ? where.AND
+          : where.AND
+            ? [where.AND]
+            : []),
         {
           OR: [
             { CODE: { contains: q, mode: 'insensitive' } },
@@ -287,37 +302,44 @@ export class DiagnosesService {
       ? { PERSON_ID: personId }
       : {};
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const [active, chronic, psychiatric, provisional, differential, resolved, neu] =
-      await this.prisma.$transaction([
-        this.prisma.patientDiagnoses.count({
-          where: {
-            ...where,
-            STATUS: { in: ['Active', 'In remission'] },
-            TYPE: { not: 'Ruled out' },
-          },
-        }),
-        this.prisma.patientDiagnoses.count({
-          where: { ...where, STATUS: 'Chronic' },
-        }),
-        this.prisma.patientDiagnoses.count({
-          where: { ...where, IS_PSYCHIATRIC: true },
-        }),
-        this.prisma.patientDiagnoses.count({
-          where: { ...where, TYPE: 'Provisional' },
-        }),
-        this.prisma.patientDiagnoses.count({
-          where: { ...where, TYPE: 'Differential' },
-        }),
-        this.prisma.patientDiagnoses.count({
-          where: {
-            ...where,
-            OR: [{ STATUS: 'Resolved' }, { TYPE: 'Ruled out' }],
-          },
-        }),
-        this.prisma.patientDiagnoses.count({
-          where: { ...where, CREATED_DATE: { gte: weekAgo } },
-        }),
-      ]);
+    const [
+      active,
+      chronic,
+      psychiatric,
+      provisional,
+      differential,
+      resolved,
+      neu,
+    ] = await this.prisma.$transaction([
+      this.prisma.patientDiagnoses.count({
+        where: {
+          ...where,
+          STATUS: { in: ['Active', 'In remission'] },
+          TYPE: { not: 'Ruled out' },
+        },
+      }),
+      this.prisma.patientDiagnoses.count({
+        where: { ...where, STATUS: 'Chronic' },
+      }),
+      this.prisma.patientDiagnoses.count({
+        where: { ...where, IS_PSYCHIATRIC: true },
+      }),
+      this.prisma.patientDiagnoses.count({
+        where: { ...where, TYPE: 'Provisional' },
+      }),
+      this.prisma.patientDiagnoses.count({
+        where: { ...where, TYPE: 'Differential' },
+      }),
+      this.prisma.patientDiagnoses.count({
+        where: {
+          ...where,
+          OR: [{ STATUS: 'Resolved' }, { TYPE: 'Ruled out' }],
+        },
+      }),
+      this.prisma.patientDiagnoses.count({
+        where: { ...where, CREATED_DATE: { gte: weekAgo } },
+      }),
+    ]);
     return {
       active,
       newThisWeek: neu,
@@ -351,7 +373,7 @@ export class DiagnosesService {
     let system = dto.system?.trim() || 'ICD-11';
     let dsmCode: string | null = null;
     let isPsychiatric = false;
-    let catalogId = dto.diagnosisCodeId;
+    const catalogId = dto.diagnosisCodeId;
 
     if (catalogId || code) {
       const catalog = catalogId
@@ -371,7 +393,9 @@ export class DiagnosesService {
     }
 
     if (!code || !name) {
-      throw new BadRequestException('code (or diagnosisCodeId) and name are required');
+      throw new BadRequestException(
+        'code (or diagnosisCodeId) and name are required',
+      );
     }
 
     const actorLabel = actorLabelOf(actor);
@@ -425,11 +449,7 @@ export class DiagnosesService {
     return this.toPatientDxResponse(row);
   }
 
-  async update(
-    id: number,
-    dto: UpdatePatientDiagnosisDto,
-    actor?: AuthUser,
-  ) {
+  async update(id: number, dto: UpdatePatientDiagnosisDto, actor?: AuthUser) {
     const existing = await this.prisma.patientDiagnoses.findUnique({
       where: { PATIENT_DIAGNOSIS_ID: id },
     });

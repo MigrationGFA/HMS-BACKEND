@@ -4,15 +4,21 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import { randomBytes, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { AuthService } from '../auth/auth.service';
 import { ServiceCatalogService } from '../billing/service-catalog.service';
+import { ROLES } from '../common/constants/roles.constants';
+import { EmailService } from '../notifications/email.service';
 import { CardsService } from '../patients/cards.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import {
   CreatePublicBookingDto,
+  PublicGuestRegisterDto,
   PublicPatientLookupDto,
   PublicVerifyConfirmDto,
   PublicVerifySendDto,
@@ -36,7 +42,7 @@ type FeeBreakdown = {
 
 function parseFeeBreakdown(raw: unknown): FeeBreakdown | null {
   if (!raw || typeof raw !== 'object') return null;
-  return raw as FeeBreakdown;
+  return raw;
 }
 
 function parseHhMm(value: string): number {
@@ -89,7 +95,9 @@ function maskName(first?: string | null, last?: string | null): string {
   const f = (first ?? '').trim();
   const l = (last ?? '').trim();
   const mask = (s: string) =>
-    s.length <= 1 ? `${s}***` : `${s[0]}${'*'.repeat(Math.min(3, s.length - 1))}`;
+    s.length <= 1
+      ? `${s}***`
+      : `${s[0]}${'*'.repeat(Math.min(3, s.length - 1))}`;
   if (!f && !l) return 'Patient';
   return [f ? mask(f) : null, l ? mask(l) : null].filter(Boolean).join(' ');
 }
@@ -116,6 +124,9 @@ export class AppointmentsService {
     private readonly audit: AuditService,
     private readonly catalog: ServiceCatalogService,
     private readonly cards: CardsService,
+    private readonly auth: AuthService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   private assertRateLimit(key: string, max = 8, windowMs = 60_000) {
@@ -139,8 +150,7 @@ export class AppointmentsService {
       throw new NotFoundException('Service not found or not active');
     }
     const settings = service.bookingSettings;
-    const onlineBookable =
-      settings?.ONLINE_BOOKABLE ?? service.ONLINE_BOOKABLE;
+    const onlineBookable = settings?.ONLINE_BOOKABLE ?? service.ONLINE_BOOKABLE;
     if (!onlineBookable) {
       throw new BadRequestException('Service is not bookable online');
     }
@@ -174,8 +184,7 @@ export class AppointmentsService {
       registration: charges.regFee,
       card: charges.cardFee,
       items: charges.items.filter(
-        (i) =>
-          i.code === 'SVC-REG-FEE' || i.code === 'SVC-CARD-FEE',
+        (i) => i.code === 'SVC-REG-FEE' || i.code === 'SVC-CARD-FEE',
       ),
     };
   }
@@ -282,19 +291,169 @@ export class AppointmentsService {
       item: `OTP issued for person ${person.PERSON_ID}`,
     });
 
+    let emailDelivered = false;
+    if (person.E_MAIL?.trim()) {
+      const sent = await this.email.send({
+        to: person.E_MAIL.trim(),
+        subject: 'Your verification code — FNPH Aro',
+        html: `<p>Hello${person.FIRST_NAME ? ` ${person.FIRST_NAME}` : ''},</p>
+<p>Your verification code is <strong style="font-size:20px;letter-spacing:4px">${code}</strong>.</p>
+<p>It expires in 15 minutes. If you did not request this code, you can ignore this email.</p>
+<p>— Federal Neuro-Psychiatric Hospital, Aro</p>`,
+        text: `Your verification code is ${code}. It expires in 15 minutes.`,
+      });
+      emailDelivered = sent.delivered;
+    } else if (this.email.isConfigured()) {
+      throw new BadRequestException(
+        'Patient has no email on file — cannot send verification code',
+      );
+    }
+
+    const exposeCode = !this.email.isConfigured() || !emailDelivered;
+
     return {
       personId: person.PERSON_ID,
       verificationId: row.VERIFICATION_ID,
       expiresAt: expiresAt.toISOString(),
-      /** Mock channel — in production send via SMS/email instead */
-      displayCode: code,
-      channelHint: person.E_MAIL
-        ? 'Shown on screen for testing (would SMS + email in production)'
-        : 'Shown on screen for testing (would SMS in production)',
+      /** Only returned when Resend is not delivering (dev/testing fallback) */
+      displayCode: exposeCode ? code : undefined,
+      channelHint: emailDelivered
+        ? 'Code sent to your email'
+        : person.E_MAIL
+          ? 'Shown on screen for testing (configure RESEND_API_KEY to email codes)'
+          : 'Shown on screen for testing (add email to receive codes via Resend)',
       phoneMasked: maskPhone(phone),
       emailMasked: person.E_MAIL
         ? `${person.E_MAIL[0]}***@${person.E_MAIL.split('@')[1] ?? '…'}`
         : null,
+      emailDelivered,
+    };
+  }
+
+  /**
+   * Create PERSON + PATIENT user from guest booking details, then issue OTP.
+   * Account stays locked until OTP confirm.
+   */
+  async registerGuestPatient(dto: PublicGuestRegisterDto) {
+    const firstName = dto.firstName.trim();
+    const lastName = dto.lastName.trim();
+    const phone = dto.phone.trim();
+    const email = dto.email.trim().toLowerCase();
+    const password = dto.password;
+    const confirmPassword = dto.confirmPassword;
+
+    if (!firstName || !lastName) {
+      throw new BadRequestException('firstName and lastName are required');
+    }
+    if (phone.length < 10) {
+      throw new BadRequestException('Phone number is required (min 10 digits)');
+    }
+    if (!email.includes('@')) {
+      throw new BadRequestException('A valid email is required');
+    }
+    if (password.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters');
+    }
+    if (password !== confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
+    this.assertRateLimit(`guest-reg:${email}`, 5);
+
+    const existingUser = await this.prisma.users.findFirst({
+      where: {
+        EMAIL_ADDRESS: { equals: email, mode: 'insensitive' },
+      },
+    });
+    if (existingUser) {
+      throw new ConflictException(
+        'An account with this email already exists — sign in or book as a returning patient',
+      );
+    }
+
+    const patientRole = await this.prisma.roles.findFirst({
+      where: { ROLE_NAME: ROLES.PATIENT },
+    });
+    if (!patientRole) {
+      throw new BadRequestException('PATIENT role is not configured');
+    }
+
+    const now = new Date();
+    const hash = await bcrypt.hash(password, 12);
+    const userNameBase = email.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '') || 'patient';
+    let userName = userNameBase.slice(0, 80);
+    const nameTaken = await this.prisma.users.findFirst({
+      where: { USER_NAME: userName },
+    });
+    if (nameTaken) {
+      userName = `${userNameBase.slice(0, 70)}_${Date.now().toString(36)}`.slice(
+        0,
+        100,
+      );
+    }
+
+    const linked = await this.prisma.$transaction(async (tx) => {
+      const hospitalNo = await this.nextHospitalNo(tx);
+      const person = await tx.persons.create({
+        data: {
+          HOSPITAL_NO: hospitalNo,
+          FIRST_NAME: firstName,
+          LAST_NAME: lastName,
+          PATIENT_PHONE_NO: phone,
+          E_MAIL: email,
+          IDENTITY_TYPE: dto.nin?.trim() ? 'NIN' : null,
+          IDENTITY_NO: dto.nin?.trim() || null,
+          CARD_NO: hospitalNo,
+          CARD_STATUS: 'Pending Payment',
+          STATUS: 'Pending Payment',
+          REG_TYPE: 'Online Booking',
+          PATIENT_TYPE: 'NEW',
+          DISCONTINUE_FLAG: 'N',
+          DATE_OF_REGISTRATION: now,
+          CREATED_BY: 'public-guest-register',
+          CREATED_DATE: now,
+        },
+      });
+
+      const user = await tx.users.create({
+        data: {
+          USER_NAME: userName,
+          EMAIL_ADDRESS: email,
+          PHONE_NO: phone,
+          PASSWORD: hash,
+          PWD: hash,
+          FIRST_NAME: firstName,
+          LAST_NAME: lastName,
+          ROLE_ID: patientRole.ROLE_ID,
+          PERSON_ID: person.PERSON_ID,
+          LOCK_ACCOUNT: 'Y',
+          GENERATE_PIN: 'N',
+          USER_TYPE: 'PATIENT',
+          CREATED_BY: 'public-guest-register',
+          CREATED_DATE: now,
+        },
+      });
+
+      return { person, user };
+    });
+
+    await this.audit.log({
+      type: 'auth:guest-register',
+      entity: 'USERS',
+      entityId: linked.user.USER_ID,
+      personId: linked.person.PERSON_ID,
+      createdBy: 'public',
+      item: `Guest patient registered ${email}`,
+    });
+
+    const otp = await this.sendPublicVerification({
+      personId: linked.person.PERSON_ID,
+    });
+
+    return {
+      ...otp,
+      email,
+      accountCreated: true,
     };
   }
 
@@ -340,6 +499,16 @@ export class AppointmentsService {
       item: `OTP verified for person ${dto.personId}`,
     });
 
+    // Unlock guest PATIENT accounts created during public register
+    await this.prisma.users.updateMany({
+      where: { PERSON_ID: dto.personId, LOCK_ACCOUNT: 'Y' },
+      data: {
+        LOCK_ACCOUNT: 'N',
+        UPDATED_BY: 'public-otp',
+        UPDATED_DATE: verifiedAt,
+      },
+    });
+
     return {
       verificationToken: updated.TOKEN,
       personId: dto.personId,
@@ -359,7 +528,9 @@ export class AppointmentsService {
 
   private async assertVerificationToken(personId: number, token?: string) {
     if (!token?.trim()) {
-      throw new BadRequestException('verificationToken is required for returning patients');
+      throw new BadRequestException(
+        'verificationToken is required — please verify your account with OTP first',
+      );
     }
     const row = await this.prisma.publicBookingVerifications.findFirst({
       where: {
@@ -370,7 +541,9 @@ export class AppointmentsService {
       },
     });
     if (!row) {
-      throw new BadRequestException('Verification expired — please verify again');
+      throw new BadRequestException(
+        'Verification expired — please verify again',
+      );
     }
     return row;
   }
@@ -504,17 +677,26 @@ export class AppointmentsService {
       lastName = lastName || parts.slice(1).join(' ') || 'Unknown';
     }
     if (patientType === 'NEW' && (!firstName || !lastName)) {
-      throw new BadRequestException('firstName and lastName are required for new patients');
+      throw new BadRequestException(
+        'firstName and lastName are required for new patients',
+      );
     }
 
     let personId: number | null = null;
     let verificationId: string | null = null;
+    let preRegisteredNew = false;
+    let resolvedEmail = dto.email?.trim() || '';
 
     if (patientType === 'RETURNING') {
       if (!dto.personId) {
-        throw new BadRequestException('personId is required for returning patients');
+        throw new BadRequestException(
+          'personId is required for returning patients',
+        );
       }
-      const v = await this.assertVerificationToken(dto.personId, dto.verificationToken);
+      const v = await this.assertVerificationToken(
+        dto.personId,
+        dto.verificationToken,
+      );
       personId = dto.personId;
       verificationId = String(v.VERIFICATION_ID);
       const existing = await this.prisma.persons.findUnique({
@@ -525,6 +707,29 @@ export class AppointmentsService {
       }
       firstName = existing.FIRST_NAME?.trim() || firstName || 'Patient';
       lastName = existing.LAST_NAME?.trim() || lastName || 'Unknown';
+      if (!resolvedEmail && existing.E_MAIL) {
+        resolvedEmail = existing.E_MAIL.trim();
+      }
+    } else if (dto.personId && dto.verificationToken) {
+      // NEW guest who already registered + verified OTP before booking
+      const v = await this.assertVerificationToken(
+        dto.personId,
+        dto.verificationToken,
+      );
+      personId = dto.personId;
+      verificationId = String(v.VERIFICATION_ID);
+      preRegisteredNew = true;
+      const existing = await this.prisma.persons.findUnique({
+        where: { PERSON_ID: personId },
+      });
+      if (!existing || existing.DISCONTINUE_FLAG === 'Y') {
+        throw new NotFoundException('Patient not found');
+      }
+      firstName = existing.FIRST_NAME?.trim() || firstName || 'Patient';
+      lastName = existing.LAST_NAME?.trim() || lastName || 'Unknown';
+      if (!resolvedEmail && existing.E_MAIL) {
+        resolvedEmail = existing.E_MAIL.trim();
+      }
     }
 
     const appointmentDate = parseDateOnly(dto.date);
@@ -566,11 +771,13 @@ export class AppointmentsService {
         ),
       ).length;
       if (bookedCount >= settings.onlineSlotLimit) {
-        throw new BadRequestException('Selected time slot is no longer available');
+        throw new BadRequestException(
+          'Selected time slot is no longer available',
+        );
       }
 
       let linkedPersonId = personId;
-      if (patientType === 'NEW') {
+      if (patientType === 'NEW' && !preRegisteredNew) {
         const hospitalNo = await this.nextHospitalNo(tx);
         const createdPerson = await tx.persons.create({
           data: {
@@ -604,7 +811,7 @@ export class AppointmentsService {
           PATIENT_TYPE: patientType,
           PATIENT_NAME: patientName,
           PHONE: phone,
-          EMAIL: dto.email?.trim() || null,
+          EMAIL: resolvedEmail || null,
           AGE: dto.age?.trim() || null,
           GENDER: dto.gender?.trim() || null,
           APPOINTMENT_DATE: appointmentDate,
@@ -641,13 +848,19 @@ export class AppointmentsService {
         where: { PERSON_ID: booking.linkedPersonId },
       });
       if (person) {
-        await this.cards.createForPerson({
-          personId: person.PERSON_ID,
-          cardNo: person.CARD_NO ?? person.HOSPITAL_NO ?? `CARD-${person.PERSON_ID}`,
-          cardFee,
-          regFee,
-          consultFee: 0,
+        const existingCard = await this.prisma.patientCards.findFirst({
+          where: { PERSON_ID: person.PERSON_ID },
         });
+        if (!existingCard) {
+          await this.cards.createForPerson({
+            personId: person.PERSON_ID,
+            cardNo:
+              person.CARD_NO ?? person.HOSPITAL_NO ?? `CARD-${person.PERSON_ID}`,
+            cardFee,
+            regFee,
+            consultFee: 0,
+          });
+        }
         await this.audit.log({
           type: 'person:create',
           entity: 'persons',
@@ -659,7 +872,7 @@ export class AppointmentsService {
       }
     }
 
-    const response = {
+    const response: Record<string, unknown> = {
       bookingId: booking.booking.BOOKING_ID,
       bookingNo: booking.booking.BOOKING_NO,
       serviceId: booking.booking.SERVICE_ID,
@@ -668,6 +881,7 @@ export class AppointmentsService {
       patientType,
       patientName: booking.booking.PATIENT_NAME,
       phone: booking.booking.PHONE,
+      email: booking.booking.EMAIL,
       date: dto.date,
       startTime: booking.booking.START_TIME,
       endTime: booking.booking.END_TIME,
@@ -688,6 +902,66 @@ export class AppointmentsService {
       newValue: response,
     });
 
+    // Welcome + booking confirmation emails; auto-login session for linked PATIENT user
+    if (booking.linkedPersonId) {
+      const linkedUser = await this.prisma.users.findFirst({
+        where: { PERSON_ID: booking.linkedPersonId },
+        orderBy: { USER_ID: 'asc' },
+      });
+      const recipient =
+        booking.booking.EMAIL?.trim() ||
+        linkedUser?.EMAIL_ADDRESS?.trim() ||
+        resolvedEmail ||
+        '';
+      const frontendUrl = (
+        this.config.get<string>('app.frontendUrl') ||
+        process.env.FRONTEND_URL ||
+        'http://localhost:8080'
+      ).replace(/\/$/, '');
+      const dashUrl = `${frontendUrl}/dashboard/patient`;
+      const patientLabel =
+        booking.booking.PATIENT_NAME || `${firstName} ${lastName}`.trim();
+
+      if (recipient) {
+        await this.email.send({
+          to: recipient,
+          subject: `Welcome to Federal Neuro-Psychiatric Hospital, Aro`,
+          html: `<p>Dear ${patientLabel},</p>
+<p>Welcome to <strong>Federal Neuro-Psychiatric Hospital, Aro</strong>. Your patient account is ready.</p>
+<p>You can open your portal anytime: <a href="${dashUrl}">${dashUrl}</a></p>
+<p>— FNPH Aro</p>`,
+          text: `Welcome to Federal Neuro-Psychiatric Hospital, Aro. Your patient account is ready. Portal: ${dashUrl}`,
+        });
+        await this.email.send({
+          to: recipient,
+          subject: `Booking confirmed — ${booking.booking.BOOKING_NO}`,
+          html: `<p>Dear ${patientLabel},</p>
+<p>Your appointment <strong>${booking.booking.BOOKING_NO}</strong> is booked.</p>
+<ul>
+<li>Date: ${dto.date}</li>
+<li>Time: ${booking.booking.START_TIME} – ${booking.booking.END_TIME}</li>
+<li>Service: ${service.NAME}</li>
+<li>Mode: ${booking.booking.DELIVERY_MODE}</li>
+<li>Amount due at hospital: ₦${feeBreakdown.total.toLocaleString()}</li>
+</ul>
+<p>Please arrive early and pay at the cashier on arrival.</p>
+<p><a href="${dashUrl}">Go to your dashboard</a></p>`,
+          text: `Booking ${booking.booking.BOOKING_NO} confirmed for ${dto.date} at ${booking.booking.START_TIME}. Amount due: ₦${feeBreakdown.total}. Dashboard: ${dashUrl}`,
+        });
+      }
+
+      if (linkedUser && linkedUser.LOCK_ACCOUNT?.toUpperCase() !== 'Y') {
+        try {
+          const session = await this.auth.issueSessionForUserId(
+            linkedUser.USER_ID,
+          );
+          response.session = session;
+        } catch {
+          // Session is best-effort; booking already succeeded
+        }
+      }
+    }
+
     return response;
   }
 
@@ -699,7 +973,10 @@ export class AppointmentsService {
   }): number {
     const breakdown = parseFeeBreakdown(row.FEE_BREAKDOWN);
     if (row.PATIENT_TYPE === 'NEW') {
-      if (breakdown?.service != null && Number.isFinite(Number(breakdown.service))) {
+      if (
+        breakdown?.service != null &&
+        Number.isFinite(Number(breakdown.service))
+      ) {
         return Number(breakdown.service);
       }
       const total = Number(row.PRICE_AMOUNT);
@@ -707,45 +984,51 @@ export class AppointmentsService {
       const card = Number(breakdown?.card ?? 0);
       return Math.max(0, total - reg - card);
     }
-    if (breakdown?.service != null && Number.isFinite(Number(breakdown.service))) {
+    if (
+      breakdown?.service != null &&
+      Number.isFinite(Number(breakdown.service))
+    ) {
       return Number(breakdown.service);
     }
     return Number(row.PRICE_AMOUNT);
   }
 
-  private toStaffBookingRow(
-    row: {
-      BOOKING_ID: number;
-      BOOKING_NO: string;
-      SERVICE_ID: number;
-      PERSON_ID: number | null;
-      PATIENT_TYPE: string;
-      PATIENT_NAME: string;
-      PHONE: string;
-      EMAIL: string | null;
-      APPOINTMENT_DATE: Date;
-      START_TIME: string;
-      END_TIME: string;
-      DELIVERY_MODE: string;
-      PRICE_AMOUNT: Prisma.Decimal;
-      PAYMENT_STATUS: string;
-      FEE_BREAKDOWN: unknown;
-      STATUS: string;
-      CHECKED_IN_AT: Date | null;
-      CHECKED_IN_BY: string | null;
-      NOTES: string | null;
-      service?: {
-        NAME: string;
-        department?: { NAME: string } | null;
-      } | null;
-      person?: {
-        HOSPITAL_NO: string | null;
-        FIRST_NAME: string | null;
-        LAST_NAME: string | null;
-        cards?: Array<{ CARD_ID: number; PAYMENT_STATUS: string; CARD_NO: string }>;
-      } | null;
-    },
-  ) {
+  private toStaffBookingRow(row: {
+    BOOKING_ID: number;
+    BOOKING_NO: string;
+    SERVICE_ID: number;
+    PERSON_ID: number | null;
+    PATIENT_TYPE: string;
+    PATIENT_NAME: string;
+    PHONE: string;
+    EMAIL: string | null;
+    APPOINTMENT_DATE: Date;
+    START_TIME: string;
+    END_TIME: string;
+    DELIVERY_MODE: string;
+    MEETING_URL?: string | null;
+    PRICE_AMOUNT: Prisma.Decimal;
+    PAYMENT_STATUS: string;
+    FEE_BREAKDOWN: unknown;
+    STATUS: string;
+    CHECKED_IN_AT: Date | null;
+    CHECKED_IN_BY: string | null;
+    NOTES: string | null;
+    service?: {
+      NAME: string;
+      department?: { NAME: string } | null;
+    } | null;
+    person?: {
+      HOSPITAL_NO: string | null;
+      FIRST_NAME: string | null;
+      LAST_NAME: string | null;
+      cards?: Array<{
+        CARD_ID: number;
+        PAYMENT_STATUS: string;
+        CARD_NO: string;
+      }>;
+    } | null;
+  }) {
     const card = row.person?.cards?.[0] ?? null;
     const feeBreakdown = parseFeeBreakdown(row.FEE_BREAKDOWN);
     const amountDue = this.amountDueForBooking(row);
@@ -765,6 +1048,7 @@ export class AppointmentsService {
       startTime: row.START_TIME,
       endTime: row.END_TIME,
       deliveryMode: row.DELIVERY_MODE,
+      meetingUrl: row.MEETING_URL ?? null,
       priceAmount: Number(row.PRICE_AMOUNT),
       amountDue,
       paymentStatus: row.PAYMENT_STATUS,
@@ -986,10 +1270,7 @@ export class AppointmentsService {
     return { ...response, collectedAmount: amountDue };
   }
 
-  async markBookingCheckedIn(
-    bookingId: number,
-    actor?: AuthUser,
-  ) {
+  async markBookingCheckedIn(bookingId: number, actor?: AuthUser) {
     const existing = await this.prisma.serviceBookings.findUnique({
       where: { BOOKING_ID: bookingId },
       include: {
@@ -1065,6 +1346,64 @@ export class AppointmentsService {
       newValue: { status: 'Completed', checkedInAt: now.toISOString() },
     });
 
+    return this.toStaffBookingRow(updated);
+  }
+
+  async setMeetingUrl(
+    bookingId: number,
+    meetingUrl: string | null,
+    actor?: { id?: number; email?: string },
+  ) {
+    const existing = await this.prisma.serviceBookings.findUnique({
+      where: { BOOKING_ID: bookingId },
+    });
+    if (!existing) throw new NotFoundException(`Booking ${bookingId} not found`);
+    if (existing.DELIVERY_MODE !== 'ONLINE') {
+      throw new BadRequestException('Meeting URL only applies to ONLINE bookings');
+    }
+    const url = meetingUrl?.trim() || null;
+    if (url && !/^https?:\/\//i.test(url)) {
+      throw new BadRequestException('Meeting URL must start with http:// or https://');
+    }
+    const label = actor?.email ?? 'SYSTEM';
+    const updated = await this.prisma.serviceBookings.update({
+      where: { BOOKING_ID: bookingId },
+      data: {
+        MEETING_URL: url,
+        UPDATED_BY: label,
+        UPDATED_DATE: new Date(),
+      },
+      include: {
+        service: {
+          select: {
+            NAME: true,
+            department: { select: { NAME: true } },
+          },
+        },
+        person: {
+          select: {
+            HOSPITAL_NO: true,
+            FIRST_NAME: true,
+            LAST_NAME: true,
+            cards: {
+              orderBy: { CREATED_DATE: 'desc' },
+              take: 1,
+              select: { CARD_ID: true, PAYMENT_STATUS: true, CARD_NO: true },
+            },
+          },
+        },
+      },
+    });
+    await this.audit.log({
+      type: 'appointment:meeting-url',
+      entity: 'service_bookings',
+      entityId: bookingId,
+      personId: existing.PERSON_ID ?? undefined,
+      userId: actor?.id,
+      createdBy: label,
+      item: `Meeting URL ${url ? 'set' : 'cleared'} for ${existing.BOOKING_NO}`,
+      newValue: { meetingUrl: url },
+    });
     return this.toStaffBookingRow(updated);
   }
 }

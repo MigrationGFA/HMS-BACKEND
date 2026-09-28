@@ -129,6 +129,8 @@ model ServiceBookings {
   END_TIME         String    @db.VarChar(5)
   /// PHYSICAL | ONLINE (must be allowed by ServiceBookingSettings.DELIVERY_MODE)
   DELIVERY_MODE    String    @db.VarChar(20)
+  /// External telemedicine meeting URL (Phase 1 — no embedded video)
+  MEETING_URL      String?   @db.VarChar(500)
   PRICE_AMOUNT     Decimal   @db.Decimal(14, 2)
   /// Pending | Paid | Waived
   PAYMENT_STATUS   String    @default("Pending") @db.VarChar(30)

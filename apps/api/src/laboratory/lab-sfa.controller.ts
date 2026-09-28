@@ -16,7 +16,11 @@ import { PERMISSIONS } from '../common/constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { LabExtendedService } from './lab-extended.service';
-import { CreateSfaDto, PatchSfaDto, RejectSfaDto } from './dto/lab-specialty.dto';
+import {
+  CreateSfaDto,
+  PatchSfaDto,
+  RejectSfaDto,
+} from './dto/lab-specialty.dto';
 
 @Controller('laboratory/sfa')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -105,7 +109,10 @@ export class LabSfaController {
    */
   @Post(':id/submit')
   @RequirePermissions(PERMISSIONS.LAB_RESULT)
-  async submit(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+  async submit(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.extended.submitSfa(id, user) };
   }
 
@@ -118,7 +125,10 @@ export class LabSfaController {
    */
   @Post(':id/validate')
   @RequirePermissions(PERMISSIONS.LAB_VALIDATE)
-  async validate(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+  async validate(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.extended.validateSfa(id, user) };
   }
 

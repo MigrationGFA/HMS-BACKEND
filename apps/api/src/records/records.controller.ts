@@ -347,9 +347,7 @@ export class RecordsController {
    */
   @Get('cards/:cardId/payment-status')
   @RequirePermissions(PERMISSIONS.CARD_READ)
-  async paymentStatusByCard(
-    @Param('cardId', ParseIntPipe) cardId: number,
-  ) {
+  async paymentStatusByCard(@Param('cardId', ParseIntPipe) cardId: number) {
     const result = await this.recordsService.paymentStatusByCardId(cardId);
     return { data: result };
   }
@@ -368,8 +366,7 @@ export class RecordsController {
   async paymentStatusByPerson(
     @Param('personId', ParseIntPipe) personId: number,
   ) {
-    const result =
-      await this.recordsService.paymentStatusByPersonId(personId);
+    const result = await this.recordsService.paymentStatusByPersonId(personId);
     return { data: result };
   }
 

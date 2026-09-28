@@ -78,7 +78,9 @@ const REQUEST_INCLUDE = {
   },
 } as const;
 
-type RequestRow = Prisma.LabRequestsGetPayload<{ include: typeof REQUEST_INCLUDE }>;
+type RequestRow = Prisma.LabRequestsGetPayload<{
+  include: typeof REQUEST_INCLUDE;
+}>;
 
 export type LabTestResponse = {
   labTestId: number;
@@ -102,7 +104,12 @@ export type LabTestResponse = {
 type TestRow = Prisma.LabTestsGetPayload<{
   include: {
     masterService: {
-      select: { SERVICE_ID: true; SERVICE_CODE: true; GENERAL_PRICE: true; STATUS: true };
+      select: {
+        SERVICE_ID: true;
+        SERVICE_CODE: true;
+        GENERAL_PRICE: true;
+        STATUS: true;
+      };
     };
   };
 }>;
@@ -674,7 +681,9 @@ export class LaboratoryService {
         ...(dto.container !== undefined
           ? { CONTAINER: dto.container?.trim() ?? null }
           : {}),
-        ...(dto.turnaround != null ? { TURNAROUND: dto.turnaround.trim() } : {}),
+        ...(dto.turnaround != null
+          ? { TURNAROUND: dto.turnaround.trim() }
+          : {}),
         ...(dto.unitPrice != null ? { UNIT_PRICE: dto.unitPrice } : {}),
         ...(dto.loincCode !== undefined
           ? { LOINC_CODE: dto.loincCode?.trim() ?? null }
@@ -853,8 +862,7 @@ export class LaboratoryService {
           .split(',')
           .map((s) => s.trim())
           .filter(Boolean);
-        where.PAYMENT_STATUS =
-          parts.length > 1 ? { in: parts } : parts[0];
+        where.PAYMENT_STATUS = parts.length > 1 ? { in: parts } : parts[0];
       }
     }
 
@@ -1277,7 +1285,12 @@ export class LaboratoryService {
       where: { LAB_REQUEST_ID: existing.LAB_REQUEST_ID },
       select: { LAB_STATUS: true, REQUEST_NO: true, PERSON_ID: true },
     });
-    if (request && ['AwaitingValidation', 'Validated', 'PendingRevalidation'].includes(request.LAB_STATUS)) {
+    if (
+      request &&
+      ['AwaitingValidation', 'Validated', 'PendingRevalidation'].includes(
+        request.LAB_STATUS,
+      )
+    ) {
       throw new BadRequestException(
         'Cannot reject a sample after results have been submitted',
       );
@@ -1874,7 +1887,8 @@ export class LaboratoryService {
       const created: Prisma.DateTimeNullableFilter = {};
       if (params.from) created.gte = new Date(params.from);
       if (params.to) created.lte = new Date(params.to);
-      (itemWhere.request as Prisma.LabRequestsWhereInput).CREATED_DATE = created;
+      (itemWhere.request as Prisma.LabRequestsWhereInput).CREATED_DATE =
+        created;
     }
     if (params.q?.trim()) {
       const q = params.q.trim();
@@ -1918,7 +1932,10 @@ export class LaboratoryService {
 
     const summarize = (values: unknown): string | null => {
       if (!values || typeof values !== 'object') return null;
-      const entries = Object.entries(values as Record<string, unknown>).slice(0, 4);
+      const entries = Object.entries(values as Record<string, unknown>).slice(
+        0,
+        4,
+      );
       if (!entries.length) return null;
       return entries
         .map(([k, v]) => `${k}: ${v == null ? '—' : String(v)}`)
@@ -1949,7 +1966,8 @@ export class LaboratoryService {
         labStatus: row.request.LAB_STATUS,
         resultId: row.result?.LAB_RESULT_ID ?? null,
         resultStatus: row.result?.STATUS ?? null,
-        resultSummary: summarize(row.result?.VALUES) ?? row.result?.COMMENT ?? null,
+        resultSummary:
+          summarize(row.result?.VALUES) ?? row.result?.COMMENT ?? null,
         validatedAt: row.result?.VALIDATED_AT?.toISOString() ?? null,
       })),
       meta: { page, limit, total },

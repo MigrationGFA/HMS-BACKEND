@@ -7,7 +7,10 @@ import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { Broadcast, BroadcastSchema } from './schemas/broadcast.schema';
-import { Conversation, ConversationSchema } from './schemas/conversation.schema';
+import {
+  Conversation,
+  ConversationSchema,
+} from './schemas/conversation.schema';
 import { Message, MessageSchema } from './schemas/message.schema';
 import { Presence, PresenceSchema } from './schemas/presence.schema';
 

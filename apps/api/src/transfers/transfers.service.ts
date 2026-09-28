@@ -45,12 +45,7 @@ const ACTIVE_ADMISSION = [
 
 const TERMINAL = new Set(['Completed', 'Rejected', 'Cancelled']);
 
-const NEEDS_BED = new Set([
-  'WardToWard',
-  'ClinicToWard',
-  'ICU',
-  'Department',
-]);
+const NEEDS_BED = new Set(['WardToWard', 'ClinicToWard', 'ICU', 'Department']);
 
 function actorLabelOf(actor?: AuthUser): string {
   return (
@@ -61,16 +56,19 @@ function actorLabelOf(actor?: AuthUser): string {
 }
 
 function mapPerson(
-  p: {
-    PERSON_ID: number;
-    HOSPITAL_NO: string | null;
-    FIRST_NAME: string | null;
-    LAST_NAME: string | null;
-    MIDDLE_NAME: string | null;
-    SEX: string | null;
-    DATE_OF_BIRTH: Date | null;
-    PATIENT_PHONE_NO: string | null;
-  } | null | undefined,
+  p:
+    | {
+        PERSON_ID: number;
+        HOSPITAL_NO: string | null;
+        FIRST_NAME: string | null;
+        LAST_NAME: string | null;
+        MIDDLE_NAME: string | null;
+        SEX: string | null;
+        DATE_OF_BIRTH: Date | null;
+        PATIENT_PHONE_NO: string | null;
+      }
+    | null
+    | undefined,
 ) {
   if (!p) return null;
   const age = p.DATE_OF_BIRTH
@@ -96,13 +94,16 @@ function mapPerson(
 }
 
 function mapWard(
-  w: {
-    WARD_ID: number;
-    CODE: string;
-    NAME: string;
-    WARD_TYPE?: string | null;
-    WARD_CLASS?: string | null;
-  } | null | undefined,
+  w:
+    | {
+        WARD_ID: number;
+        CODE: string;
+        NAME: string;
+        WARD_TYPE?: string | null;
+        WARD_CLASS?: string | null;
+      }
+    | null
+    | undefined,
 ) {
   if (!w) return null;
   return {
@@ -115,12 +116,15 @@ function mapWard(
 }
 
 function mapBed(
-  b: {
-    BED_ID: number;
-    LABEL: string;
-    STATUS: string;
-    WARD_ID: number;
-  } | null | undefined,
+  b:
+    | {
+        BED_ID: number;
+        LABEL: string;
+        STATUS: string;
+        WARD_ID: number;
+      }
+    | null
+    | undefined,
 ) {
   if (!b) return null;
   return {
@@ -332,7 +336,10 @@ export class TransfersService {
   }
 
   async create(dto: CreateTransferDto, actor?: AuthUser) {
-    if (dto.transferType === 'Theatre' || dto.transferType === 'RadiologyEscort') {
+    if (
+      dto.transferType === 'Theatre' ||
+      dto.transferType === 'RadiologyEscort'
+    ) {
       throw new BadRequestException(
         `${dto.transferType} transfers are not enabled in this build (stub only)`,
       );
@@ -352,10 +359,15 @@ export class TransfersService {
       });
       if (!adm) throw new NotFoundException('Admission not found');
       if (adm.PERSON_ID !== dto.personId) {
-        throw new BadRequestException('Admission does not belong to this patient');
+        throw new BadRequestException(
+          'Admission does not belong to this patient',
+        );
       }
       if (!fromWardId) fromWardId = adm.WARD_ID;
-    } else if (NEEDS_BED.has(dto.transferType) || dto.transferType === 'WardToClinic') {
+    } else if (
+      NEEDS_BED.has(dto.transferType) ||
+      dto.transferType === 'WardToClinic'
+    ) {
       const adm = await this.prisma.admissions.findFirst({
         where: {
           PERSON_ID: dto.personId,
@@ -458,23 +470,29 @@ export class TransfersService {
     return this.toResponse(await this.load(row.TRANSFER_ID));
   }
 
-  async list(params: {
-    scope?: string;
-    status?: string;
-    personId?: number;
-    admissionId?: number;
-    fromWardId?: number;
-    toWardId?: number;
-    q?: string;
-    page?: number;
-    limit?: number;
-  }, actor?: AuthUser) {
+  async list(
+    params: {
+      scope?: string;
+      status?: string;
+      personId?: number;
+      admissionId?: number;
+      fromWardId?: number;
+      toWardId?: number;
+      q?: string;
+      page?: number;
+      limit?: number;
+    },
+    actor?: AuthUser,
+  ) {
     const page = Math.max(params.page ?? 1, 1);
     const limit = Math.min(Math.max(params.limit ?? 50, 1), 200);
     const where: Prisma.PatientTransfersWhereInput = {};
 
     if (params.status) {
-      const statuses = params.status.split(',').map((s) => s.trim()).filter(Boolean);
+      const statuses = params.status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       where.STATUS = statuses.length === 1 ? statuses[0] : { in: statuses };
     }
     if (params.personId) where.PERSON_ID = params.personId;
@@ -591,16 +609,24 @@ export class TransfersService {
 
   async allocate(id: number, dto: AllocateTransferDto, actor?: AuthUser) {
     const existing = await this.load(id);
-    if (!['Submitted', 'NursePreparing', 'AwaitingBed', 'BedReserved'].includes(existing.STATUS)) {
+    if (
+      !['Submitted', 'NursePreparing', 'AwaitingBed', 'BedReserved'].includes(
+        existing.STATUS,
+      )
+    ) {
       throw new ConflictException(
         `Cannot allocate bed in status ${existing.STATUS}`,
       );
     }
     if (existing.TRANSFER_TYPE === 'ExternalReferral') {
-      throw new BadRequestException('External referrals do not allocate inpatient beds');
+      throw new BadRequestException(
+        'External referrals do not allocate inpatient beds',
+      );
     }
     if (existing.TRANSFER_TYPE === 'WardToClinic') {
-      throw new BadRequestException('Ward-to-clinic transfers do not allocate a bed');
+      throw new BadRequestException(
+        'Ward-to-clinic transfers do not allocate a bed',
+      );
     }
 
     const bed = await this.prisma.beds.findUnique({
@@ -611,8 +637,13 @@ export class TransfersService {
     if (bed.WARD_ID !== dto.wardId) {
       throw new BadRequestException('Bed does not belong to the selected ward');
     }
-    if (bed.STATUS !== 'AVAILABLE' && bed.BED_ID !== existing.ALLOCATED_BED_ID) {
-      throw new ConflictException(`Bed is not available (status: ${bed.STATUS})`);
+    if (
+      bed.STATUS !== 'AVAILABLE' &&
+      bed.BED_ID !== existing.ALLOCATED_BED_ID
+    ) {
+      throw new ConflictException(
+        `Bed is not available (status: ${bed.STATUS})`,
+      );
     }
 
     const actorLabel = actorLabelOf(actor);
@@ -838,7 +869,10 @@ export class TransfersService {
         { bedId: existing.ALLOCATED_BED_ID! },
         actor,
       );
-    } else if (existing.TRANSFER_TYPE === 'ExternalReferral' && existing.ADMISSION_ID) {
+    } else if (
+      existing.TRANSFER_TYPE === 'ExternalReferral' &&
+      existing.ADMISSION_ID
+    ) {
       await this.prisma.admissions.update({
         where: { ADMISSION_ID: existing.ADMISSION_ID },
         data: {
@@ -851,10 +885,17 @@ export class TransfersService {
       if (existing.ALLOCATED_BED_ID) {
         await this.prisma.beds.update({
           where: { BED_ID: existing.ALLOCATED_BED_ID },
-          data: { STATUS: 'AVAILABLE', UPDATED_BY: actorLabel, UPDATED_DATE: now },
+          data: {
+            STATUS: 'AVAILABLE',
+            UPDATED_BY: actorLabel,
+            UPDATED_DATE: now,
+          },
         });
       }
-    } else if (existing.TRANSFER_TYPE === 'WardToClinic' && existing.ADMISSION_ID) {
+    } else if (
+      existing.TRANSFER_TYPE === 'WardToClinic' &&
+      existing.ADMISSION_ID
+    ) {
       // Clinic destination: leave inpatient location; free bed if any
       const adm = await this.prisma.admissions.findUnique({
         where: { ADMISSION_ID: existing.ADMISSION_ID },
@@ -862,7 +903,11 @@ export class TransfersService {
       if (adm?.BED_ID) {
         await this.prisma.beds.update({
           where: { BED_ID: adm.BED_ID },
-          data: { STATUS: 'CLEANING', UPDATED_BY: actorLabel, UPDATED_DATE: now },
+          data: {
+            STATUS: 'CLEANING',
+            UPDATED_BY: actorLabel,
+            UPDATED_DATE: now,
+          },
         });
       }
       await this.prisma.admissions.update({
@@ -879,12 +924,24 @@ export class TransfersService {
 
     // Optional billing class change note
     let billingNote: string | null = null;
-    if (existing.FROM_WARD_ID && existing.TO_WARD_ID && existing.FROM_WARD_ID !== existing.TO_WARD_ID) {
+    if (
+      existing.FROM_WARD_ID &&
+      existing.TO_WARD_ID &&
+      existing.FROM_WARD_ID !== existing.TO_WARD_ID
+    ) {
       const [fromW, toW] = await Promise.all([
-        this.prisma.wards.findUnique({ where: { WARD_ID: existing.FROM_WARD_ID } }),
-        this.prisma.wards.findUnique({ where: { WARD_ID: existing.TO_WARD_ID } }),
+        this.prisma.wards.findUnique({
+          where: { WARD_ID: existing.FROM_WARD_ID },
+        }),
+        this.prisma.wards.findUnique({
+          where: { WARD_ID: existing.TO_WARD_ID },
+        }),
       ]);
-      if (fromW?.WARD_CLASS && toW?.WARD_CLASS && fromW.WARD_CLASS !== toW.WARD_CLASS) {
+      if (
+        fromW?.WARD_CLASS &&
+        toW?.WARD_CLASS &&
+        fromW.WARD_CLASS !== toW.WARD_CLASS
+      ) {
         billingNote = `Ward class changed ${fromW.WARD_CLASS} → ${toW.WARD_CLASS}; review daily rate / billing`;
       }
     }
@@ -962,7 +1019,9 @@ export class TransfersService {
   async reject(id: number, dto: RejectTransferDto, actor?: AuthUser) {
     const existing = await this.load(id);
     if (TERMINAL.has(existing.STATUS) || existing.STATUS === 'InTransit') {
-      throw new ConflictException(`Cannot reject transfer in status ${existing.STATUS}`);
+      throw new ConflictException(
+        `Cannot reject transfer in status ${existing.STATUS}`,
+      );
     }
     const actorLabel = actorLabelOf(actor);
     const now = new Date();
@@ -1026,8 +1085,13 @@ export class TransfersService {
 
   async cancel(id: number, dto: CancelTransferDto, actor?: AuthUser) {
     const existing = await this.load(id);
-    if (TERMINAL.has(existing.STATUS) || ['InTransit', 'ReceivingAccepted'].includes(existing.STATUS)) {
-      throw new ConflictException(`Cannot cancel transfer in status ${existing.STATUS}`);
+    if (
+      TERMINAL.has(existing.STATUS) ||
+      ['InTransit', 'ReceivingAccepted'].includes(existing.STATUS)
+    ) {
+      throw new ConflictException(
+        `Cannot cancel transfer in status ${existing.STATUS}`,
+      );
     }
     const actorLabel = actorLabelOf(actor);
     const now = new Date();

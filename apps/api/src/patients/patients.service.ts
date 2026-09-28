@@ -57,7 +57,10 @@ export class PatientsService {
     private readonly cards: CardsService,
   ) {}
 
-  async register(dto: CreatePersonDto, actor?: AuthUser): Promise<PersonResponse> {
+  async register(
+    dto: CreatePersonDto,
+    actor?: AuthUser,
+  ): Promise<PersonResponse> {
     const phone = dto.patientPhoneNo.trim();
     const identityNo = dto.identityNo?.trim();
 
@@ -200,7 +203,9 @@ export class PatientsService {
           : {}),
         ...(dto.sex !== undefined ? { SEX: dto.sex } : {}),
         ...(dto.dateOfBirth !== undefined
-          ? { DATE_OF_BIRTH: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null }
+          ? {
+              DATE_OF_BIRTH: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+            }
           : {}),
         ...(dto.maritalStatus !== undefined
           ? { M_STATUS: dto.maritalStatus.trim() || null }
@@ -246,7 +251,9 @@ export class PatientsService {
           ? { ADDRESS_OF_NEXT_OF_KIN: dto.addressOfNextOfKin.trim() || null }
           : {}),
         ...(dto.telephoneOfNextOfKin !== undefined
-          ? { TELEPHONE_OF_NEXT_OF_KIN: dto.telephoneOfNextOfKin.trim() || null }
+          ? {
+              TELEPHONE_OF_NEXT_OF_KIN: dto.telephoneOfNextOfKin.trim() || null,
+            }
           : {}),
         ...(dto.identityType !== undefined
           ? { IDENTITY_TYPE: dto.identityType.trim() || null }

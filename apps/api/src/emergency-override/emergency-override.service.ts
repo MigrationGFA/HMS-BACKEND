@@ -12,7 +12,9 @@ import {
 } from './dto/emergency-override.dto';
 
 function actorLabel(user: AuthUser): string {
-  return [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+  );
 }
 
 function personName(p: {
@@ -46,28 +48,39 @@ export class EmergencyOverrideService {
     return `EO-${year}-${String(count + 1).padStart(4, '0')}`;
   }
 
-  private mapSession(row: {
-    SESSION_ID: number;
-    OVERRIDE_NO: string;
-    PERSON_ID: number;
-    ADMISSION_ID: number | null;
-    REASON: string;
-    JUSTIFICATION: string;
-    SEVERITY: number;
-    DURATION_MINUTES: number;
-    LOCATION: string | null;
-    CONSULTANT: string | null;
-    STATUS: string;
-    ACTIONS_JSON: string | null;
-    STARTED_AT: Date;
-    ENDS_AT: Date | null;
-    ENDED_AT: Date | null;
-    CREATED_BY: string | null;
-    CREATED_DATE: Date | null;
-  }, person?: { FIRST_NAME: string | null; LAST_NAME: string | null; HOSPITAL_NO: string | null; PERSON_ID: number; MIDDLE_NAME?: string | null } | null) {
+  private mapSession(
+    row: {
+      SESSION_ID: number;
+      OVERRIDE_NO: string;
+      PERSON_ID: number;
+      ADMISSION_ID: number | null;
+      REASON: string;
+      JUSTIFICATION: string;
+      SEVERITY: number;
+      DURATION_MINUTES: number;
+      LOCATION: string | null;
+      CONSULTANT: string | null;
+      STATUS: string;
+      ACTIONS_JSON: string | null;
+      STARTED_AT: Date;
+      ENDS_AT: Date | null;
+      ENDED_AT: Date | null;
+      CREATED_BY: string | null;
+      CREATED_DATE: Date | null;
+    },
+    person?: {
+      FIRST_NAME: string | null;
+      LAST_NAME: string | null;
+      HOSPITAL_NO: string | null;
+      PERSON_ID: number;
+      MIDDLE_NAME?: string | null;
+    } | null,
+  ) {
     let actions: string[] = [];
     try {
-      actions = row.ACTIONS_JSON ? (JSON.parse(row.ACTIONS_JSON) as string[]) : [];
+      actions = row.ACTIONS_JSON
+        ? (JSON.parse(row.ACTIONS_JSON) as string[])
+        : [];
     } catch {
       actions = [];
     }
@@ -94,17 +107,26 @@ export class EmergencyOverrideService {
     };
   }
 
-  private mapAlert(row: {
-    ALERT_ID: number;
-    PERSON_ID: number | null;
-    ALERT_TYPE: string;
-    MESSAGE: string;
-    SEVERITY: string;
-    ACKNOWLEDGED_AT: Date | null;
-    ACKNOWLEDGED_BY: string | null;
-    CREATED_BY: string | null;
-    CREATED_DATE: Date | null;
-  }, person?: { FIRST_NAME: string | null; LAST_NAME: string | null; HOSPITAL_NO: string | null; PERSON_ID: number; MIDDLE_NAME?: string | null } | null) {
+  private mapAlert(
+    row: {
+      ALERT_ID: number;
+      PERSON_ID: number | null;
+      ALERT_TYPE: string;
+      MESSAGE: string;
+      SEVERITY: string;
+      ACKNOWLEDGED_AT: Date | null;
+      ACKNOWLEDGED_BY: string | null;
+      CREATED_BY: string | null;
+      CREATED_DATE: Date | null;
+    },
+    person?: {
+      FIRST_NAME: string | null;
+      LAST_NAME: string | null;
+      HOSPITAL_NO: string | null;
+      PERSON_ID: number;
+      MIDDLE_NAME?: string | null;
+    } | null,
+  ) {
     return {
       alertId: row.ALERT_ID,
       personId: row.PERSON_ID,
@@ -144,29 +166,30 @@ export class EmergencyOverrideService {
   async board() {
     await this.expireStaleSessions();
 
-    const [activeSessions, expiredSessions, openAlerts, admissions] = await Promise.all([
-      this.prisma.emergencyOverrideSessions.count({
-        where: { STATUS: 'Active', NOT: { DELETED_FLAG: 'Y' } },
-      }),
-      this.prisma.emergencyOverrideSessions.count({
-        where: { STATUS: 'Expired', NOT: { DELETED_FLAG: 'Y' } },
-      }),
-      this.prisma.emergencyCriticalAlerts.count({
-        where: { ACKNOWLEDGED_AT: null, NOT: { DELETED_FLAG: 'Y' } },
-      }),
-      this.prisma.admissions.findMany({
-        where: {
-          STATUS: { in: ['ADMITTED', 'ON_LEAVE', 'DISCHARGE_ORDERED'] },
-        },
-        include: {
-          person: true,
-          ward: true,
-          bed: true,
-        },
-        orderBy: { ADMITTED_AT: 'desc' },
-        take: 100,
-      }),
-    ]);
+    const [activeSessions, expiredSessions, openAlerts, admissions] =
+      await Promise.all([
+        this.prisma.emergencyOverrideSessions.count({
+          where: { STATUS: 'Active', NOT: { DELETED_FLAG: 'Y' } },
+        }),
+        this.prisma.emergencyOverrideSessions.count({
+          where: { STATUS: 'Expired', NOT: { DELETED_FLAG: 'Y' } },
+        }),
+        this.prisma.emergencyCriticalAlerts.count({
+          where: { ACKNOWLEDGED_AT: null, NOT: { DELETED_FLAG: 'Y' } },
+        }),
+        this.prisma.admissions.findMany({
+          where: {
+            STATUS: { in: ['ADMITTED', 'ON_LEAVE', 'DISCHARGE_ORDERED'] },
+          },
+          include: {
+            person: true,
+            ward: true,
+            bed: true,
+          },
+          orderBy: { ADMITTED_AT: 'desc' },
+          take: 100,
+        }),
+      ]);
 
     const emergencyWards = admissions.filter((a) => {
       const name = (a.ward?.NAME ?? '').toLowerCase();
@@ -178,18 +201,18 @@ export class EmergencyOverrideService {
       );
     });
 
-    const patients = (emergencyWards.length ? emergencyWards : admissions.slice(0, 25)).map(
-      (a) => ({
-        personId: a.PERSON_ID,
-        admissionId: a.ADMISSION_ID,
-        patientName: a.person ? personName(a.person) : `Person #${a.PERSON_ID}`,
-        hospitalNo: a.person?.HOSPITAL_NO ?? null,
-        ward: a.ward?.NAME ?? null,
-        bed: a.bed?.LABEL ?? null,
-        status: a.STATUS,
-        admittedAt: a.ADMITTED_AT?.toISOString() ?? null,
-      }),
-    );
+    const patients = (
+      emergencyWards.length ? emergencyWards : admissions.slice(0, 25)
+    ).map((a) => ({
+      personId: a.PERSON_ID,
+      admissionId: a.ADMISSION_ID,
+      patientName: a.person ? personName(a.person) : `Person #${a.PERSON_ID}`,
+      hospitalNo: a.person?.HOSPITAL_NO ?? null,
+      ward: a.ward?.NAME ?? null,
+      bed: a.bed?.LABEL ?? null,
+      status: a.STATUS,
+      admittedAt: a.ADMITTED_AT?.toISOString() ?? null,
+    }));
 
     const sessionRequests = await this.prisma.emergencyOverrideSessions.count({
       where: { NOT: { DELETED_FLAG: 'Y' } },
@@ -221,7 +244,9 @@ export class EmergencyOverrideService {
     });
     const personIds = [...new Set(rows.map((r) => r.PERSON_ID))];
     const people = personIds.length
-      ? await this.prisma.persons.findMany({ where: { PERSON_ID: { in: personIds } } })
+      ? await this.prisma.persons.findMany({
+          where: { PERSON_ID: { in: personIds } },
+        })
       : [];
     const byId = new Map(people.map((p) => [p.PERSON_ID, p]));
     return {
@@ -328,10 +353,14 @@ export class EmergencyOverrideService {
       take: limit,
     });
     const personIds = [
-      ...new Set(rows.map((r) => r.PERSON_ID).filter((x): x is number => x != null)),
+      ...new Set(
+        rows.map((r) => r.PERSON_ID).filter((x): x is number => x != null),
+      ),
     ];
     const people = personIds.length
-      ? await this.prisma.persons.findMany({ where: { PERSON_ID: { in: personIds } } })
+      ? await this.prisma.persons.findMany({
+          where: { PERSON_ID: { in: personIds } },
+        })
       : [];
     const byId = new Map(people.map((p) => [p.PERSON_ID, p]));
     return {
@@ -367,7 +396,9 @@ export class EmergencyOverrideService {
     });
     const person =
       dto.personId != null
-        ? await this.prisma.persons.findUnique({ where: { PERSON_ID: dto.personId } })
+        ? await this.prisma.persons.findUnique({
+            where: { PERSON_ID: dto.personId },
+          })
         : null;
     return this.mapAlert(row, person);
   }
@@ -398,7 +429,9 @@ export class EmergencyOverrideService {
     });
     const person =
       updated.PERSON_ID != null
-        ? await this.prisma.persons.findUnique({ where: { PERSON_ID: updated.PERSON_ID } })
+        ? await this.prisma.persons.findUnique({
+            where: { PERSON_ID: updated.PERSON_ID },
+          })
         : null;
     return this.mapAlert(updated, person);
   }
@@ -467,7 +500,9 @@ export class EmergencyOverrideService {
           prescriptionId: rx.PRESCRIPTION_ID,
           rxNo: rx.RX_NO,
           personId: rx.PERSON_ID,
-          patientName: rx.person ? personName(rx.person) : `Person #${rx.PERSON_ID}`,
+          patientName: rx.person
+            ? personName(rx.person)
+            : `Person #${rx.PERSON_ID}`,
           drug: item?.DRUG_NAME ?? '—',
           dose: item?.DOSE ?? null,
           route: item?.ROUTE ?? null,

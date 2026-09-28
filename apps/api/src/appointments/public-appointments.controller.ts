@@ -9,6 +9,7 @@ import {
 import { AppointmentsService } from './appointments.service';
 import {
   CreatePublicBookingDto,
+  PublicGuestRegisterDto,
   PublicPatientLookupDto,
   PublicVerifyConfirmDto,
   PublicVerifySendDto,
@@ -82,11 +83,25 @@ export class PublicAppointmentsController {
 
   /**
    * Method: POST
+   * URL: /api/appointments/public/register
+   * Purpose: Create guest patient PERSON + PATIENT user, then issue OTP
+   * Required permission: public (no auth)
+   * Request body: { firstName, lastName, phone, email, password, confirmPassword, nin? }
+   * Response: { data: { personId, emailDelivered, channelHint, displayCode?, … } }
+   * Notes: OTP emailed via Resend when RESEND_API_KEY is set
+   */
+  @Post('register')
+  async registerGuest(@Body() dto: PublicGuestRegisterDto) {
+    return { data: await this.appointments.registerGuestPatient(dto) };
+  }
+
+  /**
+   * Method: POST
    * URL: /api/appointments/public/verify/send
-   * Purpose: Issue OTP for returning patient (returns displayCode for mock/testing)
+   * Purpose: Issue OTP for returning patient (emailed via Resend when configured)
    * Required permission: public (no auth)
    * Request body: { personId }
-   * Response: { data: { displayCode, phoneMasked, expiresAt, … } }
+   * Response: { data: { emailDelivered, channelHint, displayCode?, phoneMasked, expiresAt, … } }
    * Errors: 400, 404
    */
   @Post('verify/send')

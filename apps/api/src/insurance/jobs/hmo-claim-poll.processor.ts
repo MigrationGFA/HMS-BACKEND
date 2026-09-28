@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { HmoBrokerService } from '../broker/hmo-broker.service';
 
 /**
@@ -17,11 +22,11 @@ export class HmoClaimPollProcessor implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     const raw = process.env.HMO_CLAIM_POLL_INTERVAL_MS;
     const intervalMs =
-      raw === undefined || raw === ''
-        ? 60_000
-        : Number.parseInt(raw, 10);
+      raw === undefined || raw === '' ? 60_000 : Number.parseInt(raw, 10);
     if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
-      this.logger.log('HMO claim poller disabled (HMO_CLAIM_POLL_INTERVAL_MS <= 0)');
+      this.logger.log(
+        'HMO claim poller disabled (HMO_CLAIM_POLL_INTERVAL_MS <= 0)',
+      );
       return;
     }
     this.logger.log(`HMO claim poller every ${intervalMs}ms`);

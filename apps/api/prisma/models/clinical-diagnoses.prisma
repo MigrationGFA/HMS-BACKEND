@@ -14,6 +14,11 @@ model DiagnosisCodes {
   IS_PSYCHIATRIC    Boolean   @default(false)
   /// Active | Inactive
   STATUS            String    @default("Active") @db.VarChar(30)
+  /// Legacy Oracle THESAURUS.THESAURUS_ID (nullable; unique when set)
+  LEGACY_THESAURUS_ID Int?    @unique
+  /// Legacy Oracle DISEASES.DISEASE_ID (nullable; unique when set)
+  LEGACY_DISEASE_ID   Int?    @unique
+  ICPC_CODE           String? @db.VarChar(40)
   CREATED_BY        String?   @db.VarChar(100)
   CREATED_DATE      DateTime?
   UPDATED_BY        String?   @db.VarChar(100)
@@ -23,6 +28,7 @@ model DiagnosisCodes {
   @@index([CATEGORY])
   @@index([STATUS])
   @@index([IS_PSYCHIATRIC])
+  @@index([ICPC_CODE])
   @@map("DIAGNOSIS_CODES")
 }
 

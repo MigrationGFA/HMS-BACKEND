@@ -33,7 +33,14 @@ export class CreateFileRequestDto {
 
 export class UpdateFileRequestStatusDto {
   @IsString()
-  @IsIn(['Released', 'In Transit', 'Returned', 'Missing', 'Overdue', 'Requested'])
+  @IsIn([
+    'Released',
+    'In Transit',
+    'Returned',
+    'Missing',
+    'Overdue',
+    'Requested',
+  ])
   status!: string;
 
   @IsOptional()

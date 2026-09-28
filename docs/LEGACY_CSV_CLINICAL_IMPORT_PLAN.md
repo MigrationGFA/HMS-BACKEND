@@ -1,9 +1,9 @@
 # Next clinical CSV import: phases and safety fixes
 
-**Date:** 17 Aug 2026 (implementation started 18 Aug 2026)  
-**Status:** Implementation steps 0–7 complete (18 Aug 2026). Resume from any step not marked ✅ in the Implementation table.  
+**Date:** 17 Aug 2026 (implementation started 18 Aug 2026; steps 9–12 completed 3 Sep 2026)  
+**Status:** Steps 0–12 complete. Resume from any step not marked ✅ in the Implementation table.  
 **Audience:** engineering + anyone handing off this work  
-**Related:** [LEGACY_DATA_MIGRATION.md](./LEGACY_DATA_MIGRATION.md), [LEGACY_CSV_IMPORT_WARDS_PERSONS.md](./LEGACY_CSV_IMPORT_WARDS_PERSONS.md)
+**Related:** [LEGACY_DATA_MIGRATION.md](./LEGACY_DATA_MIGRATION.md), [LEGACY_CSV_IMPORT_WARDS_PERSONS.md](./LEGACY_CSV_IMPORT_WARDS_PERSONS.md), [LEGACY_CSV_DOCTOR_PHARMACY_PLAN.md](./LEGACY_CSV_DOCTOR_PHARMACY_PLAN.md) (DOCTORS/ + PHAMACY/ folder audit — next wave)
 
 **Team policy (after walkthrough with the original importer author):** Keep **legacy primary keys** on every table, **especially `DEPARTMENT_ID`**. Map synonym columns (PIN / phone → temp password). Omit empty columns we do not have. Partial rows are OK. Old appointments are **staff-scheduled**; mark `creator_type=staff` vs future patient bookings. Do **not** naive-upsert departments onto live ids 1–11 — **move** the seed billing departments to unused ids first, then insert exact Aro ids from `DEPARTMENTS.csv`. **Disregard `DEPT.csv` entirely** (Oracle sample, not FNPH).
 
@@ -11,7 +11,7 @@ Plain-language summary: we have more spreadsheets from the old hospital system (
 
 ---
 
-## What is already in the live database (18 Aug 2026)
+## What is already in the live database (3 Sep 2026)
 
 | Data | Count | Notes |
 |------|-------|--------|
@@ -23,8 +23,11 @@ Plain-language summary: we have more spreadsheets from the old hospital system (
 | Clinics | 34 | `CLINICS.csv` loaded 18 Aug; junk `662 xxxxxxxx` skipped |
 | Departments | 11 seed + 11 Aro | Seed 2/6/8/9 relocated to 103/100/101/102. Aro ids: 8=Diagnostic, 9=Pharmacy (`PHARMACY`), 12=Clinical, … |
 | Follow-ups | 1,905 | From `APPOINTMENTS.csv` (18 Aug); `CREATOR_TYPE=staff` |
-| Nursing care plans | 107 | From `NURS_CARE_PLAN.csv`; large skip rate (missing 70k+ patients) |
-| Nursing notes | 10 | From partial `NOTES.csv` |
+| Nursing care plans | 107 | From `NURS_CARE_PLAN.csv`; Sep 2026 re-run unchanged (107 upsert / 473 skip) |
+| Nursing notes | **4,445** | 10 from `NOTES.csv` + 4,435 shift reports (3 Sep 2026) |
+| Patient diagnoses | 13,940 | From `DIAGNOSIS.csv` (28 Aug 2026) |
+| Nursing MAR | **3,849** | 1 seed + 3,848 from `DRUG_CHART.csv`; 3,847 updated from details |
+| Nursing observations | **3,586** | From `FLUIDS.csv` (3 Sep 2026) |
 | Admissions | **1,252** (4 test + 1,248 legacy) | Collapsed `ADMISSION_HISTORY.csv`; test ids 1–4 unchanged |
 | Encounters / clinical notes | 4 / 1 | Do **not** dump legacy extracts here |
 
@@ -38,9 +41,9 @@ Plain-language summary: we have more spreadsheets from the old hospital system (
 | `ADMISSION_HISTORY.csv` (~1,759) | Ward moves during a stay | Yes → `ADMISSIONS`, **collapsed** + **no raw ward/bed ids** |
 | `NURS_CARE_PLAN.csv` (~580) | Nursing care plans | Yes → `NURSING_CARE_PLANS`, skip empties / missing patients |
 | `NOTES.csv` (~11 real notes) | Nurse progress notes | Yes → `NURSING_NOTES` after a **clean re-export** |
-| `NURSES_REPORT_SHEET.csv` | Shift report | **No** — not a real CSV (SQL dump) |
+| `NURSES_REPORT_SHEET.csv` | Per-patient shift narrative | **Yes** (Sep 2026 re-export) → `NURSING_NOTES` (`NOTE_TYPE=Shift`) — see Step 9 |
 | `PATIENT_MED_HIST.csv` | Inpatient treatment plan / history | **No** — no matching table + broken HTML + missing patients |
-| `NURSING_PROCESS.csv` (~28) | Admission nursing assessment | **No** — no table + mostly junk / missing patients |
+| `NURSING_PROCESS.csv` (~28) | Admission nursing assessment | **Not yet** — needs form template + fuller patients — see hold list |
 
 ### Department files (17 Aug 2026)
 
@@ -48,6 +51,23 @@ Plain-language summary: we have more spreadsheets from the old hospital system (
 |------|---------|
 | `DEPARTMENTS.csv` | **Yes — keep exact `DEPARTMENT_ID`.** Live billing rows 1–11 (Lab, Pharmacy, OPC…) **must be moved to new ids first**, then CSV rows inserted with ids 2, 6, 8, 12, 13, …. Naive overwrite would point Master Services at the wrong department. |
 | `DEPT.csv` | **Disregard.** Oracle sample (`ACCOUNTING` / New York). Not FNPH. Do not import or use as a lookup. |
+
+### Sep 2026 nursing extracts (8 new files)
+
+Added 3 Sep 2026. Analyzed against Azure — legacy Oracle tables (`DRUG_CHART`, `FLUIDS`, `NURSES_REPORT_SHEET`, …) **do not exist** on the live DB; data must land on **modern `NURSING_*` tables** (or new archive tables — not recommended).
+
+| File | Rows | Verdict | Target |
+|------|------|---------|--------|
+| `NURSES_REPORT_SHEET.csv` | 23,660 | **Migrate** (Step 9) | `NURSING_NOTES` |
+| `DRUG_CHART.csv` | 3,848 | **Migrate** (Step 10) | `NURSING_MAR_ENTRIES` |
+| `DRUG_CHART_DETAILS.csv` | 65,839 | **Migrate** (Step 10, after chart) | `NURSING_MAR_ENTRIES` (admin events) |
+| `FLUIDS.csv` | 3,758 | **Migrate** (Step 11) | `NURSING_OBSERVATIONS` |
+| `NURS_CARE_PLAN.csv` | 580 (re-export) | **Re-run** (Step 12) | `NURSING_CARE_PLANS` |
+| `VITAL_SIGN_DETAILS.csv` | 1 (broken) | **No** — re-export needed | `NURSING_VITALS` |
+| `WEIGHT_MONITORING.csv` | 7 (empty) | **No** — re-export needed | `NURSING_VITALS` |
+| `NURSING_PROCESS.csv` | 28 | **Hold** | `NURSING_FORM_INSTANCES` + template |
+
+**Analyze script:** `node scripts/analyze-new-csvs.mjs` (row counts, FK checks, content quality).
 
 ---
 
@@ -136,9 +156,10 @@ Do **not** skip ahead. Each phase depends on the one before.
 
 Ask the old-system team for:
 
-1. Remaining **and missing** patients: finish `PERSONS.csv` (5,205) **and** a dump covering ids **~37k–80k** used by admissions / care plans / med hist.
-2. Clean **`NURSES_REPORT_SHEET.csv`** with a header row (not `SQL>` output).
-3. Optional: old **`WARDS` ids 1–10…** and **`BEDS`** if historical stays must show a real ward/bed. Without this, imported admissions have **no ward**.
+1. Remaining **and missing** patients: finish `PERSONS.csv` (5,205) **and** a dump covering ids **~37k–80k** used by admissions / care plans / med hist / nursing reports.
+2. ~~Clean **`NURSES_REPORT_SHEET.csv`** with a header row~~ — **done** (Sep 2026 re-export; Step 9).
+3. Re-export **`VITAL_SIGNS.csv` + `VITAL_SIGN_DETAILS.csv`** and **`WEIGHT_MONITORING.csv`** if historical vitals matter.
+4. Optional: old **`WARDS` ids 1–10…** and **`BEDS`** if historical stays must show a real ward/bed. Without this, imported admissions have **no ward**.
 
 Phase 1–3 can start **without** (2) and (3). Phase 4+ is weak until (1) exists.
 
@@ -191,15 +212,27 @@ Set `ADMISSION_ID` only if that stay exists from phase 4; else null. Skip empty 
 
 Requires a **proper `NOTES.csv` re-export** (current file is ~2 KB of broken HTML). Then `NOTE_ID` → `NOTE_ID`, `DESCRIPTION` → `BODY`, `NURSE_DOCTOR=NURSE` → `NOTE_TYPE` Progress/Shift, `CREATED_BY` as `AUTHOR_BY` (string, not a user FK). Null `ADMISSION_ID` if the stay was not imported.
 
-### Phase 7 — on hold (do not migrate)
+### Phase 7 — on hold (do not migrate yet)
 
 | File | Until |
 |------|--------|
-| `NURSES_REPORT_SHEET.csv` | Real CSV with columns matching old `NURSES_REPORT_SHEET`; then `NURSING_HANDOVERS` or `NURSING_NOTES`; map `Evening` → `Night` |
+| `VITAL_SIGN_DETAILS.csv` / `WEIGHT_MONITORING.csv` | Proper re-export with headers and `PERSON_ID`; then map to `NURSING_VITALS` (pivot detail rows → structured columns) |
 | `PATIENT_MED_HIST.csv` | Fuller `PERSONS` + a **new read-only archive table** (do not insert into `ENCOUNTERS`) |
-| `NURSING_PROCESS.csv` | Decision to add a form template + JSON instances; skip gibberish rows |
+| `NURSING_PROCESS.csv` | `NURSING_FORM_TEMPLATES` row for admission assessment + `NURSING_FORM_INSTANCES`; skip gibberish rows; 16/19 person ids still missing |
 | `CASHIER_LEDGER.csv` | ~44k wallet cash deposits; no `BILL_ID`. Do **not** insert into `CASHIER_PAYMENT_RECEIPTS`. Archive until a wallet ledger exists. |
-| Departments | **Keep exact Aro `DEPARTMENT_ID`s.** Relocate seed Lab/Pharmacy/OPC/… off ids 1–11, then load `DEPARTMENTS.csv`. Ignore `DEPT.csv`. |
+
+### Phase 8 — Sep 2026 nursing batch (steps 9–12)
+
+Run **in order**. Each step uses `--only=…` in `migrate-legacy-csv.mjs` (to be implemented).
+
+| Step | CSV | Target | Expected yield (Sep 2026 analysis) |
+|------|-----|--------|-------------------------------------|
+| 9 | `NURSES_REPORT_SHEET.csv` | `NURSING_NOTES` | ~5,000 upserts (rows with `PERSON_ID` + non-empty `REPORT`) |
+| 10 | `DRUG_CHART.csv` + `DRUG_CHART_DETAILS.csv` | `NURSING_MAR_ENTRIES` | ~3,800 chart rows + up to ~65k admin events (batched) |
+| 11 | `FLUIDS.csv` | `NURSING_OBSERVATIONS` | ~3,400 upserts (skip 67 missing persons) |
+| 12 | `NURS_CARE_PLAN.csv` (re-run) | `NURSING_CARE_PLANS` | ~100–130 new/updated rows with content (107 already loaded) |
+
+**Done when:** counts + logs; no change to admissions 1–4, wards 1–11, or receipts.
 
 ---
 
@@ -234,6 +267,11 @@ Naive overwrite of `DEPARTMENTS` 1–11 without moving seed services. `DEPT.csv`
 | 5 admissions | ✅ | 18 Aug 2026. `--only=admissions` → upserted=1248 skipped=169 errors=0 (collapsed history; ids &lt;100 protected). Log: `Migration-Documents/logs/migrate-legacy-csv-2026-08-18T06-55-35-100Z.log` |
 | 6 care plans | ✅ | 18 Aug 2026. `--only=nursing_care_plans` → upserted=107 skipped=473 errors=0. Log: `Migration-Documents/logs/migrate-legacy-csv-2026-08-18T07-01-05-358Z.log` |
 | 7 notes | ✅ | 18 Aug 2026. `--only=nursing_notes` → upserted=10 skipped=17 errors=0. Log: `Migration-Documents/logs/migrate-legacy-csv-2026-08-18T07-01-29-204Z.log` |
+| 8 patient diagnoses | ✅ | 28 Aug 2026. `--only=patient_diagnoses` → upserted=13940 skipped=0 errors=0. Log: `Migration-Documents/logs/migrate-legacy-csv-2026-08-28T12-39-22-716Z.log` |
+| 9 nurse shift reports | ✅ | 3 Sep 2026. `--only=nurse_shift_reports` → upserted=4435 skipped=19225 errors=0. Log: `Migration-Documents/logs/migrate-legacy-csv-2026-09-03T07-21-07-546Z.log` |
+| 10 drug chart / MAR | ✅ | 3 Sep 2026. `--only=drug_chart` upserted=3848 skipped=0; `--only=drug_chart_details` updated=3847 skipped=0 (1 chart had no admin rows). Seed `MAR_ID=1` unchanged. Same log. |
+| 11 fluids | ✅ | 3 Sep 2026. `--only=fluids` → upserted=3586 skipped=172 errors=0 (missing persons). Same log. |
+| 12 care plans re-run | ✅ | 3 Sep 2026. `--only=nursing_care_plans` → upserted=107 skipped=473 errors=0 (same yield as 18 Aug). Same log. |
 
 Work stays in `scripts/migrate-legacy-csv.mjs` plus one Prisma migration. Logs under `Migration-Documents/logs/`. Same DB as `npm run db:test`.
 
@@ -315,10 +353,109 @@ Do **not** insert `SERVICE_BOOKINGS`.
 
 `--only=nursing_notes`. Partial HTML file stays skipped until re-exported.
 
-### Will not implement
+### Step 8 — patient diagnoses
 
-`DEPT.csv` · `CASHIER_LEDGER` → receipts · `NURSES_REPORT_SHEET` dump · `PATIENT_MED_HIST` → encounters · `NURSING_PROCESS` · reload `USERS` / `WARDS`.
+`--only=patient_diagnoses` from `DIAGNOSIS.csv`. Batched upsert (100 rows) into `PATIENT_DIAGNOSES`; preserves exact `DIAGNOSIS_ID` → `PATIENT_DIAGNOSIS_ID`. `ADMISSION_ID` stored in `NOTES` as `legacy_admission_id=…`. Synthetic `CODE`/`NAME` for rows without description/thesaurus/disease lookup files.
+
+### Step 9 — nurse shift reports → nursing notes
+
+`--only=nurse_shift_reports` from `NURSES_REPORT_SHEET.csv` (~23,660 rows).
+
+**Why `NURSING_NOTES` not `NURSING_HANDOVERS`:** each row is a **per-patient shift narrative**, not a ward-level handover summary. Handovers are ward-centric with `CRITICAL_PATIENTS_JSON`; this file is patient-centric HTML prose.
+
+**Skip rules:**
+
+- No `PERSON_ID` or person not in `PERSONS` (expect ~15,586 row skips).
+- Empty / whitespace-only `REPORT` (expect ~18,468 row skips).
+- `WARD_ID` not in 502–645 → store null (rule 2); do not attach seed wards 1–11.
+- `ADMISSION_ID` only if that stay exists in `ADMISSIONS`; else null (most CSV rows have no admission id).
+
+**Mapping → `NURSING_NOTES`:**
+
+| CSV | Target |
+|-----|--------|
+| `NURSES_REPORT_SHEET_ID` | `NOTE_ID` (exact PK) |
+| `PERSON_ID` | `PERSON_ID` |
+| `REPORT` | `BODY` (keep HTML) |
+| `SHIFT` Morning / Afternoon / Evening | `NOTE_TYPE=Shift`; map `Evening` → treat as shift note (not handover `Night` unless product asks) |
+| `DATE_TIME` or `CREATED_DATE` | `CREATED_DATE` (Oracle + legacy date parsers) |
+| `CREATED_BY` | `AUTHOR_BY` (string) |
+| `ADMISSION_ID` | `ADMISSION_ID` if imported stay exists |
+| — | `FORMAT=Narrative` |
+
+**Expected:** ~5,000 upserts. Batched upsert (100 rows) like patient diagnoses.
+
+### Step 10 — drug chart → MAR
+
+Two CSVs, **one importer run** or `--only=drug_chart,drug_chart_details` in sequence (parent before admin details).
+
+Legacy Oracle tables `DRUG_CHART` / `DRUG_CHART_DETAILS` are **not** on Azure. Transform into **`NURSING_MAR_ENTRIES`** (Medication Administration Record) — the table the nursing module already uses.
+
+**Step 10a — chart headers (`DRUG_CHART.csv`, 3,848 rows):**
+
+| CSV | Target |
+|-----|--------|
+| `DRUG_CHART_ID` | `MAR_ID` (exact PK) |
+| `PERSON_ID` | `PERSON_ID` (skip if missing — all 613 unique ids currently match `PERSONS`) |
+| `NAME_DRUG` | `DRUG` |
+| `DOSAGE` | `DOSE` |
+| `DOSAGE_DATE` or earliest detail time | `SCHEDULED_TIME` |
+| `ADMISSION_ID` | `ADMISSION_ID` only if stay exists (~136 admission ids in CSV not in `ADMISSIONS` → null) |
+| `CREATED_BY` | `PRESCRIBER` or `SOURCE=legacy-drug-chart` |
+| — | `KIND=External` (not linked to live pharmacy orders) |
+| — | `STATUS=PENDING` until details applied |
+| — | `ROUTE` / `FREQUENCY` null unless inferable from drug name |
+
+**Step 10b — administrations (`DRUG_CHART_DETAILS.csv`, 65,839 rows):**
+
+For each detail row whose `DRUG_CHART_ID` exists (0 orphans vs parent CSV):
+
+| CSV | Target |
+|-----|--------|
+| `DATE_TIME` / `ADMINISTER_DATE` | `ADMINISTERED_AT` |
+| `STATUS` `1` / given | `STATUS=GIVEN` |
+| other status | `STATUS=MISSED` or `HELD` (document mapping in importer) |
+| `NURSE_ID` | `ADMINISTERED_BY` (stringified user id if no name lookup) |
+| `DOSAGE` | append to `NOTES` if differs from chart dose |
+
+If multiple detail rows exist for one chart, **update the MAR row** from the latest `GIVEN` event; optionally insert additional MAR rows only when product requires one row per administration (prefer single MAR per chart + `NOTES` listing all admin times to avoid 65k duplicate drug names).
+
+**Alternative (not default):** recreate legacy `DRUG_CHART` tables via Prisma migration — only if MAR transform is rejected. Would not appear in the nursing UI without new API work.
+
+**Expected:** ~3,800 MAR headers; detail pass updates status/timestamps. Batched upserts mandatory (65k+ rows).
+
+### Step 11 — fluids → nursing observations
+
+`--only=fluids` from `FLUIDS.csv` (3,758 rows).
+
+Legacy `FLUIDS` table is **not** on Azure. Store as **`NURSING_OBSERVATIONS`** with structured JSON — same pattern as live intake/output charts.
+
+| CSV | Target |
+|-----|--------|
+| `FLUID_ID` | `OBSERVATION_ID` (exact PK) |
+| `PERSON_ID` | `PERSON_ID` (skip if missing — 67 unique ids not in `PERSONS`) |
+| `ADMISSION_ID` | `ADMISSION_ID` if stay exists (~313 admission ids missing → null) |
+| `I_*` / `O_*` / `I_TIME` / `O_TIME` / `REMARK` | `FIELDS_JSON` (preserve all legacy column names as keys) |
+| — | `CHART=IntakeOutput` |
+| `CREATED_DATE` / `I_TIME` | `RECORDED_AT` (best available timestamp) |
+| `CREATED_BY` | `RECORDED_BY` (string) |
+
+**Skip:** rows with no `PERSON_ID`. **Expected:** ~3,400 upserts.
+
+### Step 12 — care plans re-run (idempotent)
+
+Re-run existing `--only=nursing_care_plans` against the **Sep 2026 re-export** of `NURS_CARE_PLAN.csv` (580 rows; 107 already loaded 18 Aug).
+
+Same mapping as Step 6. Upsert by `NURS_CARE_PLAN_ID` → `CARE_PLAN_ID` so re-run is safe.
+
+**Skip:** empty plans (451 rows with no diagnosis/goal/action/evaluation); missing `PERSON_ID` (405 rows); person not in `PERSONS` (29 unique ids).
+
+**Expected:** up to ~129 rows with content; net new rows depends on overlap with the 107 already imported. Log skipped vs upserted counts.
+
+### Will not implement (yet)
+
+`DEPT.csv` · `CASHIER_LEDGER` → receipts · `PATIENT_MED_HIST` → encounters · `NURSING_PROCESS` (until form template) · `VITAL_SIGN_DETAILS.csv` / `WEIGHT_MONITORING.csv` (broken exports) · reload `USERS` / `WARDS` · legacy archive tables `DRUG_CHART` / `FLUIDS` / `NURSES_REPORT_SHEET` (prefer modern `NURSING_*` mapping above).
 
 ### Verify after each step
 
-Counts + log. Wards 1–11 and admissions 1–4 unchanged. Receipts not +44k. After step 2: `DEPARTMENT_ID=8` is Diagnostic; PHARM services still billed.
+Counts + log. Wards 1–11 and admissions 1–4 unchanged. Receipts not +44k. After step 2: `DEPARTMENT_ID=8` is Diagnostic; PHARM services still billed. After steps 9–12: `NURSING_NOTES` / `NURSING_MAR_ENTRIES` / `NURSING_OBSERVATIONS` / `NURSING_CARE_PLANS` counts match log upsert totals.

@@ -116,7 +116,11 @@ export class AuthService {
     return this.toAuthUser(user);
   }
 
-  async changePassword(userId: number, dto: ChangePasswordDto, actor: AuthUser) {
+  async changePassword(
+    userId: number,
+    dto: ChangePasswordDto,
+    actor: AuthUser,
+  ) {
     if (dto.currentPassword === dto.newPassword) {
       throw new BadRequestException(
         'New password must be different from current password',
@@ -217,6 +221,19 @@ export class AuthService {
     }
   }
 
+  /** Issue access/refresh tokens for an already-authenticated user (e.g. post-booking auto sign-in). */
+  async issueSessionForUserId(userId: number) {
+    const user = await this.prisma.users.findUnique({
+      where: { USER_ID: userId },
+      include: { role: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    await this.assertUserCanLogin(user);
+    return this.issueTokens(user);
+  }
+
   private async issueTokens(user: UserWithRole) {
     const authUser = this.toAuthUser(user);
     const payload: JwtPayload = {
@@ -271,6 +288,7 @@ export class AuthService {
       lastName: user.LAST_NAME,
       roles,
       mustResetPassword: mustResetPassword(user),
+      personId: user.PERSON_ID ?? null,
     };
   }
 }

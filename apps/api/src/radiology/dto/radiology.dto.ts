@@ -14,7 +14,14 @@ import {
 import { Type } from 'class-transformer';
 
 const PRIORITIES = ['Routine', 'Urgent', 'Emergency', 'Stat'] as const;
-const SOURCES = ['Doctor', 'WalkIn', 'Ward', 'Emergency', 'Nursing', 'OPC'] as const;
+const SOURCES = [
+  'Doctor',
+  'WalkIn',
+  'Ward',
+  'Emergency',
+  'Nursing',
+  'OPC',
+] as const;
 const REQUEST_STATUSES = [
   'Sent',
   'Accepted',

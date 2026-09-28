@@ -85,7 +85,10 @@ export class ClinicalPharmacyController {
    */
   @Post('check')
   @RequirePermissions(PERMISSIONS.CLINICAL_PHARMACY_READ)
-  async check(@Body() dto: CheckInteractionsDto, @CurrentUser() user: AuthUser) {
+  async check(
+    @Body() dto: CheckInteractionsDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.service.check(dto, user) };
   }
 

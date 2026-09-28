@@ -7,7 +7,12 @@ import { AlliedHealthService } from './allied-health.service';
 
 @Module({
   imports: [],
-  controllers: [PhysiotherapyController, SpeechTherapyController, NutritionController, SocialWorkController],
+  controllers: [
+    PhysiotherapyController,
+    SpeechTherapyController,
+    NutritionController,
+    SocialWorkController,
+  ],
   providers: [AlliedHealthService],
   exports: [AlliedHealthService],
 })

@@ -45,7 +45,10 @@ type SupplierRow = {
   NOTES: string | null;
   CREATED_BY: string | null;
   CREATED_DATE: Date | null;
-  suppliedDrugs?: { DRUG_ID: number; drug: { NAME: string; STRENGTH: string | null } }[];
+  suppliedDrugs?: {
+    DRUG_ID: number;
+    drug: { NAME: string; STRENGTH: string | null };
+  }[];
 };
 
 const SUPPLIED_DRUGS_INCLUDE = {
@@ -108,7 +111,10 @@ export class SuppliersService {
     }
   }
 
-  async create(dto: CreateSupplierDto, actor?: AuthUser): Promise<SupplierResponse> {
+  async create(
+    dto: CreateSupplierDto,
+    actor?: AuthUser,
+  ): Promise<SupplierResponse> {
     const name = dto.name.trim();
     const duplicate = await this.prisma.suppliers.findFirst({
       where: { NAME: { equals: name, mode: 'insensitive' }, STATUS: 'Active' },
@@ -137,7 +143,9 @@ export class SuppliersService {
         CREATED_BY: actorLabel(actor),
         CREATED_DATE: new Date(),
         ...(drugIds.length
-          ? { suppliedDrugs: { create: drugIds.map((id) => ({ DRUG_ID: id })) } }
+          ? {
+              suppliedDrugs: { create: drugIds.map((id) => ({ DRUG_ID: id })) },
+            }
           : {}),
       },
       include: SUPPLIED_DRUGS_INCLUDE,
@@ -166,7 +174,8 @@ export class SuppliersService {
   }) {
     const page = Math.max(params?.page ?? 1, 1);
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
-    const status = params?.status && params.status !== 'all' ? params.status : undefined;
+    const status =
+      params?.status && params.status !== 'all' ? params.status : undefined;
 
     const where = {
       ...(status ? { STATUS: status } : {}),
@@ -174,12 +183,22 @@ export class SuppliersService {
         ? {
             OR: [
               { NAME: { contains: params.q, mode: 'insensitive' as const } },
-              { CONTACT_PERSON: { contains: params.q, mode: 'insensitive' as const } },
+              {
+                CONTACT_PERSON: {
+                  contains: params.q,
+                  mode: 'insensitive' as const,
+                },
+              },
               { EMAIL: { contains: params.q, mode: 'insensitive' as const } },
               {
                 suppliedDrugs: {
                   some: {
-                    drug: { NAME: { contains: params.q, mode: 'insensitive' as const } },
+                    drug: {
+                      NAME: {
+                        contains: params.q,
+                        mode: 'insensitive' as const,
+                      },
+                    },
                   },
                 },
               },
@@ -230,11 +249,15 @@ export class SuppliersService {
       where: { SUPPLIER_ID: id },
       data: {
         ...(dto.name !== undefined ? { NAME: dto.name.trim() } : {}),
-        ...(dto.contactPerson !== undefined ? { CONTACT_PERSON: dto.contactPerson } : {}),
+        ...(dto.contactPerson !== undefined
+          ? { CONTACT_PERSON: dto.contactPerson }
+          : {}),
         ...(dto.phone !== undefined ? { PHONE: dto.phone } : {}),
         ...(dto.email !== undefined ? { EMAIL: dto.email } : {}),
         ...(dto.address !== undefined ? { ADDRESS: dto.address } : {}),
-        ...(dto.performance !== undefined ? { PERFORMANCE: dto.performance } : {}),
+        ...(dto.performance !== undefined
+          ? { PERFORMANCE: dto.performance }
+          : {}),
         ...(dto.notes !== undefined ? { NOTES: dto.notes } : {}),
         ...(dto.status !== undefined ? { STATUS: dto.status } : {}),
         ...(drugIds !== undefined

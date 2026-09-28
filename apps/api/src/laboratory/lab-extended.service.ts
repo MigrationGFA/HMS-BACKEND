@@ -109,7 +109,9 @@ export class LabExtendedService {
   }) {
     const page = Math.max(1, params?.page ?? 1);
     const limit = Math.min(100, Math.max(1, params?.limit ?? 50));
-    const where: Prisma.LabSfaAnalysesWhereInput = { NOT: { DELETED_FLAG: 'Y' } };
+    const where: Prisma.LabSfaAnalysesWhereInput = {
+      NOT: { DELETED_FLAG: 'Y' },
+    };
     if (params?.status) where.STATUS = params.status;
     if (params?.personId) where.PERSON_ID = params.personId;
     if (params?.q?.trim()) {
@@ -122,24 +124,39 @@ export class LabExtendedService {
       ];
     }
     const base = { NOT: { DELETED_FLAG: 'Y' } } as const;
-    const [total, rows, draft, submitted, validated, rejected] = await Promise.all([
-      this.prisma.labSfaAnalyses.count({ where }),
-      this.prisma.labSfaAnalyses.findMany({
-        where,
-        include: { person: { select: PERSON_SELECT } },
-        orderBy: { SFA_ID: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.labSfaAnalyses.count({ where: { ...base, STATUS: 'Draft' } }),
-      this.prisma.labSfaAnalyses.count({ where: { ...base, STATUS: 'Submitted' } }),
-      this.prisma.labSfaAnalyses.count({ where: { ...base, STATUS: 'Validated' } }),
-      this.prisma.labSfaAnalyses.count({ where: { ...base, STATUS: 'Rejected' } }),
-    ]);
+    const [total, rows, draft, submitted, validated, rejected] =
+      await Promise.all([
+        this.prisma.labSfaAnalyses.count({ where }),
+        this.prisma.labSfaAnalyses.findMany({
+          where,
+          include: { person: { select: PERSON_SELECT } },
+          orderBy: { SFA_ID: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        this.prisma.labSfaAnalyses.count({
+          where: { ...base, STATUS: 'Draft' },
+        }),
+        this.prisma.labSfaAnalyses.count({
+          where: { ...base, STATUS: 'Submitted' },
+        }),
+        this.prisma.labSfaAnalyses.count({
+          where: { ...base, STATUS: 'Validated' },
+        }),
+        this.prisma.labSfaAnalyses.count({
+          where: { ...base, STATUS: 'Rejected' },
+        }),
+      ]);
     return {
       items: rows.map((r) => this.mapSfa(r)),
       meta: { page, limit, total },
-      kpis: { draft, submitted, validated, rejected, total: draft + submitted + validated + rejected },
+      kpis: {
+        draft,
+        submitted,
+        validated,
+        rejected,
+        total: draft + submitted + validated + rejected,
+      },
     };
   }
 
@@ -212,7 +229,9 @@ export class LabExtendedService {
   async patchSfa(id: number, dto: PatchSfaDto, actor?: AuthUser) {
     const existing = await this.getSfa(id);
     if (!['Draft', 'Submitted'].includes(existing.status)) {
-      throw new BadRequestException('Only Draft or Submitted SFA can be edited');
+      throw new BadRequestException(
+        'Only Draft or Submitted SFA can be edited',
+      );
     }
     const now = new Date();
     const label = actorLabel(actor);
@@ -221,20 +240,32 @@ export class LabExtendedService {
       UPDATED_BY: label,
       UPDATED_DATE: now,
     };
-    if (dto.volumeMl !== undefined) patch.VOLUME_ML = dto.volumeMl.trim() || null;
+    if (dto.volumeMl !== undefined)
+      patch.VOLUME_ML = dto.volumeMl.trim() || null;
     if (dto.colour !== undefined) patch.COLOUR = dto.colour.trim() || null;
-    if (dto.viscosity !== undefined) patch.VISCOSITY = dto.viscosity.trim() || null;
-    if (dto.liquefactionMin !== undefined) patch.LIQUEFACTION_MIN = dto.liquefactionMin.trim() || null;
+    if (dto.viscosity !== undefined)
+      patch.VISCOSITY = dto.viscosity.trim() || null;
+    if (dto.liquefactionMin !== undefined)
+      patch.LIQUEFACTION_MIN = dto.liquefactionMin.trim() || null;
     if (dto.ph !== undefined) patch.PH = dto.ph.trim() || null;
-    if (dto.countMMl !== undefined) patch.COUNT_M_ML = dto.countMMl.trim() || null;
-    if (dto.motilityPct !== undefined) patch.MOTILITY_PCT = dto.motilityPct.trim() || null;
-    if (dto.morphologyPct !== undefined) patch.MORPHOLOGY_PCT = dto.morphologyPct.trim() || null;
-    if (dto.pusCells !== undefined) patch.PUS_CELLS = dto.pusCells.trim() || null;
+    if (dto.countMMl !== undefined)
+      patch.COUNT_M_ML = dto.countMMl.trim() || null;
+    if (dto.motilityPct !== undefined)
+      patch.MOTILITY_PCT = dto.motilityPct.trim() || null;
+    if (dto.morphologyPct !== undefined)
+      patch.MORPHOLOGY_PCT = dto.morphologyPct.trim() || null;
+    if (dto.pusCells !== undefined)
+      patch.PUS_CELLS = dto.pusCells.trim() || null;
     if (dto.rbc !== undefined) patch.RBC = dto.rbc.trim() || null;
-    if (dto.epithelial !== undefined) patch.EPITHELIAL = dto.epithelial.trim() || null;
-    if (dto.interpretation !== undefined) patch.INTERPRETATION = dto.interpretation.trim() || null;
+    if (dto.epithelial !== undefined)
+      patch.EPITHELIAL = dto.epithelial.trim() || null;
+    if (dto.interpretation !== undefined)
+      patch.INTERPRETATION = dto.interpretation.trim() || null;
 
-    await this.prisma.labSfaAnalyses.update({ where: { SFA_ID: id }, data: patch });
+    await this.prisma.labSfaAnalyses.update({
+      where: { SFA_ID: id },
+      data: patch,
+    });
     const response = await this.getSfa(id);
     await this.audit.log({
       type: 'lab-sfa:update',
@@ -380,7 +411,10 @@ export class LabExtendedService {
 
   private tatLabel(collectedAt: Date | null): string {
     if (!collectedAt) return '—';
-    const mins = Math.max(0, Math.round((Date.now() - collectedAt.getTime()) / 60000));
+    const mins = Math.max(
+      0,
+      Math.round((Date.now() - collectedAt.getTime()) / 60000),
+    );
     if (mins < 60) return `${mins}m`;
     const h = Math.floor(mins / 60);
     const m = mins % 60;
@@ -396,7 +430,9 @@ export class LabExtendedService {
   }) {
     const page = Math.max(1, params?.page ?? 1);
     const limit = Math.min(100, Math.max(1, params?.limit ?? 50));
-    const where: Prisma.LabSpecimenTrackingWhereInput = { NOT: { DELETED_FLAG: 'Y' } };
+    const where: Prisma.LabSpecimenTrackingWhereInput = {
+      NOT: { DELETED_FLAG: 'Y' },
+    };
     if (params?.status) where.STATUS = params.status;
     if (params?.personId) where.PERSON_ID = params.personId;
     if (params?.q?.trim()) {
@@ -429,12 +465,17 @@ export class LabExtendedService {
         take: limit,
       }),
       ...statuses.map((s) =>
-        this.prisma.labSpecimenTracking.count({ where: { ...base, STATUS: s } }),
+        this.prisma.labSpecimenTracking.count({
+          where: { ...base, STATUS: s },
+        }),
       ),
     ]);
     const items = rows.map((r) => {
       const mapped = this.mapSpecimen(r);
-      return { ...mapped, tatLabel: mapped.tatLabel || this.tatLabel(r.COLLECTED_AT) };
+      return {
+        ...mapped,
+        tatLabel: mapped.tatLabel || this.tatLabel(r.COLLECTED_AT),
+      };
     });
     return {
       items,
@@ -458,7 +499,10 @@ export class LabExtendedService {
     });
     if (!row) throw new NotFoundException('Specimen not found');
     const mapped = this.mapSpecimen(row);
-    return { ...mapped, tatLabel: mapped.tatLabel || this.tatLabel(row.COLLECTED_AT) };
+    return {
+      ...mapped,
+      tatLabel: mapped.tatLabel || this.tatLabel(row.COLLECTED_AT),
+    };
   }
 
   async createSpecimen(dto: CreateSpecimenDto, actor?: AuthUser) {
@@ -517,7 +561,11 @@ export class LabExtendedService {
     return response;
   }
 
-  async transferSpecimen(id: number, dto: TransferSpecimenDto, actor?: AuthUser) {
+  async transferSpecimen(
+    id: number,
+    dto: TransferSpecimenDto,
+    actor?: AuthUser,
+  ) {
     const existing = await this.getSpecimen(id);
     const now = new Date();
     const label = dto.staffLabel?.trim() || actorLabel(actor);
@@ -530,7 +578,9 @@ export class LabExtendedService {
           UPDATED_BY_ID: actor?.id ?? null,
           UPDATED_BY: label,
           UPDATED_DATE: now,
-          TAT_LABEL: this.tatLabel(existing.collectedAt ? new Date(existing.collectedAt) : null),
+          TAT_LABEL: this.tatLabel(
+            existing.collectedAt ? new Date(existing.collectedAt) : null,
+          ),
         },
       });
       await tx.labSpecimenEvents.create({
@@ -558,7 +608,11 @@ export class LabExtendedService {
     return response;
   }
 
-  async updateSpecimenStatus(id: number, dto: SpecimenStatusDto, actor?: AuthUser) {
+  async updateSpecimenStatus(
+    id: number,
+    dto: SpecimenStatusDto,
+    actor?: AuthUser,
+  ) {
     const existing = await this.getSpecimen(id);
     const now = new Date();
     const label = actorLabel(actor);
@@ -572,7 +626,9 @@ export class LabExtendedService {
           UPDATED_BY_ID: actor?.id ?? null,
           UPDATED_BY: label,
           UPDATED_DATE: now,
-          TAT_LABEL: this.tatLabel(existing.collectedAt ? new Date(existing.collectedAt) : null),
+          TAT_LABEL: this.tatLabel(
+            existing.collectedAt ? new Date(existing.collectedAt) : null,
+          ),
         },
       });
       await tx.labSpecimenEvents.create({
@@ -630,54 +686,62 @@ export class LabExtendedService {
       CREATED_DATE: { gte: from, lte: to },
     };
 
-    const [requestCount, paidAgg, topTests, categoryGroups, criticalCount, samples, validated] =
-      await Promise.all([
-        this.prisma.labRequests.count({ where: requestWhere }),
-        this.prisma.labRequests.aggregate({
-          where: {
-            PAYMENT_STATUS: 'Paid',
-            PAID_AT: { gte: from, lte: to },
-          },
-          _sum: { TOTAL_AMOUNT: true },
-        }),
-        this.prisma.labRequestItems.groupBy({
-          by: ['TEST_NAME'],
-          where: { request: requestWhere },
-          _count: { ITEM_ID: true },
-          orderBy: { _count: { ITEM_ID: 'desc' } },
-          take: 8,
-        }),
-        this.prisma.labRequestItems.groupBy({
-          by: ['CATEGORY'],
-          where: { request: requestWhere },
-          _count: { ITEM_ID: true },
-          orderBy: { _count: { ITEM_ID: 'desc' } },
-          take: 12,
-        }),
-        this.prisma.labRequests.count({
-          where: { ...requestWhere, PRIORITY: { in: ['Stat', 'Urgent'] } },
-        }),
-        this.prisma.labSamples.findMany({
-          where: { COLLECTED_AT: { gte: from, lte: to } },
-          select: { COLLECTED_AT: true, LAB_REQUEST_ID: true },
-          take: 500,
-        }),
-        this.prisma.labResults.findMany({
-          where: {
-            STATUS: 'Validated',
-            VALIDATED_AT: { gte: from, lte: to },
-          },
-          select: { VALIDATED_AT: true, LAB_REQUEST_ID: true },
-          take: 500,
-        }),
-      ]);
+    const [
+      requestCount,
+      paidAgg,
+      topTests,
+      categoryGroups,
+      criticalCount,
+      samples,
+      validated,
+    ] = await Promise.all([
+      this.prisma.labRequests.count({ where: requestWhere }),
+      this.prisma.labRequests.aggregate({
+        where: {
+          PAYMENT_STATUS: 'Paid',
+          PAID_AT: { gte: from, lte: to },
+        },
+        _sum: { TOTAL_AMOUNT: true },
+      }),
+      this.prisma.labRequestItems.groupBy({
+        by: ['TEST_NAME'],
+        where: { request: requestWhere },
+        _count: { ITEM_ID: true },
+        orderBy: { _count: { ITEM_ID: 'desc' } },
+        take: 8,
+      }),
+      this.prisma.labRequestItems.groupBy({
+        by: ['CATEGORY'],
+        where: { request: requestWhere },
+        _count: { ITEM_ID: true },
+        orderBy: { _count: { ITEM_ID: 'desc' } },
+        take: 12,
+      }),
+      this.prisma.labRequests.count({
+        where: { ...requestWhere, PRIORITY: { in: ['Stat', 'Urgent'] } },
+      }),
+      this.prisma.labSamples.findMany({
+        where: { COLLECTED_AT: { gte: from, lte: to } },
+        select: { COLLECTED_AT: true, LAB_REQUEST_ID: true },
+        take: 500,
+      }),
+      this.prisma.labResults.findMany({
+        where: {
+          STATUS: 'Validated',
+          VALIDATED_AT: { gte: from, lte: to },
+        },
+        select: { VALIDATED_AT: true, LAB_REQUEST_ID: true },
+        take: 500,
+      }),
+    ]);
 
     // Avg TAT hours: collect → validate by request id
     const collectMap = new Map<number, Date>();
     for (const s of samples) {
       if (s.COLLECTED_AT && s.LAB_REQUEST_ID) {
         const prev = collectMap.get(s.LAB_REQUEST_ID);
-        if (!prev || s.COLLECTED_AT < prev) collectMap.set(s.LAB_REQUEST_ID, s.COLLECTED_AT);
+        if (!prev || s.COLLECTED_AT < prev)
+          collectMap.set(s.LAB_REQUEST_ID, s.COLLECTED_AT);
       }
     }
     let tatSum = 0;
@@ -699,7 +763,10 @@ export class LabExtendedService {
         : `${Math.round(avgTatHours * 60)}m`;
 
     const revenue = Number(paidAgg._sum.TOTAL_AMOUNT ?? 0);
-    const top = topTests.map((t) => ({ name: t.TEST_NAME, count: t._count.ITEM_ID }));
+    const top = topTests.map((t) => ({
+      name: t.TEST_NAME,
+      count: t._count.ITEM_ID,
+    }));
     const maxTop = top[0]?.count || 1;
     const workloadByCategory = categoryGroups.map((c) => ({
       category: c.CATEGORY || 'Other',
@@ -714,7 +781,10 @@ export class LabExtendedService {
       avgTatHours,
       avgTatLabel,
       criticalResults: criticalCount,
-      topTests: top.map((t) => ({ ...t, pct: Math.round((t.count / maxTop) * 100) })),
+      topTests: top.map((t) => ({
+        ...t,
+        pct: Math.round((t.count / maxTop) * 100),
+      })),
       workloadByCategory,
     };
   }
@@ -787,7 +857,9 @@ export class LabExtendedService {
     dto: Parameters<LabSpecialtyService['createCulture']>[0],
     actor?: AuthUser,
   ) {
-    return this.createMicroFromCulture(await this.specialty.createCulture(dto, actor));
+    return this.createMicroFromCulture(
+      await this.specialty.createCulture(dto, actor),
+    );
   }
 
   async patchMicrobiology(
@@ -795,7 +867,9 @@ export class LabExtendedService {
     dto: Parameters<LabSpecialtyService['patchCulture']>[1],
     actor?: AuthUser,
   ) {
-    return this.createMicroFromCulture(await this.specialty.patchCulture(id, dto, actor));
+    return this.createMicroFromCulture(
+      await this.specialty.patchCulture(id, dto, actor),
+    );
   }
 
   private createMicroFromCulture(
@@ -917,7 +991,9 @@ export class LabExtendedService {
     return this.mapHisto(row);
   }
 
-  private histoReportData(dto: CreateHistopathologyDto | PatchHistopathologyDto) {
+  private histoReportData(
+    dto: CreateHistopathologyDto | PatchHistopathologyDto,
+  ) {
     const data: Prisma.LabHistopathologyCasesUpdateInput = {};
     if ('specimenType' in dto && dto.specimenType !== undefined) {
       data.SPECIMEN_TYPE = dto.specimenType;
@@ -925,7 +1001,8 @@ export class LabExtendedService {
     if (dto.site !== undefined) data.SITE = dto.site?.trim() || null;
     if (dto.gross !== undefined) data.GROSS = dto.gross?.trim() || null;
     if (dto.micro !== undefined) data.MICRO = dto.micro?.trim() || null;
-    if (dto.diagnosis !== undefined) data.DIAGNOSIS = dto.diagnosis?.trim() || null;
+    if (dto.diagnosis !== undefined)
+      data.DIAGNOSIS = dto.diagnosis?.trim() || null;
     if (dto.grade !== undefined) data.GRADE = dto.grade?.trim() || null;
     return data;
   }

@@ -41,7 +41,11 @@ export class DiagnosesController {
     @Query('system') system?: string,
     @Query('category') category?: string,
   ) {
-    const data = await this.diagnosesService.listCatalog({ q, system, category });
+    const data = await this.diagnosesService.listCatalog({
+      q,
+      system,
+      category,
+    });
     return { data };
   }
 

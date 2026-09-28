@@ -45,6 +45,25 @@ export class ClinicalNotesController {
 
   /**
    * Method: GET
+   * URL: /api/clinical-notes/legacy-templates?q=&status=
+   * Purpose: List imported legacy HTML clinical note templates (GENERIC_TEMPLATES)
+   * Required permission: clinical-note:read
+   */
+  @Get('legacy-templates')
+  @RequirePermissions(PERMISSIONS.CLINICAL_NOTE_READ)
+  async listLegacyTemplates(
+    @Query('q') q?: string,
+    @Query('status') status?: string,
+  ) {
+    const data = await this.clinicalNotesService.listLegacyHtmlTemplates({
+      q,
+      status,
+    });
+    return { data };
+  }
+
+  /**
+   * Method: GET
    * URL: /api/clinical-notes/summary
    * Purpose: KPI counts for Clinical Documentation page (drafts, reviews, signed this month)
    * Required permission: clinical-note:read

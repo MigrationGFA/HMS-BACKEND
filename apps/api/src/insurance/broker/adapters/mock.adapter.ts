@@ -110,11 +110,15 @@ export class MockHmoAdapter implements HmoAdapter {
       ? all.filter(
           (b) =>
             b.serviceCode === input.serviceCode ||
-            b.category.toLowerCase().includes(input.serviceCode!.toLowerCase()) ||
+            b.category
+              .toLowerCase()
+              .includes(input.serviceCode!.toLowerCase()) ||
             b.name.toLowerCase().includes(input.serviceCode!.toLowerCase()),
         )
       : input.category
-        ? all.filter((b) => b.category.toLowerCase() === input.category!.toLowerCase())
+        ? all.filter(
+            (b) => b.category.toLowerCase() === input.category!.toLowerCase(),
+          )
         : all;
 
     return {

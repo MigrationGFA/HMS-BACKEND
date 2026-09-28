@@ -1,0 +1,191 @@
+// General Stores / non-pharmacy inventory (Phase H).
+// Consumables, stationery, PPE, equipment, cleaning, maintenance materials.
+// Deliberately separate from pharmacy DRUGS/DRUG_BATCHES/SUPPLIERS — never
+// mix pharmacy stock semantics into these tables.
+// Soft delete via STATUS flags — never hard-delete business records.
+
+model StoreLocations {
+  LOCATION_ID   Int       @id @default(autoincrement())
+  CODE          String    @unique @db.VarChar(40)
+  NAME          String    @db.VarChar(150)
+  /// Active | Inactive (soft delete)
+  STATUS        String    @default("Active") @db.VarChar(30)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  batches          StoreBatches[]
+  movementsFrom    StoreMovements[] @relation("MovementFromLocation")
+  movementsTo      StoreMovements[] @relation("MovementToLocation")
+  requisitions     StoreRequisitions[]
+  scmGrns          ScmGrns[]
+
+  @@index([STATUS])
+  @@map("STORE_LOCATIONS")
+}
+
+model StoreItemCategories {
+  CATEGORY_ID   Int       @id @default(autoincrement())
+  CODE          String    @unique @db.VarChar(40)
+  NAME          String    @db.VarChar(150)
+  /// Active | Inactive (soft delete)
+  STATUS        String    @default("Active") @db.VarChar(30)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  items StoreItems[]
+
+  @@index([STATUS])
+  @@map("STORE_ITEM_CATEGORIES")
+}
+
+model StoreItems {
+  ITEM_ID         Int       @id @default(autoincrement())
+  SKU             String    @unique @db.VarChar(60)
+  NAME            String    @db.VarChar(255)
+  CATEGORY_ID     Int
+  UNIT            String    @db.VarChar(30)
+  REORDER_LEVEL   Int       @default(0)
+  DESCRIPTION     String?   @db.Text
+  /// Active | Inactive (soft delete)
+  STATUS          String    @default("Active") @db.VarChar(30)
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime  @default(now())
+  UPDATED_BY_ID   Int?
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+
+  category         StoreItemCategories       @relation(fields: [CATEGORY_ID], references: [CATEGORY_ID])
+  batches          StoreBatches[]
+  movements        StoreMovements[]
+  requisitionLines StoreRequisitionLines[]
+  scmPoLines       ScmPoLines[]
+  scmGrnLines      ScmGrnLines[]
+
+  @@index([CATEGORY_ID])
+  @@index([STATUS])
+  @@index([NAME])
+  @@map("STORE_ITEMS")
+}
+
+/// One row per physical batch received — expiry (if applicable) and
+/// available amount per batch/location.
+model StoreBatches {
+  BATCH_ID      Int       @id @default(autoincrement())
+  ITEM_ID       Int
+  LOCATION_ID   Int
+  BATCH_NO      String    @db.VarChar(100)
+  EXPIRY_DATE   DateTime?
+  QTY_RECEIVED  Int       @default(0)
+  QTY_AVAILABLE Int       @default(0)
+  UNIT_COST     Decimal?  @db.Decimal(14, 2)
+  /// Available | Expired | Exhausted
+  STATUS        String    @default("Available") @db.VarChar(30)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  item      StoreItems      @relation(fields: [ITEM_ID], references: [ITEM_ID])
+  location  StoreLocations  @relation(fields: [LOCATION_ID], references: [LOCATION_ID])
+  movements StoreMovements[]
+  grnLines  ScmGrnLines[]
+
+  @@index([ITEM_ID])
+  @@index([LOCATION_ID])
+  @@index([EXPIRY_DATE])
+  @@index([STATUS])
+  @@map("STORE_BATCHES")
+}
+
+/// One row per stock transaction — in/out/transfer/adjust/return.
+model StoreMovements {
+  MOVEMENT_ID     Int       @id @default(autoincrement())
+  ITEM_ID         Int
+  BATCH_ID        Int?
+  /// Source location for Out/Transfer/Adjust; null for pure In receipts without a batch link.
+  LOCATION_ID     Int?
+  /// Destination location for Transfer only.
+  TO_LOCATION_ID  Int?
+  /// In | Out | Transfer | Adjust | Return
+  KIND            String    @db.VarChar(20)
+  QTY             Int
+  /// requisition | grn | manual | count
+  REF_TYPE        String?   @db.VarChar(40)
+  REF_ID          Int?
+  REASON          String?   @db.Text
+  ACTOR_ID        Int?
+  ACTOR_LABEL     String?   @db.VarChar(150)
+  CREATED_DATE    DateTime  @default(now())
+
+  item       StoreItems      @relation(fields: [ITEM_ID], references: [ITEM_ID])
+  batch      StoreBatches?   @relation(fields: [BATCH_ID], references: [BATCH_ID])
+  location   StoreLocations? @relation("MovementFromLocation", fields: [LOCATION_ID], references: [LOCATION_ID])
+  toLocation StoreLocations? @relation("MovementToLocation", fields: [TO_LOCATION_ID], references: [LOCATION_ID])
+
+  @@index([ITEM_ID])
+  @@index([BATCH_ID])
+  @@index([KIND])
+  @@index([CREATED_DATE])
+  @@map("STORE_MOVEMENTS")
+}
+
+model StoreRequisitions {
+  REQUISITION_ID   Int       @id @default(autoincrement())
+  REQUISITION_NO   String    @unique @db.VarChar(50)
+  FROM_DEPARTMENT  String    @db.VarChar(150)
+  LOCATION_ID      Int?
+  /// Pending | Approved | Issued | Rejected
+  STATUS           String    @default("Pending") @db.VarChar(30)
+  NOTES            String?   @db.Text
+  REQUESTED_BY_ID  Int?
+  REQUESTED_BY     String?   @db.VarChar(150)
+  APPROVED_BY_ID   Int?
+  APPROVED_BY      String?   @db.VarChar(150)
+  APPROVED_AT      DateTime?
+  ISSUED_BY_ID     Int?
+  ISSUED_BY        String?   @db.VarChar(150)
+  ISSUED_AT        DateTime?
+  DECISION_NOTE    String?   @db.Text
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime  @default(now())
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+
+  location StoreLocations?         @relation(fields: [LOCATION_ID], references: [LOCATION_ID])
+  lines    StoreRequisitionLines[]
+
+  @@index([STATUS])
+  @@index([LOCATION_ID])
+  @@index([CREATED_DATE])
+  @@map("STORE_REQUISITIONS")
+}
+
+model StoreRequisitionLines {
+  LINE_ID         Int     @id @default(autoincrement())
+  REQUISITION_ID  Int
+  ITEM_ID         Int
+  QTY_REQUESTED   Int
+  QTY_APPROVED    Int?
+  QTY_ISSUED      Int     @default(0)
+  NOTES           String? @db.Text
+
+  requisition StoreRequisitions @relation(fields: [REQUISITION_ID], references: [REQUISITION_ID])
+  item        StoreItems        @relation(fields: [ITEM_ID], references: [ITEM_ID])
+
+  @@index([REQUISITION_ID])
+  @@index([ITEM_ID])
+  @@map("STORE_REQUISITION_LINES")
+}

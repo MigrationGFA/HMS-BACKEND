@@ -9,11 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ServiceCatalogService } from '../billing/service-catalog.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
-import {
-  PERMISSIONS,
-  ROLES,
-  permissionsForRoles,
-} from '../common/constants';
+import { PERMISSIONS, ROLES, permissionsForRoles } from '../common/constants';
 import type {
   CheckInOpcVisitDto,
   PayOpcConsultationDto,
@@ -145,7 +141,9 @@ export class PsychiatryService {
         GENERAL_PRICE: { not: null },
         OR: [
           { NAME: { contains: 'OPC Consult', mode: 'insensitive' } },
-          { NAME: { contains: 'Psychiatric Consultation', mode: 'insensitive' } },
+          {
+            NAME: { contains: 'Psychiatric Consultation', mode: 'insensitive' },
+          },
           { SERVICE_CODE: { contains: 'OPC', mode: 'insensitive' } },
         ],
       },

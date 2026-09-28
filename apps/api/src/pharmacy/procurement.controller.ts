@@ -103,7 +103,11 @@ export class PharmacyProcurementController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthUser,
   ) {
-    const request = await this.procurementService.setRequestStatus(id, 'Approved', user);
+    const request = await this.procurementService.setRequestStatus(
+      id,
+      'Approved',
+      user,
+    );
     return { data: request };
   }
 
@@ -122,7 +126,11 @@ export class PharmacyProcurementController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthUser,
   ) {
-    const request = await this.procurementService.setRequestStatus(id, 'Rejected', user);
+    const request = await this.procurementService.setRequestStatus(
+      id,
+      'Rejected',
+      user,
+    );
     return { data: request };
   }
 
@@ -258,7 +266,11 @@ export class PharmacyProcurementController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthUser,
   ) {
-    const order = await this.procurementService.setOrderApproval(id, 'Approved', user);
+    const order = await this.procurementService.setOrderApproval(
+      id,
+      'Approved',
+      user,
+    );
     return { data: order };
   }
 
@@ -277,7 +289,11 @@ export class PharmacyProcurementController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthUser,
   ) {
-    const order = await this.procurementService.setOrderApproval(id, 'Rejected', user);
+    const order = await this.procurementService.setOrderApproval(
+      id,
+      'Rejected',
+      user,
+    );
     return { data: order };
   }
 

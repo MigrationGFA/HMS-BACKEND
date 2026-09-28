@@ -139,10 +139,7 @@ export class LabRequestsController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthUser,
   ) {
-    const result = await this.laboratoryService.collectRequestSamples(
-      id,
-      user,
-    );
+    const result = await this.laboratoryService.collectRequestSamples(id, user);
     return { data: result };
   }
 

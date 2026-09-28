@@ -130,3 +130,41 @@ export class PublicVerifyConfirmDto {
   @MaxLength(10)
   code!: string;
 }
+
+/** Guest (new) patient: create PERSON + PATIENT user, then OTP before booking. */
+export class PublicGuestRegisterDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  firstName!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  lastName!: string;
+
+  @IsString()
+  @MinLength(10)
+  @MaxLength(40)
+  phone!: string;
+
+  @IsString()
+  @MinLength(5)
+  @MaxLength(255)
+  email!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  password!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  confirmPassword!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  nin?: string;
+}

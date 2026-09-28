@@ -38,16 +38,19 @@ function actorLabelOf(actor?: AuthUser): string {
 }
 
 function mapPerson(
-  p: {
-    PERSON_ID: number;
-    HOSPITAL_NO: string | null;
-    FIRST_NAME: string | null;
-    LAST_NAME: string | null;
-    MIDDLE_NAME: string | null;
-    SEX: string | null;
-    DATE_OF_BIRTH: Date | null;
-    PATIENT_PHONE_NO: string | null;
-  } | null | undefined,
+  p:
+    | {
+        PERSON_ID: number;
+        HOSPITAL_NO: string | null;
+        FIRST_NAME: string | null;
+        LAST_NAME: string | null;
+        MIDDLE_NAME: string | null;
+        SEX: string | null;
+        DATE_OF_BIRTH: Date | null;
+        PATIENT_PHONE_NO: string | null;
+      }
+    | null
+    | undefined,
 ) {
   if (!p) return null;
   return {
@@ -331,7 +334,7 @@ export class CertificatesService {
           PERSON_ID: dto.personId,
           TEMPLATE_ID: dto.templateId,
           STATUS: 'Draft',
-          FIELDS: (dto.fields ?? {}) as Prisma.InputJsonValue,
+          FIELDS: dto.fields ?? {},
           LAYOUT: dto.layout ?? template.LAYOUT,
           VALIDITY_UNTIL: validity,
           AUTHOR_USER_ID: user.id,
@@ -386,9 +389,7 @@ export class CertificatesService {
       const updated = await tx.clinicalCertificates.update({
         where: { CERTIFICATE_ID: id },
         data: {
-          ...(dto.fields != null
-            ? { FIELDS: dto.fields as Prisma.InputJsonValue }
-            : {}),
+          ...(dto.fields != null ? { FIELDS: dto.fields } : {}),
           ...(dto.layout != null ? { LAYOUT: dto.layout } : {}),
           ...(dto.validityUntil !== undefined
             ? {

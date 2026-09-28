@@ -17,11 +17,7 @@ import { NursingOpsService } from './nursing-ops.service';
     PatientsModule,
     forwardRef(() => RadiologyModule),
   ],
-  controllers: [
-    NursingController,
-    NursingCareController,
-    NursingOpsController,
-  ],
+  controllers: [NursingController, NursingCareController, NursingOpsController],
   providers: [NursingService, NursingCareService, NursingOpsService],
   exports: [NursingService, NursingCareService, NursingOpsService],
 })

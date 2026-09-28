@@ -121,7 +121,11 @@ export class PsychiatricOpcController {
     @Body() dto: AssignOpcDoctorDto,
     @CurrentUser() user: AuthUser,
   ) {
-    const data = await this.psychiatryService.assignDoctor(id, dto.doctor, user);
+    const data = await this.psychiatryService.assignDoctor(
+      id,
+      dto.doctor,
+      user,
+    );
     return { data };
   }
 
@@ -182,10 +186,7 @@ export class PsychiatricOpcController {
 
   @Post('risk')
   @RequirePermissions(PERMISSIONS.OPC_CREATE)
-  async saveRisk(
-    @Body() dto: SaveOpcRiskDto,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async saveRisk(@Body() dto: SaveOpcRiskDto, @CurrentUser() user: AuthUser) {
     const data = await this.psychiatryService.saveRisk(dto, user);
     return { data };
   }
@@ -205,10 +206,7 @@ export class PsychiatricOpcController {
 
   @Post('notes')
   @RequirePermissions(PERMISSIONS.OPC_CREATE)
-  async saveNote(
-    @Body() dto: SaveOpcNoteDto,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async saveNote(@Body() dto: SaveOpcNoteDto, @CurrentUser() user: AuthUser) {
     const data = await this.psychiatryService.saveNote(dto, user);
     return { data };
   }

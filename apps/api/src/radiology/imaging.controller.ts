@@ -37,7 +37,10 @@ export class ImagingController {
   constructor(private readonly radiology: RadiologyService) {}
 
   @Get('studies')
-  @RequirePermissions(PERMISSIONS.RADIOLOGY_STUDY_READ, PERMISSIONS.IMAGING_READ)
+  @RequirePermissions(
+    PERMISSIONS.RADIOLOGY_STUDY_READ,
+    PERMISSIONS.IMAGING_READ,
+  )
   async listStudies(
     @Query('modality') modality?: string,
     @Query('status') status?: string,
@@ -47,7 +50,10 @@ export class ImagingController {
   }
 
   @Get('requests')
-  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_READ, PERMISSIONS.IMAGING_READ)
+  @RequirePermissions(
+    PERMISSIONS.RADIOLOGY_REQUEST_READ,
+    PERMISSIONS.IMAGING_READ,
+  )
   async listRequests(
     @Query('personId') personId?: string,
     @Query('encounterId') encounterId?: string,
@@ -75,7 +81,10 @@ export class ImagingController {
   }
 
   @Post('requests')
-  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_CREATE, PERMISSIONS.IMAGING_CREATE)
+  @RequirePermissions(
+    PERMISSIONS.RADIOLOGY_REQUEST_CREATE,
+    PERMISSIONS.IMAGING_CREATE,
+  )
   async createRequest(
     @Body() dto: CreateImagingRequestDto,
     @CurrentUser() user: AuthUser,
@@ -84,7 +93,10 @@ export class ImagingController {
   }
 
   @Patch('requests/:id')
-  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE, PERMISSIONS.IMAGING_UPDATE)
+  @RequirePermissions(
+    PERMISSIONS.RADIOLOGY_REQUEST_UPDATE,
+    PERMISSIONS.IMAGING_UPDATE,
+  )
   async updateRequest(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateImagingRequestDto,
@@ -94,7 +106,10 @@ export class ImagingController {
   }
 
   @Post('requests/:id/schedule')
-  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE, PERMISSIONS.IMAGING_UPDATE)
+  @RequirePermissions(
+    PERMISSIONS.RADIOLOGY_REQUEST_UPDATE,
+    PERMISSIONS.IMAGING_UPDATE,
+  )
   async schedule(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ScheduleImagingDto,
@@ -104,7 +119,10 @@ export class ImagingController {
   }
 
   @Post('requests/:id/start')
-  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE, PERMISSIONS.IMAGING_UPDATE)
+  @RequirePermissions(
+    PERMISSIONS.RADIOLOGY_REQUEST_UPDATE,
+    PERMISSIONS.IMAGING_UPDATE,
+  )
   async start(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthUser,
@@ -113,7 +131,10 @@ export class ImagingController {
   }
 
   @Post('requests/:id/complete-imaging')
-  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE, PERMISSIONS.IMAGING_UPDATE)
+  @RequirePermissions(
+    PERMISSIONS.RADIOLOGY_REQUEST_UPDATE,
+    PERMISSIONS.IMAGING_UPDATE,
+  )
   async complete(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CompleteImagingDto,
@@ -123,14 +144,22 @@ export class ImagingController {
   }
 
   @Get('requests/:id/files')
-  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_READ, PERMISSIONS.IMAGING_READ)
+  @RequirePermissions(
+    PERMISSIONS.RADIOLOGY_REQUEST_READ,
+    PERMISSIONS.IMAGING_READ,
+  )
   async listFiles(@Param('id', ParseIntPipe) id: number) {
     return { data: await this.radiology.listStudyFiles(id) };
   }
 
   @Post('requests/:id/files')
-  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE, PERMISSIONS.IMAGING_UPDATE)
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 40 * 1024 * 1024 } }))
+  @RequirePermissions(
+    PERMISSIONS.RADIOLOGY_REQUEST_UPDATE,
+    PERMISSIONS.IMAGING_UPDATE,
+  )
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 40 * 1024 * 1024 } }),
+  )
   async uploadFile(
     @Param('id', ParseIntPipe) id: number,
     @UploadedFile() file: Express.Multer.File,
@@ -153,7 +182,10 @@ export class ImagingController {
   }
 
   @Delete('requests/:id/files/:fileId')
-  @RequirePermissions(PERMISSIONS.RADIOLOGY_REQUEST_UPDATE, PERMISSIONS.IMAGING_UPDATE)
+  @RequirePermissions(
+    PERMISSIONS.RADIOLOGY_REQUEST_UPDATE,
+    PERMISSIONS.IMAGING_UPDATE,
+  )
   async deleteFile(
     @Param('id', ParseIntPipe) id: number,
     @Param('fileId', ParseIntPipe) fileId: number,

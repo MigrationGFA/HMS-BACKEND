@@ -1,0 +1,58 @@
+// Marketing CMS — additive only (Phase 1 website content)
+
+model SitePage {
+  PAGE_ID           Int       @id @default(autoincrement())
+  SLUG              String    @unique @db.VarChar(80)
+  TITLE             String    @db.VarChar(200)
+  META_DESCRIPTION  String?   @db.VarChar(500)
+  LOCALE            String    @default("en") @db.VarChar(10)
+  STATUS            String    @default("DRAFT") @db.VarChar(20) // DRAFT | PUBLISHED
+  PUBLISHED_AT      DateTime?
+  CREATED_AT        DateTime  @default(now())
+  UPDATED_AT        DateTime  @updatedAt
+  CREATED_BY        String?   @db.VarChar(120)
+  UPDATED_BY        String?   @db.VarChar(120)
+
+  sections SiteSection[]
+
+  @@index([STATUS])
+  @@map("SITE_PAGES")
+}
+
+model SiteSection {
+  SECTION_ID   Int       @id @default(autoincrement())
+  PAGE_ID      Int
+  SECTION_KEY  String    @db.VarChar(80)
+  SORT_ORDER   Int       @default(0)
+  HEADING      String?   @db.VarChar(300)
+  SUBHEADING   String?   @db.VarChar(500)
+  BODY         String?   @db.Text
+  CTA_LABEL    String?   @db.VarChar(120)
+  CTA_HREF     String?   @db.VarChar(300)
+  IMAGE_URL    String?   @db.VarChar(500)
+  IMAGE_ALT    String?   @db.VarChar(200)
+  EXTRA_JSON   Json?
+  CREATED_AT   DateTime  @default(now())
+  UPDATED_AT   DateTime  @updatedAt
+
+  page SitePage @relation(fields: [PAGE_ID], references: [PAGE_ID], onDelete: Cascade)
+
+  @@unique([PAGE_ID, SECTION_KEY])
+  @@index([PAGE_ID, SORT_ORDER])
+  @@map("SITE_SECTIONS")
+}
+
+model SiteMedia {
+  MEDIA_ID      Int       @id @default(autoincrement())
+  FILENAME      String    @db.VarChar(255)
+  URL           String    @db.VarChar(500)
+  BLOB_PATH     String?   @db.VarChar(500)
+  CONTENT_TYPE  String?   @db.VarChar(120)
+  ALT_TEXT      String?   @db.VarChar(255)
+  SIZE_BYTES    Int?
+  CREATED_AT    DateTime  @default(now())
+  CREATED_BY    String?   @db.VarChar(120)
+
+  @@index([CREATED_AT])
+  @@map("SITE_MEDIA")
+}

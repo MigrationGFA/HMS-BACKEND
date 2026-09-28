@@ -1,0 +1,81 @@
+// Kitchen / catering (Phase J). ADR D6: kitchen/nutrition staff enter orders
+// from the ward meal list by default — not nurse-originated. Kitchen never
+// writes clinical notes. Soft delete via STATUS — never hard-delete.
+
+model KitchenMenus {
+  MENU_ID       Int       @id @default(autoincrement())
+  NAME          String    @db.VarChar(200)
+  /// Breakfast | Lunch | Dinner | Snack
+  MEAL_SLOT     String    @db.VarChar(30)
+  DESCRIPTION   String?   @db.Text
+  /// Comma-separated diet tags, e.g. Diabetic,LowSalt,Soft
+  DIET_TAGS     String?   @db.VarChar(255)
+  /// Active | Inactive (soft delete — never hard delete referenced menus)
+  STATUS        String    @default("Active") @db.VarChar(30)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  orders   KitchenOrders[]
+  wastages KitchenWastage[]
+
+  @@index([MEAL_SLOT])
+  @@index([STATUS])
+  @@map("KITCHEN_MENUS")
+}
+
+model KitchenOrders {
+  ORDER_ID      Int       @id @default(autoincrement())
+  ORDER_NO      String    @unique @db.VarChar(50)
+  PERSON_ID     Int?
+  ADMISSION_ID  Int?
+  MENU_ID       Int?
+  /// Breakfast | Lunch | Dinner | Snack
+  MEAL_SLOT     String    @db.VarChar(30)
+  WARD_LABEL    String?   @db.VarChar(150)
+  DIET_NOTES    String?   @db.Text
+  QUANTITY      Int       @default(1)
+  /// Pending | Preparing | Ready | Served | Cancelled
+  STATUS        String    @default("Pending") @db.VarChar(30)
+  SCHEDULED_FOR DateTime? @db.Date
+  SERVED_AT     DateTime?
+  REQUESTED_BY_ID Int?
+  REQUESTED_BY  String?   @db.VarChar(150)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  menu   KitchenMenus? @relation(fields: [MENU_ID], references: [MENU_ID])
+  person Persons?      @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@index([MENU_ID])
+  @@index([PERSON_ID])
+  @@index([STATUS])
+  @@index([MEAL_SLOT])
+  @@index([CREATED_DATE])
+  @@map("KITCHEN_ORDERS")
+}
+
+model KitchenWastage {
+  WASTAGE_ID    Int       @id @default(autoincrement())
+  MENU_ID       Int?
+  ITEM_NAME     String    @db.VarChar(200)
+  QUANTITY      Decimal   @db.Decimal(10, 2)
+  UNIT          String?   @db.VarChar(30)
+  REASON        String?   @db.Text
+  RECORDED_BY_ID Int?
+  RECORDED_BY   String?   @db.VarChar(150)
+  RECORDED_DATE DateTime  @default(now())
+
+  menu KitchenMenus? @relation(fields: [MENU_ID], references: [MENU_ID])
+
+  @@index([MENU_ID])
+  @@index([RECORDED_DATE])
+  @@map("KITCHEN_WASTAGE")
+}

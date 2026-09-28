@@ -37,7 +37,10 @@ export class WalkInSalesController {
    */
   @Post()
   @RequirePermissions(PERMISSIONS.PHARMACY_SALE_CREATE)
-  async create(@Body() dto: CreateWalkInSaleDto, @CurrentUser() user: AuthUser) {
+  async create(
+    @Body() dto: CreateWalkInSaleDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     const sale = await this.walkInSales.create(dto, user);
     return { data: sale };
   }

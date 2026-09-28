@@ -356,7 +356,14 @@ export class PharmacyReturnsService {
 
     const created = await this.prisma.$transaction(async (tx) => {
       for (const line of lines) {
-        await this.restockBatch(tx, line.drugId, line.quantity, label, now, actor);
+        await this.restockBatch(
+          tx,
+          line.drugId,
+          line.quantity,
+          label,
+          now,
+          actor,
+        );
         await tx.prescriptionItems.update({
           where: { ITEM_ID: line.sourceItemId },
           data: { QTY_RETURNED: { increment: line.quantity } },
@@ -428,7 +435,9 @@ export class PharmacyReturnsService {
     });
     if (!sale) throw new NotFoundException('Walk-in sale not found');
     if (!['Dispensed', 'Partially Dispensed'].includes(sale.STATUS)) {
-      throw new BadRequestException('Only dispensed walk-in sales can be returned');
+      throw new BadRequestException(
+        'Only dispensed walk-in sales can be returned',
+      );
     }
 
     const itemMap = new Map(sale.items.map((i) => [i.ITEM_ID, i]));
@@ -467,7 +476,14 @@ export class PharmacyReturnsService {
 
     const created = await this.prisma.$transaction(async (tx) => {
       for (const line of lines) {
-        await this.restockBatch(tx, line.drugId, line.quantity, label, now, actor);
+        await this.restockBatch(
+          tx,
+          line.drugId,
+          line.quantity,
+          label,
+          now,
+          actor,
+        );
         await tx.pharmacySaleItems.update({
           where: { ITEM_ID: line.sourceItemId },
           data: { QTY_RETURNED: { increment: line.quantity } },

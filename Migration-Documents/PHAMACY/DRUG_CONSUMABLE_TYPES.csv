@@ -1,0 +1,26 @@
+DRUG_CONSUMABLE_TYPE_ID,DRUG_CONSUMABLE_NAME,SUB_ITEM_TYPE
+3,i.v,Drugs
+7,Gutt,Drugs
+10,Ott,Drugs
+25,Cream,Drugs
+27,Spray,Drugs
+28,Satchet,Drugs
+29,AMP,Drugs
+1,Tab,Drugs
+6,IVF,Drugs
+11,Drop,Drugs
+21,Inj,Drugs
+22,Syr,Drugs
+23,Susp,Drugs
+24,Jelly,Drugs
+26,Inhalation,Drugs
+31,Pessary,Drugs
+33,Frame,Eye
+2,Cap,Drugs
+4,i.m,Drugs
+5,Sc,Drugs
+8,Occ,Drugs
+9,Others,Drugs
+30,Suppository,Drugs
+32,Eye Lens,Eye
+34,General Consumables,Consumables

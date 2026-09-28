@@ -74,7 +74,10 @@ export class LabResultsController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthUser,
   ) {
-    const row = await this.laboratoryService.acknowledgeCriticalResult(id, user);
+    const row = await this.laboratoryService.acknowledgeCriticalResult(
+      id,
+      user,
+    );
     return { data: row };
   }
 

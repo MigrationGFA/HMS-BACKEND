@@ -82,7 +82,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await this.chatService.setPresence(user, 'online');
       this.logger.debug(`chat connected user=${user.id}`);
     } catch (err) {
-      this.logger.warn(`chat auth failed: ${err instanceof Error ? err.message : err}`);
+      this.logger.warn(
+        `chat auth failed: ${err instanceof Error ? err.message : err}`,
+      );
       client.disconnect(true);
     }
   }
@@ -112,9 +114,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const user = client.data.user;
     if (!user || !body?.conversationId) return;
-    client
-      .to(`conversation:${body.conversationId}`)
-      .emit('chat:typing', { conversationId: body.conversationId, userId: user.id });
+    client.to(`conversation:${body.conversationId}`).emit('chat:typing', {
+      conversationId: body.conversationId,
+      userId: user.id,
+    });
   }
 
   @SubscribeMessage('chat:presence')

@@ -57,7 +57,12 @@ export class CurablyAggregatorAdapter implements HmoAdapter {
   ): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
     const { baseUrl, apiKey, orgId } = this.config;
     if (!this.configured) {
-      return { ok: false, status: 0, data: null, error: 'Curably credentials not configured' };
+      return {
+        ok: false,
+        status: 0,
+        data: null,
+        error: 'Curably credentials not configured',
+      };
     }
     const headers: Record<string, string> = {
       Authorization: `Bearer ${apiKey}`,
@@ -69,7 +74,10 @@ export class CurablyAggregatorAdapter implements HmoAdapter {
       const res = await fetch(`${baseUrl}${path}`, {
         method,
         headers,
-        body: body != null ? JSON.stringify({ ...((body as object) ?? {}), org_id: orgId }) : undefined,
+        body:
+          body != null
+            ? JSON.stringify({ ...(body ?? {}), org_id: orgId })
+            : undefined,
       });
       const text = await res.text();
       let data: T | null = null;
@@ -88,7 +96,8 @@ export class CurablyAggregatorAdapter implements HmoAdapter {
       }
       return { ok: true, status: res.status, data };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Curably network error';
+      const message =
+        err instanceof Error ? err.message : 'Curably network error';
       this.logger.warn(message);
       return { ok: false, status: 0, data: null, error: message };
     }
@@ -101,13 +110,20 @@ export class CurablyAggregatorAdapter implements HmoAdapter {
         member: {},
         plan: {},
         sourceAdapter: this.adapterKey,
-        raw: { error: 'CURABLY_BASE_URL / CURABLY_API_KEY / CURABLY_ORG_ID required' },
+        raw: {
+          error: 'CURABLY_BASE_URL / CURABLY_API_KEY / CURABLY_ORG_ID required',
+        },
       };
     }
     const res = await this.request<{
       status?: string;
       verified?: boolean;
-      subject?: { name?: string; dob?: string; gender?: string; photo_url?: string };
+      subject?: {
+        name?: string;
+        dob?: string;
+        gender?: string;
+        photo_url?: string;
+      };
       plan?: { code?: string; name?: string; employer?: string };
       valid_from?: string;
       valid_to?: string;
@@ -263,8 +279,11 @@ export class CurablyAggregatorAdapter implements HmoAdapter {
     }
 
     const st = String(res.data.status ?? 'PENDING').toUpperCase();
-    const status =
-      st.includes('APPROV') ? 'APPROVED' : st.includes('DEN') ? 'DENIED' : 'PENDING';
+    const status = st.includes('APPROV')
+      ? 'APPROVED'
+      : st.includes('DEN')
+        ? 'DENIED'
+        : 'PENDING';
 
     return {
       status,
@@ -299,7 +318,8 @@ export class CurablyAggregatorAdapter implements HmoAdapter {
         member_no: input.memberNo,
         payer_id: String(input.payerId),
         person_id: String(input.personId),
-        encounter_id: input.encounterId != null ? String(input.encounterId) : undefined,
+        encounter_id:
+          input.encounterId != null ? String(input.encounterId) : undefined,
         total_amount: input.totalAmount,
         payer_amount: input.payerAmount,
         patient_amount: input.patientAmount,
@@ -319,8 +339,11 @@ export class CurablyAggregatorAdapter implements HmoAdapter {
     }
 
     const st = String(res.data.status ?? 'RECEIVED').toUpperCase();
-    const status =
-      st.includes('REJECT') ? 'REJECTED' : st.includes('QUER') ? 'QUERIED' : 'RECEIVED';
+    const status = st.includes('REJECT')
+      ? 'REJECTED'
+      : st.includes('QUER')
+        ? 'QUERIED'
+        : 'RECEIVED';
 
     return {
       status,

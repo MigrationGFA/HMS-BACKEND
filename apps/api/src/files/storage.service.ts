@@ -38,18 +38,26 @@ export class StorageService implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
-    const provider = String(this.config.get<string>('storage.provider') ?? 'local').toLowerCase();
-    this.localRoot = this.config.get<string>('storage.localPath') ?? './uploads';
-    this.azureContainer = this.config.get<string>('storage.azureContainer') ?? 'hms-files';
-    this.publicBaseUrl = (this.config.get<string>('storage.publicBaseUrl') ?? '').replace(/\/$/, '');
-    this.sasExpiresMinutes = Number(this.config.get<number>('storage.sasExpiresMinutes') ?? 60);
+    const provider = String(
+      this.config.get<string>('storage.provider') ?? 'local',
+    ).toLowerCase();
+    this.localRoot =
+      this.config.get<string>('storage.localPath') ?? './uploads';
+    this.azureContainer =
+      this.config.get<string>('storage.azureContainer') ?? 'hms-files';
+    this.publicBaseUrl = (
+      this.config.get<string>('storage.publicBaseUrl') ?? ''
+    ).replace(/\/$/, '');
+    this.sasExpiresMinutes = Number(
+      this.config.get<number>('storage.sasExpiresMinutes') ?? 60,
+    );
 
     const conn = this.config.get<string>('storage.azureConnectionString') ?? '';
     if (provider === 'azure' && conn) {
       try {
-        this.containerClient = BlobServiceClient.fromConnectionString(conn).getContainerClient(
-          this.azureContainer,
-        );
+        this.containerClient = BlobServiceClient.fromConnectionString(
+          conn,
+        ).getContainerClient(this.azureContainer);
         const accountName = /AccountName=([^;]+)/i.exec(conn)?.[1] ?? '';
         const accountKey = /AccountKey=([^;]+)/i.exec(conn)?.[1] ?? '';
         this.azureAccountName = accountName;
@@ -60,7 +68,9 @@ export class StorageService implements OnModuleInit {
             `Azure container ensure failed: ${err instanceof Error ? err.message : String(err)}`,
           );
         });
-        this.logger.log(`Storage provider: azure (container=${this.azureContainer})`);
+        this.logger.log(
+          `Storage provider: azure (container=${this.azureContainer})`,
+        );
         return;
       } catch (err) {
         this.logger.error(
@@ -68,11 +78,14 @@ export class StorageService implements OnModuleInit {
         );
       }
     } else if (provider === 'azure' && !conn) {
-      this.logger.warn('STORAGE_PROVIDER=azure but AZURE_STORAGE_CONNECTION_STRING missing — using local');
+      this.logger.warn(
+        'STORAGE_PROVIDER=azure but AZURE_STORAGE_CONNECTION_STRING missing — using local',
+      );
     }
 
     this.provider = 'local';
-    if (!existsSync(this.localRoot)) mkdirSync(this.localRoot, { recursive: true });
+    if (!existsSync(this.localRoot))
+      mkdirSync(this.localRoot, { recursive: true });
     this.logger.log(`Storage provider: local (path=${this.localRoot})`);
   }
 
@@ -87,15 +100,24 @@ export class StorageService implements OnModuleInit {
     contentType: string;
     buffer: Buffer;
   }): Promise<StoredObject> {
-    const safeName = params.originalName.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120) || 'file';
-    const ext = safeName.includes('.') ? safeName.slice(safeName.lastIndexOf('.')) : '';
-    const hash = createHash('sha1').update(params.buffer).digest('hex').slice(0, 10);
+    const safeName =
+      params.originalName.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120) ||
+      'file';
+    const ext = safeName.includes('.')
+      ? safeName.slice(safeName.lastIndexOf('.'))
+      : '';
+    const hash = createHash('sha1')
+      .update(params.buffer)
+      .digest('hex')
+      .slice(0, 10);
     const blobPath = `${params.prefix.replace(/^\/+|\/+$/g, '')}/${randomUUID()}-${hash}${ext}`;
 
     if (this.provider === 'azure' && this.containerClient) {
       const block = this.containerClient.getBlockBlobClient(blobPath);
       await block.uploadData(params.buffer, {
-        blobHTTPHeaders: { blobContentType: params.contentType || 'application/octet-stream' },
+        blobHTTPHeaders: {
+          blobContentType: params.contentType || 'application/octet-stream',
+        },
       });
       const url = await this.resolveUrl(blobPath);
       return {
@@ -127,11 +149,21 @@ export class StorageService implements OnModuleInit {
   async resolveUrl(blobPath: string): Promise<string> {
     if (this.publicBaseUrl) return `${this.publicBaseUrl}/${blobPath}`;
 
-    if (this.provider === 'azure' && this.containerClient && this.azureAccountName && this.azureAccountKey) {
+    if (
+      this.provider === 'azure' &&
+      this.containerClient &&
+      this.azureAccountName &&
+      this.azureAccountKey
+    ) {
       try {
         const startsOn = new Date(Date.now() - 60_000);
-        const expiresOn = new Date(Date.now() + this.sasExpiresMinutes * 60_000);
-        const cred = new StorageSharedKeyCredential(this.azureAccountName, this.azureAccountKey);
+        const expiresOn = new Date(
+          Date.now() + this.sasExpiresMinutes * 60_000,
+        );
+        const cred = new StorageSharedKeyCredential(
+          this.azureAccountName,
+          this.azureAccountKey,
+        );
         const sas = generateBlobSASQueryParameters(
           {
             containerName: this.azureContainer,

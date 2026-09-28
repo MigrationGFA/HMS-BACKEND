@@ -1,0 +1,18 @@
+// Patient portal (non-clinical Phase F). ADR-HR-D5: portal auth reuses the
+// staff USERS/JWT stack via ROLES.PATIENT + USERS.PERSON_ID — no separate
+// portal JWT for MVP. Every portal query filters PERSON_ID = token.personId.
+// This model is intentionally minimal: dashboard/appointments/invoices/labs/
+// prescriptions/records are live reads from existing clinical/billing tables
+// (SERVICE_BOOKINGS, CASHIER_PAYMENT_RECEIPTS, LAB_RESULTS, PRESCRIPTIONS).
+
+/// Optional per-patient portal preferences. Row is created lazily on first
+/// profile/notification write; absence just means defaults apply.
+model PortalPatientPrefs {
+  PERSON_ID     Int      @id
+  NOTIFY_ENABLED Boolean @default(true)
+  UPDATED_DATE  DateTime @default(now()) @updatedAt
+
+  person Persons @relation(fields: [PERSON_ID], references: [PERSON_ID])
+
+  @@map("PORTAL_PATIENT_PREFS")
+}

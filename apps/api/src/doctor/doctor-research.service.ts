@@ -11,7 +11,9 @@ import {
 } from './dto/doctor-research.dto';
 
 function actorLabel(user: AuthUser): string {
-  return [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+  );
 }
 
 @Injectable()
@@ -39,7 +41,11 @@ export class DoctorResearchService {
       this.prisma.admissions.count(),
       this.prisma.persons.count({
         where: {
-          OR: [{ IS_DEATH: 'Y' }, { IS_DEATH: 'Yes' }, { DEATH_DATE: { not: null } }],
+          OR: [
+            { IS_DEATH: 'Y' },
+            { IS_DEATH: 'Yes' },
+            { DEATH_DATE: { not: null } },
+          ],
         },
       }),
       this.prisma.prescriptions.count({
@@ -84,7 +90,9 @@ export class DoctorResearchService {
     }
 
     const mortalityPct =
-      admissionsCount > 0 ? ((deaths / admissionsCount) * 100).toFixed(1) : '0.0';
+      admissionsCount > 0
+        ? ((deaths / admissionsCount) * 100).toFixed(1)
+        : '0.0';
 
     return {
       diagnosis: diagnosisCount,
@@ -128,9 +136,13 @@ export class DoctorResearchService {
       by: ['WARD_ID'],
       _count: { ADMISSION_ID: true },
     });
-    const wardIds = rows.map((r) => r.WARD_ID).filter((id): id is number => id != null);
+    const wardIds = rows
+      .map((r) => r.WARD_ID)
+      .filter((id): id is number => id != null);
     const wards = wardIds.length
-      ? await this.prisma.wards.findMany({ where: { WARD_ID: { in: wardIds } } })
+      ? await this.prisma.wards.findMany({
+          where: { WARD_ID: { in: wardIds } },
+        })
       : [];
     const byId = new Map(wards.map((w) => [w.WARD_ID, w]));
 
@@ -147,7 +159,9 @@ export class DoctorResearchService {
       items: rows.map((r) => {
         const ward = r.WARD_ID != null ? byId.get(r.WARD_ID) : null;
         return {
-          ward: ward?.NAME ?? (r.WARD_ID != null ? `Ward #${r.WARD_ID}` : 'Unassigned'),
+          ward:
+            ward?.NAME ??
+            (r.WARD_ID != null ? `Ward #${r.WARD_ID}` : 'Unassigned'),
           admissions: r._count.ADMISSION_ID,
           discharges: dischargedMap.get(r.WARD_ID) ?? 0,
           transfers: 0,
@@ -327,9 +341,15 @@ export class DoctorResearchService {
       data: {
         ...(dto.name != null ? { NAME: dto.name.trim() } : {}),
         ...(dto.pi != null ? { PI: dto.pi.trim() } : {}),
-        ...(dto.eligibleCount != null ? { ELIGIBLE_COUNT: dto.eligibleCount } : {}),
-        ...(dto.enrolledCount != null ? { ENROLLED_COUNT: dto.enrolledCount } : {}),
-        ...(dto.startDate != null ? { START_DATE: new Date(dto.startDate) } : {}),
+        ...(dto.eligibleCount != null
+          ? { ELIGIBLE_COUNT: dto.eligibleCount }
+          : {}),
+        ...(dto.enrolledCount != null
+          ? { ENROLLED_COUNT: dto.enrolledCount }
+          : {}),
+        ...(dto.startDate != null
+          ? { START_DATE: new Date(dto.startDate) }
+          : {}),
         ...(dto.status != null ? { STATUS: dto.status.trim() } : {}),
         UPDATED_BY_ID: user.id,
         UPDATED_BY: label,
@@ -412,7 +432,11 @@ export class DoctorResearchService {
     };
   }
 
-  async patchAuditProject(id: number, dto: PatchAuditProjectDto, user: AuthUser) {
+  async patchAuditProject(
+    id: number,
+    dto: PatchAuditProjectDto,
+    user: AuthUser,
+  ) {
     const existing = await this.prisma.clinicalAuditProjects.findFirst({
       where: { PROJECT_ID: id, NOT: { DELETED_FLAG: 'Y' } },
     });
@@ -422,11 +446,15 @@ export class DoctorResearchService {
       where: { PROJECT_ID: id },
       data: {
         ...(dto.title != null ? { TITLE: dto.title.trim() } : {}),
-        ...(dto.department != null ? { DEPARTMENT: dto.department.trim() } : {}),
+        ...(dto.department != null
+          ? { DEPARTMENT: dto.department.trim() }
+          : {}),
         ...(dto.lead != null ? { LEAD: dto.lead.trim() } : {}),
         ...(dto.indicator != null ? { INDICATOR: dto.indicator.trim() } : {}),
         ...(dto.standard != null ? { STANDARD: dto.standard.trim() } : {}),
-        ...(dto.performance != null ? { PERFORMANCE: dto.performance.trim() } : {}),
+        ...(dto.performance != null
+          ? { PERFORMANCE: dto.performance.trim() }
+          : {}),
         ...(dto.status != null ? { STATUS: dto.status.trim() } : {}),
         UPDATED_BY_ID: user.id,
         UPDATED_BY: label,

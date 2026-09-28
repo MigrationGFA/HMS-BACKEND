@@ -34,7 +34,7 @@ abstract class PendingDirectAdapter implements HmoAdapter {
     result: T,
     note: string,
   ): T {
-    return { ...result, sourceAdapter: this.adapterKey, notes: note } as T;
+    return { ...result, sourceAdapter: this.adapterKey, notes: note };
   }
 
   async verifyEligibility(input: EligibilityInput): Promise<EligibilityResult> {

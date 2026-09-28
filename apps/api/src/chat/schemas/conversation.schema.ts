@@ -5,7 +5,10 @@ export type ConversationDocument = HydratedDocument<Conversation>;
 
 @Schema({ collection: 'conversations', timestamps: true })
 export class Conversation {
-  @Prop({ required: true, enum: ['direct', 'department', 'patient', 'broadcast'] })
+  @Prop({
+    required: true,
+    enum: ['direct', 'department', 'patient', 'broadcast'],
+  })
   type!: string;
 
   @Prop({ type: [String], default: [] })

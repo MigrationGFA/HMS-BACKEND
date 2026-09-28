@@ -59,7 +59,13 @@ export class HmoBrokerService {
 
   private async resolveAdapter(payerId: number): Promise<{
     adapter: HmoAdapter;
-    payer: { PAYER_ID: number; CODE: string; NAME: string; PAYER_TYPE: string; STATUS: string };
+    payer: {
+      PAYER_ID: number;
+      CODE: string;
+      NAME: string;
+      PAYER_TYPE: string;
+      STATUS: string;
+    };
     profile: { PROFILE_ID: number; ADAPTER_KEY: string; STATUS: string } | null;
   }> {
     const payer = await this.prisma.servicePayers.findUnique({
@@ -115,7 +121,8 @@ export class HmoBrokerService {
         DURATION_MS: input.durationMs,
         ERROR_MESSAGE: input.errorMessage?.slice(0, 500),
         REQUEST_META: (input.requestMeta as Prisma.InputJsonValue) ?? undefined,
-        RESPONSE_META: (input.responseMeta as Prisma.InputJsonValue) ?? undefined,
+        RESPONSE_META:
+          (input.responseMeta as Prisma.InputJsonValue) ?? undefined,
       },
     });
   }
@@ -203,7 +210,11 @@ export class HmoBrokerService {
       userId: user?.id,
       createdBy: label,
       item: `HMO coverage saved: ${payer.CODE} / ${dto.memberNo}`,
-      newValue: { coverageId: coverage.COVERAGE_ID, payerId: dto.payerId, memberNo: dto.memberNo },
+      newValue: {
+        coverageId: coverage.COVERAGE_ID,
+        payerId: dto.payerId,
+        memberNo: dto.memberNo,
+      },
     });
 
     return {
@@ -287,7 +298,11 @@ export class HmoBrokerService {
       createdBy: this.actorLabel(user),
       status: result.status,
       item: `HMO eligibility ${result.status} via ${adapter.adapterKey}`,
-      newValue: { checkId: row.CHECK_ID, payerCode: payer.CODE, status: result.status },
+      newValue: {
+        checkId: row.CHECK_ID,
+        payerCode: payer.CODE,
+        status: result.status,
+      },
     });
 
     return {
@@ -321,8 +336,8 @@ export class HmoBrokerService {
         MEMBER_NO: query.memberNo.trim(),
         PLAN_CODE: result.planCode,
         PLAN_NAME: result.planName,
-        BENEFITS: result.benefits as unknown as Prisma.InputJsonValue,
-        EXCLUSIONS: result.exclusions as unknown as Prisma.InputJsonValue,
+        BENEFITS: result.benefits,
+        EXCLUSIONS: result.exclusions,
         SOURCE_ADAPTER: result.sourceAdapter,
         EXPIRES_AT: result.expiresAt ? new Date(result.expiresAt) : null,
       },
@@ -431,7 +446,10 @@ export class HmoBrokerService {
       personId: dto.personId,
       success: result.status !== 'DENIED',
       durationMs: Date.now() - started,
-      requestMeta: { diagnosisCodes: dto.diagnosisCodes, estimatedAmount: dto.estimatedAmount },
+      requestMeta: {
+        diagnosisCodes: dto.diagnosisCodes,
+        estimatedAmount: dto.estimatedAmount,
+      },
       responseMeta: { status: result.status, authCode: result.authCode },
     });
 
@@ -444,7 +462,11 @@ export class HmoBrokerService {
       createdBy: this.actorLabel(user),
       status: result.status,
       item: `HMO pre-auth ${result.status}`,
-      newValue: { authId: auth.AUTH_ID, authCode: result.authCode, status: result.status },
+      newValue: {
+        authId: auth.AUTH_ID,
+        authCode: result.authCode,
+        status: result.status,
+      },
     });
 
     return this.mapAuth(auth);
@@ -506,7 +528,8 @@ export class HmoBrokerService {
         STATUS: result.status,
         EXTERNAL_CLAIM_REF: result.externalClaimRef,
         TOTAL_AMOUNT: dto.totalAmount,
-        PAYER_AMOUNT: dto.payerAmount ?? dto.totalAmount - (dto.patientAmount ?? 0),
+        PAYER_AMOUNT:
+          dto.payerAmount ?? dto.totalAmount - (dto.patientAmount ?? 0),
         PATIENT_AMOUNT: dto.patientAmount ?? 0,
         DIAGNOSIS_CODES: dto.diagnosisCodes ?? undefined,
         VALIDATION_ERRORS: result.validationErrors ?? undefined,
@@ -545,8 +568,14 @@ export class HmoBrokerService {
       success: result.status === 'RECEIVED',
       durationMs: Date.now() - started,
       errorMessage: result.validationErrors?.join('; '),
-      requestMeta: { totalAmount: dto.totalAmount, lineCount: dto.lines.length },
-      responseMeta: { status: result.status, externalClaimRef: result.externalClaimRef },
+      requestMeta: {
+        totalAmount: dto.totalAmount,
+        lineCount: dto.lines.length,
+      },
+      responseMeta: {
+        status: result.status,
+        externalClaimRef: result.externalClaimRef,
+      },
     });
 
     await this.audit.log({
@@ -583,7 +612,8 @@ export class HmoBrokerService {
         quantity: l.QUANTITY,
         unitAmount: l.UNIT_AMOUNT != null ? Number(l.UNIT_AMOUNT) : null,
         payerAmount: l.PAYER_AMOUNT != null ? Number(l.PAYER_AMOUNT) : null,
-        patientAmount: l.PATIENT_AMOUNT != null ? Number(l.PATIENT_AMOUNT) : null,
+        patientAmount:
+          l.PATIENT_AMOUNT != null ? Number(l.PATIENT_AMOUNT) : null,
         billLineRef: l.BILL_LINE_REF,
       })),
       timeline: claim.events.map((e) => ({
@@ -651,7 +681,8 @@ export class HmoBrokerService {
       const crypto = await import('crypto');
       const raw = JSON.stringify(body);
       const expected =
-        'sha256=' + crypto.createHmac('sha256', secret).update(raw, 'utf8').digest('hex');
+        'sha256=' +
+        crypto.createHmac('sha256', secret).update(raw, 'utf8').digest('hex');
       if (signatureHeader !== expected) {
         throw new BadRequestException('Invalid webhook signature');
       }
@@ -676,7 +707,9 @@ export class HmoBrokerService {
         where: { EXTERNAL_CLAIM_REF: externalRef, PAYER_ID: payer.PAYER_ID },
       });
       if (claim) {
-        const toStatus = String(body.status ?? body.claim_status ?? claim.STATUS).toUpperCase();
+        const toStatus = String(
+          body.status ?? body.claim_status ?? claim.STATUS,
+        ).toUpperCase();
         if (toStatus !== claim.STATUS) {
           await this.prisma.hmoClaims.update({
             where: { CLAIM_ID: claim.CLAIM_ID },
@@ -715,7 +748,8 @@ export class HmoBrokerService {
       authId: auth.AUTH_ID,
       status: auth.STATUS,
       authCode: auth.AUTH_CODE,
-      approvedAmount: auth.APPROVED_AMOUNT != null ? Number(auth.APPROVED_AMOUNT) : null,
+      approvedAmount:
+        auth.APPROVED_AMOUNT != null ? Number(auth.APPROVED_AMOUNT) : null,
       validUntil: auth.VALID_UNTIL?.toISOString() ?? null,
       externalRef: auth.EXTERNAL_REF,
       notes: auth.NOTES,
@@ -740,8 +774,10 @@ export class HmoBrokerService {
       status: claim.STATUS,
       externalClaimRef: claim.EXTERNAL_CLAIM_REF,
       totalAmount: Number(claim.TOTAL_AMOUNT),
-      payerAmount: claim.PAYER_AMOUNT != null ? Number(claim.PAYER_AMOUNT) : null,
-      patientAmount: claim.PATIENT_AMOUNT != null ? Number(claim.PATIENT_AMOUNT) : null,
+      payerAmount:
+        claim.PAYER_AMOUNT != null ? Number(claim.PAYER_AMOUNT) : null,
+      patientAmount:
+        claim.PATIENT_AMOUNT != null ? Number(claim.PATIENT_AMOUNT) : null,
       validationErrors: claim.VALIDATION_ERRORS,
       sourceAdapter: claim.SOURCE_ADAPTER,
       submittedAt: claim.SUBMITTED_AT.toISOString(),
@@ -824,11 +860,20 @@ export class HmoBrokerService {
       orderBy: { UPDATED_AT: 'asc' },
       take: limit,
     });
-    const results: Array<{ claimId: number; status: string; ok: boolean; error?: string }> = [];
+    const results: Array<{
+      claimId: number;
+      status: string;
+      ok: boolean;
+      error?: string;
+    }> = [];
     for (const claim of open) {
       try {
         const updated = await this.pollClaimStatus(claim.CLAIM_ID);
-        results.push({ claimId: claim.CLAIM_ID, status: updated.status, ok: true });
+        results.push({
+          claimId: claim.CLAIM_ID,
+          status: updated.status,
+          ok: true,
+        });
       } catch (err) {
         results.push({
           claimId: claim.CLAIM_ID,

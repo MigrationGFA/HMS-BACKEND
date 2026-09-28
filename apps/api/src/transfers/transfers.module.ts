@@ -6,7 +6,11 @@ import { TransfersController } from './transfers.controller';
 import { TransfersService } from './transfers.service';
 
 @Module({
-  imports: [AuditModule, NotificationsModule, forwardRef(() => AdmissionsModule)],
+  imports: [
+    AuditModule,
+    NotificationsModule,
+    forwardRef(() => AdmissionsModule),
+  ],
   controllers: [TransfersController],
   providers: [TransfersService],
   exports: [TransfersService],

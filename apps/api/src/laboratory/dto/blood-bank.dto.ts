@@ -1,9 +1,39 @@
-import { IsArray, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsArray,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
-const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
-const COMPONENTS = ['Whole Blood', 'Packed Cells', 'FFP', 'Platelets', 'Cryoprecipitate'] as const;
-const UNIT_STATUSES = ['Available', 'Reserved', 'Issued', 'Expired', 'Quarantine'] as const;
+const BLOOD_GROUPS = [
+  'A+',
+  'A-',
+  'B+',
+  'B-',
+  'AB+',
+  'AB-',
+  'O+',
+  'O-',
+] as const;
+const COMPONENTS = [
+  'Whole Blood',
+  'Packed Cells',
+  'FFP',
+  'Platelets',
+  'Cryoprecipitate',
+] as const;
+const UNIT_STATUSES = [
+  'Available',
+  'Reserved',
+  'Issued',
+  'Expired',
+  'Quarantine',
+] as const;
 const CROSS_RESULTS = ['Compatible', 'Incompatible', 'Pending'] as const;
 
 export class CreateBloodUnitDto {

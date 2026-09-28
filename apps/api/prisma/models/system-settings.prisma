@@ -1,0 +1,11 @@
+// Key/value system settings (phase-modules, feature flags, etc.)
+// Additive only — never used to delete domain data.
+
+model SystemSetting {
+  SETTING_KEY   String   @id @db.VarChar(100)
+  SETTING_VALUE Json
+  UPDATED_AT    DateTime @updatedAt @map("UPDATED_AT")
+  UPDATED_BY    String?  @db.VarChar(120)
+
+  @@map("SYSTEM_SETTINGS")
+}

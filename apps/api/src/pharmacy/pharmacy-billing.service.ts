@@ -29,7 +29,10 @@ function personName(p: {
   LAST_NAME: string | null;
   MIDDLE_NAME?: string | null;
 }): string {
-  return [p.FIRST_NAME, p.MIDDLE_NAME, p.LAST_NAME].filter(Boolean).join(' ') || 'Unknown';
+  return (
+    [p.FIRST_NAME, p.MIDDLE_NAME, p.LAST_NAME].filter(Boolean).join(' ') ||
+    'Unknown'
+  );
 }
 
 @Injectable()
@@ -44,46 +47,52 @@ export class PharmacyBillingService {
     const from = params?.from ? new Date(params.from) : startOfDay(daysAgo(30));
     const to = params?.to ? new Date(params.to) : endOfDay(new Date());
 
-    const [rxPaid, rxPending, salesPaid, salesPending, paidRxRows, paidSaleRows] =
-      await Promise.all([
-        this.prisma.prescriptions.count({
-          where: {
-            PAYMENT_STATUS: 'Paid',
-            PAID_AT: { gte: from, lte: to },
-          },
-        }),
-        this.prisma.prescriptions.count({
-          where: {
-            PAYMENT_STATUS: { in: ['Unpaid', 'Emergency'] },
-            STATUS: { notIn: ['Cancelled', 'Rejected', 'Draft'] },
-          },
-        }),
-        this.prisma.pharmacySales.count({
-          where: {
-            PAYMENT_STATUS: 'Paid',
-            PAID_AT: { gte: from, lte: to },
-          },
-        }),
-        this.prisma.pharmacySales.count({
-          where: {
-            PAYMENT_STATUS: 'Unpaid',
-            STATUS: { not: 'Cancelled' },
-          },
-        }),
-        this.prisma.prescriptions.findMany({
-          where: {
-            PAYMENT_STATUS: 'Paid',
-            PAID_AT: { gte: from, lte: to },
-          },
-          include: { items: true },
-        }),
-        this.prisma.pharmacySales.findMany({
-          where: {
-            PAYMENT_STATUS: 'Paid',
-            PAID_AT: { gte: from, lte: to },
-          },
-        }),
-      ]);
+    const [
+      rxPaid,
+      rxPending,
+      salesPaid,
+      salesPending,
+      paidRxRows,
+      paidSaleRows,
+    ] = await Promise.all([
+      this.prisma.prescriptions.count({
+        where: {
+          PAYMENT_STATUS: 'Paid',
+          PAID_AT: { gte: from, lte: to },
+        },
+      }),
+      this.prisma.prescriptions.count({
+        where: {
+          PAYMENT_STATUS: { in: ['Unpaid', 'Emergency'] },
+          STATUS: { notIn: ['Cancelled', 'Rejected', 'Draft'] },
+        },
+      }),
+      this.prisma.pharmacySales.count({
+        where: {
+          PAYMENT_STATUS: 'Paid',
+          PAID_AT: { gte: from, lte: to },
+        },
+      }),
+      this.prisma.pharmacySales.count({
+        where: {
+          PAYMENT_STATUS: 'Unpaid',
+          STATUS: { not: 'Cancelled' },
+        },
+      }),
+      this.prisma.prescriptions.findMany({
+        where: {
+          PAYMENT_STATUS: 'Paid',
+          PAID_AT: { gte: from, lte: to },
+        },
+        include: { items: true },
+      }),
+      this.prisma.pharmacySales.findMany({
+        where: {
+          PAYMENT_STATUS: 'Paid',
+          PAID_AT: { gte: from, lte: to },
+        },
+      }),
+    ]);
 
     const channelTotals: Record<string, number> = {
       Cash: 0,
@@ -133,7 +142,8 @@ export class PharmacyBillingService {
           ? params.paymentStatus.split(',').map((s) => s.trim())
           : [params.paymentStatus]
         : undefined;
-    const type = params?.type && params.type !== 'all' ? params.type : undefined;
+    const type =
+      params?.type && params.type !== 'all' ? params.type : undefined;
     const q = params?.q?.trim();
 
     const personOr: Prisma.PersonsWhereInput[] | undefined = q
@@ -261,21 +271,13 @@ export class PharmacyBillingService {
     if (type === 'prescription' || type === 'rx') {
       return {
         type: 'prescription' as const,
-        bill: await this.prescriptions.confirmPayment(
-          id,
-          dto as ConfirmPrescriptionPaymentDto,
-          actor,
-        ),
+        bill: await this.prescriptions.confirmPayment(id, dto, actor),
       };
     }
     if (type === 'walk_in' || type === 'walk-in' || type === 'sale') {
       return {
         type: 'walk_in' as const,
-        bill: await this.walkInSales.confirmPayment(
-          id,
-          dto as ConfirmWalkInPaymentDto,
-          actor,
-        ),
+        bill: await this.walkInSales.confirmPayment(id, dto, actor),
       };
     }
     throw new BadRequestException(`Unknown bill type: ${type}`);

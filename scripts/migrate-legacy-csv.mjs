@@ -36,8 +36,30 @@ const MONTHS = {
 };
 
 const ALL_SMALL = ['user_types', 'roles', 'wards', 'clinics', 'doctors', 'users'];
-const CLINICAL_TABLES = ['follow_ups', 'admissions', 'nursing_care_plans', 'nursing_notes'];
-const ALL_TABLES = [...ALL_SMALL, 'departments', 'persons', ...CLINICAL_TABLES];
+const CLINICAL_TABLES = [
+  'follow_ups',
+  'admissions',
+  'nursing_care_plans',
+  'nursing_notes',
+  'patient_diagnoses',
+  'nurse_shift_reports',
+  'drug_chart',
+  'drug_chart_details',
+  'fluids',
+];
+const DOCTOR_PHARMACY_TABLES = [
+  'diseases',
+  'thesaurus',
+  'patient_diagnoses_enrich',
+  'pharmacy_items',
+  'drug_consumable_types',
+  'legacy_clinical_notes_pilot',
+  'complaints',
+  'clinical_note_templates',
+  'prophylactics',
+  'legacy_comments',
+];
+const ALL_TABLES = [...ALL_SMALL, 'departments', 'persons', ...CLINICAL_TABLES, ...DOCTOR_PHARMACY_TABLES];
 
 const CSV_FILES = {
   user_types: 'USER_TYPE.csv',
@@ -52,7 +74,25 @@ const CSV_FILES = {
   admissions: 'ADMISSION_HISTORY.csv',
   nursing_care_plans: 'NURS_CARE_PLAN.csv',
   nursing_notes: 'NOTES.csv',
+  patient_diagnoses: 'DIAGNOSIS.csv',
+  nurse_shift_reports: 'NURSES_REPORT_SHEET.csv',
+  drug_chart: 'DRUG_CHART.csv',
+  drug_chart_details: 'DRUG_CHART_DETAILS.csv',
+  fluids: 'FLUIDS.csv',
+  diseases: path.join('DOCTORS', 'DISEASES.csv'),
+  thesaurus: path.join('DOCTORS', 'THESAURUS.csv'),
+  patient_diagnoses_enrich: path.join('DOCTORS', 'DIAGNOSIS.csv'),
+  pharmacy_items: path.join('PHAMACY', 'ITEMS.csv'),
+  drug_consumable_types: path.join('PHAMACY', 'DRUG_CONSUMABLE_TYPES.csv'),
+  legacy_clinical_notes_pilot: path.join('DOCTORS', 'P_EXAM.csv'),
+  complaints: path.join('DOCTORS', 'COMPLAINTS.csv'),
+  clinical_note_templates: path.join('DOCTORS', 'GENERIC_TEMPLATES.csv'),
+  prophylactics: path.join('PHAMACY', 'PROPHYLATICS_DRUGS.csv'),
+  legacy_comments: path.join('DOCTORS', 'COMMENTS.csv'),
 };
+
+/** Opening-stock policy for pharmacy ITEMS.BALANCE (Phase 0 decision). */
+const PHARMACY_OPENING_STOCK_POLICY = 'skip';
 
 /** Seed catalog codes that must not keep colliding Aro DEPARTMENT_IDs. */
 const SEED_DEPT_CODES = new Set([
@@ -90,6 +130,9 @@ function parseArgs(argv) {
     offset: 0,
     limit: null,
     batch: 250,
+    from: null,
+    path: null,
+    dryRun: false,
   };
   for (const arg of argv) {
     if (arg.startsWith('--only=')) {
@@ -105,6 +148,12 @@ function parseArgs(argv) {
     } else if (arg.startsWith('--batch=')) {
       const n = Number(arg.slice('--batch='.length));
       out.batch = Number.isFinite(n) && n > 0 ? n : 250;
+    } else if (arg.startsWith('--from=')) {
+      out.from = arg.slice('--from='.length).trim() || null;
+    } else if (arg.startsWith('--path=')) {
+      out.path = arg.slice('--path='.length).trim() || null;
+    } else if (arg === '--dry-run' || arg === '--dryRun') {
+      out.dryRun = true;
     }
   }
   if (!out.only) out.only = [...ALL_SMALL];
@@ -113,7 +162,27 @@ function parseArgs(argv) {
       throw new Error(`Unknown table "${t}". Allowed: ${ALL_TABLES.join(', ')}, all-small, all`);
     }
   }
+  if (out.from && out.only.length !== 1) {
+    throw new Error('--from= requires exactly one --only= table');
+  }
   return out;
+}
+
+function resolveCsvPath(table, args) {
+  if (args.from) {
+    return path.isAbsolute(args.from) ? args.from : path.join(ROOT, args.from);
+  }
+  const rel = CSV_FILES[table];
+  if (!rel) throw new Error(`No CSV mapping for table ${table}`);
+  if (args.path) {
+    const base = path.isAbsolute(args.path) ? args.path : path.join(ROOT, args.path);
+    // Directory-style imports (pilot) may pass a folder via --path=
+    if (table === 'legacy_clinical_notes_pilot' && fs.existsSync(base) && fs.statSync(base).isDirectory()) {
+      return base;
+    }
+    return path.join(base, path.basename(rel));
+  }
+  return path.join(DOCS_DIR, rel);
 }
 
 function emptyToNull(v) {
@@ -127,6 +196,12 @@ function toInt(v) {
   if (s === null) return null;
   const n = Number(s);
   return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+/** Positive legacy FK (treats 0 as missing). */
+function toPositiveInt(v) {
+  const n = toInt(v);
+  return n !== null && n > 0 ? n : null;
 }
 
 function toDecimal(v) {
@@ -244,11 +319,35 @@ async function* streamCsvRows(filePath) {
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   let headers = null;
   let lineNo = 0;
+  let buffer = '';
+  let bufferStartLine = 0;
+
+  const quotesOpen = (text) => {
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '"') {
+        if (inQuotes && text[i + 1] === '"') {
+          i++;
+          continue;
+        }
+        inQuotes = !inQuotes;
+      }
+    }
+    return inQuotes;
+  };
+
   for await (const raw of rl) {
     lineNo++;
-    const line = raw.replace(/^\uFEFF/, '');
-    if (!line.trim()) continue;
-    const cols = splitCsvLine(line);
+    const piece = raw.replace(/^\uFEFF/, '');
+    if (!buffer) bufferStartLine = lineNo;
+    buffer = buffer ? `${buffer}\n${piece}` : piece;
+    if (quotesOpen(buffer)) continue;
+    if (!buffer.trim()) {
+      buffer = '';
+      continue;
+    }
+    const cols = splitCsvLine(buffer);
+    buffer = '';
     if (!headers) {
       headers = cols.map((h) => h.trim());
       continue;
@@ -259,7 +358,7 @@ async function* streamCsvRows(filePath) {
       if (!key) continue;
       row[key] = cols[i] !== undefined ? cols[i] : '';
     }
-    yield { row, lineNo };
+    yield { row, lineNo: bufferStartLine };
   }
 }
 
@@ -283,10 +382,12 @@ function createLogger(runId) {
 }
 
 function buildPgClient() {
+  const keepAlive = { keepAlive: true, keepAliveInitialDelayMillis: 10000 };
   if (process.env.DATABASE_URL_PRISMA || process.env.DATABASE_URL) {
     return new pg.Client({
       connectionString: process.env.DATABASE_URL_PRISMA || process.env.DATABASE_URL,
       connectionTimeoutMillis: 30000,
+      ...keepAlive,
     });
   }
 
@@ -316,6 +417,8 @@ function buildPgClient() {
     port,
     ssl,
     connectionTimeoutMillis: 30000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
   });
 }
 
@@ -348,6 +451,94 @@ async function upsertRow(client, table, pk, columns, values) {
   const result = await client.query(sql, values);
   // node-pg: rowCount 1 for insert or update
   return result.rowCount ?? 0;
+}
+
+const PATIENT_DIAGNOSIS_COLUMNS = [
+  'PATIENT_DIAGNOSIS_ID',
+  'PERSON_ID',
+  'ENCOUNTER_ID',
+  'CODE',
+  'SYSTEM',
+  'NAME',
+  'TYPE',
+  'STATUS',
+  'ONSET_DATE',
+  'NOTES',
+  'ON_PROBLEM_LIST',
+  'CREATED_BY_ID',
+  'UPDATED_BY_ID',
+  'CREATED_BY',
+  'CREATED_DATE',
+  'UPDATED_BY',
+  'UPDATED_DATE',
+];
+
+async function upsertPatientDiagnosisBatch(client, rows) {
+  if (rows.length === 0) return;
+  const colList = PATIENT_DIAGNOSIS_COLUMNS.map((c) => `"${c}"`).join(', ');
+  const updates = PATIENT_DIAGNOSIS_COLUMNS.filter((c) => c !== 'PATIENT_DIAGNOSIS_ID')
+    .map((c) => `"${c}" = EXCLUDED."${c}"`)
+    .join(', ');
+  const values = [];
+  const tupleSql = rows
+    .map((rowValues, rowIdx) => {
+      const placeholders = PATIENT_DIAGNOSIS_COLUMNS.map((_, colIdx) => {
+        values.push(rowValues[colIdx]);
+        return `$${rowIdx * PATIENT_DIAGNOSIS_COLUMNS.length + colIdx + 1}`;
+      });
+      return `(${placeholders.join(', ')})`;
+    })
+    .join(', ');
+  const sql = `INSERT INTO "PATIENT_DIAGNOSES" (${colList}) VALUES ${tupleSql}
+    ON CONFLICT ("PATIENT_DIAGNOSIS_ID") DO UPDATE SET ${updates}`;
+  await client.query(sql, values);
+}
+
+async function upsertBatch(client, table, pk, columns, rows) {
+  if (rows.length === 0) return;
+  const colList = columns.map((c) => `"${c}"`).join(', ');
+  const updates = columns
+    .filter((c) => c !== pk)
+    .map((c) => `"${c}" = EXCLUDED."${c}"`)
+    .join(', ');
+  const values = [];
+  const tupleSql = rows
+    .map((rowValues, rowIdx) => {
+      const placeholders = columns.map((_, colIdx) => {
+        values.push(rowValues[colIdx]);
+        return `$${rowIdx * columns.length + colIdx + 1}`;
+      });
+      return `(${placeholders.join(', ')})`;
+    })
+    .join(', ');
+  const sql = `INSERT INTO "${table}" (${colList}) VALUES ${tupleSql}
+    ON CONFLICT ("${pk}") DO UPDATE SET ${updates}`;
+  await client.query(sql, values);
+}
+
+async function flushUpsertBatch(client, table, pk, columns, batchBuf, stats, logger, label) {
+  if (batchBuf.length === 0) return;
+  try {
+    await upsertBatch(
+      client,
+      table,
+      pk,
+      columns,
+      batchBuf.map((item) => item.values),
+    );
+    stats.upserted += batchBuf.length;
+  } catch (e) {
+    for (const item of batchBuf) {
+      try {
+        await upsertRow(client, table, pk, columns, item.values);
+        stats.upserted++;
+      } catch (rowErr) {
+        stats.errors++;
+        logger.log(`${label} line ${item.lineNo} ${pk}=${item.id}: ${rowErr.message}`);
+      }
+    }
+  }
+  batchBuf.length = 0;
 }
 
 async function importUserTypes(client, filePath, logger, stats) {
@@ -1307,6 +1498,166 @@ function mapNursingNoteType(nurseDoctor) {
   return 'General';
 }
 
+function truncateStr(v, max) {
+  if (v === null || v === undefined) return null;
+  const s = String(v);
+  return s.length > max ? s.slice(0, max) : s;
+}
+
+function mapDiagnosisSystem(category) {
+  const s = String(category ?? '').trim().toUpperCase();
+  if (s === 'ICD10') return 'ICD-11';
+  return 'Local';
+}
+
+function mapDiagnosisStatus(status) {
+  const s = String(status ?? '').trim().toUpperCase();
+  if (s === 'INACTIVE') return 'Resolved';
+  return 'Active';
+}
+
+function mapDiagnosisType(isPrimary) {
+  const s = String(isPrimary ?? '').trim().toUpperCase();
+  if (s === 'Y' || s === 'YES' || s === '1' || s === 'TRUE' || s === 'PRIMARY') return 'Primary';
+  return 'Secondary';
+}
+
+function buildLegacyDiagnosisCode(row, diagnosisId) {
+  const thesaurusId = toInt(row.THESAURUS_ID);
+  const diseaseId = toInt(row.DISEASE_ID);
+  if (thesaurusId !== null) return `TH-${thesaurusId}`;
+  if (diseaseId !== null) return `DIS-${diseaseId}`;
+  return `LEG-${diagnosisId}`;
+}
+
+function buildLegacyDiagnosisName(row, diagnosisId) {
+  const desc = emptyToNull(row.DESCRIPTION);
+  if (desc) return truncateStr(desc, 255);
+  const thesaurusId = toInt(row.THESAURUS_ID);
+  if (thesaurusId !== null) return `Thesaurus diagnosis ${thesaurusId}`;
+  const diseaseId = toInt(row.DISEASE_ID);
+  if (diseaseId !== null) return `Disease ${diseaseId}`;
+  return `Legacy diagnosis ${diagnosisId}`;
+}
+
+function buildLegacyDiagnosisNotes(admissionId) {
+  if (admissionId === null) return null;
+  return `legacy_admission_id=${admissionId}`;
+}
+
+function resolveLegacyUserId(row, userIds) {
+  const doctorId = toInt(row.DOCTOR_ID);
+  if (doctorId !== null && userIds.has(doctorId)) return doctorId;
+  const createdBy = toInt(row.CREATED_BY);
+  if (createdBy !== null && userIds.has(createdBy)) return createdBy;
+  return null;
+}
+
+async function importPatientDiagnoses(client, filePath, logger, stats) {
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const userIds = await loadIdSet(client, 'USERS', 'USER_ID');
+  const batchSize = 100;
+  let batchBuf = [];
+  let processed = 0;
+
+  const flush = async () => {
+    if (batchBuf.length === 0) return;
+    try {
+      await upsertPatientDiagnosisBatch(
+        client,
+        batchBuf.map((item) => item.values),
+      );
+      stats.upserted += batchBuf.length;
+    } catch (e) {
+      for (const item of batchBuf) {
+        try {
+          await upsertRow(
+            client,
+            'PATIENT_DIAGNOSES',
+            'PATIENT_DIAGNOSIS_ID',
+            PATIENT_DIAGNOSIS_COLUMNS,
+            item.values,
+          );
+          stats.upserted++;
+        } catch (rowErr) {
+          stats.errors++;
+          logger.log(
+            `PATIENT_DIAGNOSES line ${item.lineNo} DIAGNOSIS_ID=${item.diagnosisId}: ${rowErr.message}`,
+          );
+        }
+      }
+    }
+    batchBuf = [];
+  };
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const diagnosisId = toInt(row.DIAGNOSIS_ID);
+    const personId = toInt(row.PERSON_ID);
+
+    if (diagnosisId === null) {
+      stats.skipped++;
+      continue;
+    }
+    if (personId === null || !personIds.has(personId)) {
+      stats.skipped++;
+      logger.log(
+        `PATIENT_DIAGNOSES line ${lineNo} DIAGNOSIS_ID=${diagnosisId}: skip missing PERSON_ID=${personId}`,
+      );
+      continue;
+    }
+
+    const createdById = resolveLegacyUserId(row, userIds);
+    const updatedByRaw = toInt(row.UPDATED_BY);
+    const updatedById =
+      updatedByRaw !== null && userIds.has(updatedByRaw) ? updatedByRaw : null;
+    const onsetDate = parseOracleTimestamp(row.DIAGNOSIS_DATE);
+    const createdDate =
+      parseLegacyDate(row.CREATED_DATE) ?? onsetDate ?? new Date();
+    const updatedDate = parseLegacyDate(row.UPDATED_DATE) ?? createdDate;
+    const admissionId = toInt(row.ADMISSION_ID);
+
+    batchBuf.push({
+      lineNo,
+      diagnosisId,
+      values: [
+        diagnosisId,
+        personId,
+        null,
+        truncateStr(buildLegacyDiagnosisCode(row, diagnosisId), 40),
+        mapDiagnosisSystem(row.DIAGNOSIS_CATEGORY),
+        buildLegacyDiagnosisName(row, diagnosisId),
+        mapDiagnosisType(row.IS_PRIMARY),
+        mapDiagnosisStatus(row.STATUS),
+        onsetDate,
+        buildLegacyDiagnosisNotes(admissionId),
+        true,
+        createdById,
+        updatedById,
+        createdById !== null ? String(createdById) : null,
+        createdDate,
+        updatedById !== null ? String(updatedById) : null,
+        updatedDate,
+      ],
+    });
+    processed++;
+
+    if (batchBuf.length >= batchSize) {
+      await flush();
+      if (processed % 1000 === 0) {
+        logger.log(
+          `PATIENT_DIAGNOSES progress: processed=${processed} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+        );
+      }
+    }
+  }
+
+  await flush();
+  logger.log(
+    `PATIENT_DIAGNOSES progress: processed=${processed} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+  );
+  await resetSequence(client, 'PATIENT_DIAGNOSES', 'PATIENT_DIAGNOSIS_ID');
+}
+
 async function importNursingNotes(client, filePath, logger, stats) {
   const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
   const admissionIds = await loadIdSet(client, 'ADMISSIONS', 'ADMISSION_ID');
@@ -1371,6 +1722,1711 @@ async function importNursingNotes(client, filePath, logger, stats) {
   await resetSequence(client, 'NURSING_NOTES', 'NOTE_ID');
 }
 
+const NURSING_NOTE_COLUMNS = [
+  'NOTE_ID',
+  'ADMISSION_ID',
+  'PERSON_ID',
+  'NOTE_TYPE',
+  'FORMAT',
+  'BODY',
+  'AUTHOR_BY',
+  'CREATED_DATE',
+];
+
+const MAR_COLUMNS = [
+  'MAR_ID',
+  'PERSON_ID',
+  'ADMISSION_ID',
+  'DRUG',
+  'DOSE',
+  'ROUTE',
+  'FREQUENCY',
+  'SCHEDULED_TIME',
+  'KIND',
+  'STATUS',
+  'SOURCE',
+  'PRESCRIBER',
+  'NOTES',
+  'CREATED_DATE',
+];
+
+const OBSERVATION_COLUMNS = [
+  'OBSERVATION_ID',
+  'ADMISSION_ID',
+  'PERSON_ID',
+  'CHART',
+  'INTERVAL',
+  'FIELDS_JSON',
+  'RECORDED_BY',
+  'RECORDED_AT',
+  'CREATED_BY_ID',
+];
+
+const FLUID_JSON_KEYS = [
+  'I_PERIOD',
+  'I_WARD_ID',
+  'I_TYPE',
+  'I_TUBE',
+  'I_ORAL',
+  'I_IV',
+  'I_TOTAL',
+  'I_TOTAL_TUBE',
+  'I_TOTAL_ORAL',
+  'I_TOTAL_IV',
+  'I_TOTAL_IN',
+  'I_TOTAL_OUT',
+  'I_BALANCE',
+  'I_TIME',
+  'O_TIME',
+  'O_PERIOD',
+  'O_URINE',
+  'O_TUBE_VOMIT',
+  'O_FAECES',
+  'O_TYPE',
+  'O_OTHERS',
+  'O_TOTAL',
+  'O_TOTAL_URINE',
+  'O_TOTAL_TUBE',
+  'O_TOTAL_FAECES',
+  'O_TOTAL_OUT',
+  'O_TOTAL_SUMMARY',
+  'IN_OUT',
+  'CASE_FILE_ID',
+  'REMARK',
+];
+
+function resolveAdmissionId(raw, admissionIds) {
+  const id = toInt(raw);
+  if (id === null || !admissionIds.has(id)) return null;
+  return id;
+}
+
+function inferMarRoute(drugName) {
+  const s = String(drugName ?? '').trim().toLowerCase();
+  if (s.startsWith('inj')) return 'IM';
+  if (s.includes(' iv') || s.startsWith('iv ') || s.startsWith('iv-')) return 'IV';
+  if (s.startsWith('syr') || s.startsWith('susp') || s.startsWith('tab') || s.startsWith('cap')) {
+    return 'PO';
+  }
+  return 'Unknown';
+}
+
+function mapMarDetailStatus(raw) {
+  const s = String(raw ?? '').trim();
+  if (s === '1') return 'GIVEN';
+  if (s === '0' || s === '2') return 'MISSED';
+  if (!s) return 'PENDING';
+  return 'HELD';
+}
+
+function buildFluidFieldsJson(row) {
+  const obj = {};
+  for (const key of FLUID_JSON_KEYS) {
+    const v = emptyToNull(row[key]);
+    if (v !== null) obj[key] = v;
+  }
+  return JSON.stringify(obj);
+}
+
+async function importNurseShiftReports(client, filePath, logger, stats) {
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const admissionIds = await loadIdSet(client, 'ADMISSIONS', 'ADMISSION_ID');
+  const batchSize = 100;
+  const batchBuf = [];
+  let processed = 0;
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const noteId = toInt(row.NURSES_REPORT_SHEET_ID);
+    const personId = toInt(row.PERSON_ID);
+    const body = emptyToNull(row.REPORT);
+
+    if (noteId === null) {
+      stats.skipped++;
+      continue;
+    }
+    if (personId === null || !personIds.has(personId)) {
+      stats.skipped++;
+      continue;
+    }
+    if (!body) {
+      stats.skipped++;
+      continue;
+    }
+
+    const createdDate =
+      parseOracleTimestamp(row.DATE_TIME) ?? parseLegacyDate(row.CREATED_DATE) ?? new Date();
+    const authorBy = truncateStr(emptyToNull(row.NURSE_NAME) ?? emptyToNull(row.CREATED_BY), 100);
+
+    batchBuf.push({
+      lineNo,
+      id: noteId,
+      values: [
+        noteId,
+        resolveAdmissionId(row.ADMISSION_ID, admissionIds),
+        personId,
+        'Shift',
+        'Narrative',
+        body,
+        authorBy,
+        createdDate,
+      ],
+    });
+    processed++;
+
+    if (batchBuf.length >= batchSize) {
+      await flushUpsertBatch(
+        client,
+        'NURSING_NOTES',
+        'NOTE_ID',
+        NURSING_NOTE_COLUMNS,
+        batchBuf,
+        stats,
+        logger,
+        'NURSING_NOTES',
+      );
+      if (processed % 1000 === 0) {
+        logger.log(
+          `NURSING_NOTES (shift reports) progress: processed=${processed} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+        );
+      }
+    }
+  }
+
+  await flushUpsertBatch(
+    client,
+    'NURSING_NOTES',
+    'NOTE_ID',
+    NURSING_NOTE_COLUMNS,
+    batchBuf,
+    stats,
+    logger,
+    'NURSING_NOTES',
+  );
+  logger.log(
+    `NURSING_NOTES (shift reports) progress: processed=${processed} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+  );
+  await resetSequence(client, 'NURSING_NOTES', 'NOTE_ID');
+}
+
+async function importDrugChart(client, filePath, logger, stats) {
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const admissionIds = await loadIdSet(client, 'ADMISSIONS', 'ADMISSION_ID');
+  const batchSize = 100;
+  const batchBuf = [];
+  let processed = 0;
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const marId = toInt(row.DRUG_CHART_ID);
+    const personId = toInt(row.PERSON_ID);
+    const drug = truncateStr(emptyToNull(row.NAME_DRUG), 255);
+
+    if (marId === null || marId < 100) {
+      stats.skipped++;
+      continue;
+    }
+    if (personId === null || !personIds.has(personId)) {
+      stats.skipped++;
+      continue;
+    }
+    if (!drug) {
+      stats.skipped++;
+      continue;
+    }
+
+    const scheduledTime =
+      parseOracleTimestamp(row.DOSAGE_DATE) ??
+      parseLegacyDate(row.CREATED_DATE) ??
+      new Date();
+    const dose = truncateStr(emptyToNull(row.DOSAGE) ?? '-', 100);
+    const createdBy = truncateStr(emptyToNull(row.CREATED_BY), 255);
+
+    batchBuf.push({
+      lineNo,
+      id: marId,
+      values: [
+        marId,
+        personId,
+        resolveAdmissionId(row.ADMISSION_ID, admissionIds),
+        drug,
+        dose,
+        inferMarRoute(drug),
+        'Unknown',
+        scheduledTime,
+        'External',
+        'PENDING',
+        'legacy-drug-chart',
+        createdBy,
+        null,
+        parseLegacyDate(row.CREATED_DATE) ?? scheduledTime,
+      ],
+    });
+    processed++;
+
+    if (batchBuf.length >= batchSize) {
+      await flushUpsertBatch(
+        client,
+        'NURSING_MAR_ENTRIES',
+        'MAR_ID',
+        MAR_COLUMNS,
+        batchBuf,
+        stats,
+        logger,
+        'NURSING_MAR_ENTRIES',
+      );
+      if (processed % 1000 === 0) {
+        logger.log(
+          `NURSING_MAR_ENTRIES progress: processed=${processed} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+        );
+      }
+    }
+  }
+
+  await flushUpsertBatch(
+    client,
+    'NURSING_MAR_ENTRIES',
+    'MAR_ID',
+    MAR_COLUMNS,
+    batchBuf,
+    stats,
+    logger,
+    'NURSING_MAR_ENTRIES',
+  );
+  logger.log(
+    `NURSING_MAR_ENTRIES progress: processed=${processed} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+  );
+  await resetSequence(client, 'NURSING_MAR_ENTRIES', 'MAR_ID');
+}
+
+async function importDrugChartDetails(client, filePath, logger, stats) {
+  const marIds = await loadIdSet(client, 'NURSING_MAR_ENTRIES', 'MAR_ID');
+  const groups = new Map();
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const chartId = toInt(row.DRUG_CHART_ID);
+    if (chartId === null || !marIds.has(chartId)) {
+      stats.skipped++;
+      continue;
+    }
+    const when =
+      parseOracleTimestamp(row.ADMINISTER_DATE) ?? parseOracleTimestamp(row.DATE_TIME);
+    const status = mapMarDetailStatus(row.STATUS);
+    const nurseId = emptyToNull(row.NURSE_ID);
+    const dose = emptyToNull(row.DOSAGE);
+
+    if (!groups.has(chartId)) {
+      groups.set(chartId, {
+        chartId,
+        lineNo,
+        givenCount: 0,
+        missedCount: 0,
+        pendingCount: 0,
+        latestGivenAt: null,
+        latestAt: when,
+        administeredBy: nurseId,
+        events: [],
+      });
+    }
+    const g = groups.get(chartId);
+    if (status === 'GIVEN') {
+      g.givenCount++;
+      if (when && (!g.latestGivenAt || when > g.latestGivenAt)) {
+        g.latestGivenAt = when;
+        g.administeredBy = nurseId ?? g.administeredBy;
+      }
+    } else if (status === 'MISSED') {
+      g.missedCount++;
+    } else if (status === 'PENDING') {
+      g.pendingCount++;
+    }
+    if (when && (!g.latestAt || when > g.latestAt)) g.latestAt = when;
+    if (g.events.length < 12) {
+      const stamp = when ? when.toISOString() : 'unknown-time';
+      g.events.push(`${stamp} ${status}${dose ? ` dose=${dose}` : ''}`);
+    }
+  }
+
+  const batchSize = 80;
+  let batch = [];
+
+  const flush = async () => {
+    if (batch.length === 0) return;
+    const values = [];
+    const tuples = batch
+      .map((item, idx) => {
+        const base = idx * 6;
+        values.push(
+          item.chartId,
+          item.status,
+          item.administeredAt,
+          item.administeredBy,
+          item.notes,
+          item.updatedDate,
+        );
+        return `($${base + 1}::int, $${base + 2}, $${base + 3}::timestamptz, $${base + 4}, $${base + 5}, $${base + 6}::timestamptz)`;
+      })
+      .join(', ');
+    try {
+      await client.query(
+        `UPDATE "NURSING_MAR_ENTRIES" AS m SET
+           "STATUS" = v.status,
+           "ADMINISTERED_AT" = v.administered_at,
+           "ADMINISTERED_BY" = v.administered_by,
+           "NOTES" = v.notes,
+           "UPDATED_DATE" = v.updated_date
+         FROM (VALUES ${tuples}) AS v(mar_id, status, administered_at, administered_by, notes, updated_date)
+         WHERE m."MAR_ID" = v.mar_id`,
+        values,
+      );
+      stats.upserted += batch.length;
+    } catch (e) {
+      for (const item of batch) {
+        try {
+          await client.query(
+            `UPDATE "NURSING_MAR_ENTRIES"
+             SET "STATUS" = $2, "ADMINISTERED_AT" = $3, "ADMINISTERED_BY" = $4, "NOTES" = $5, "UPDATED_DATE" = $6
+             WHERE "MAR_ID" = $1`,
+            [
+              item.chartId,
+              item.status,
+              item.administeredAt,
+              item.administeredBy,
+              item.notes,
+              item.updatedDate,
+            ],
+          );
+          stats.upserted++;
+        } catch (rowErr) {
+          stats.errors++;
+          logger.log(`NURSING_MAR_ENTRIES detail MAR_ID=${item.chartId}: ${rowErr.message}`);
+        }
+      }
+    }
+    batch = [];
+  };
+
+  let processed = 0;
+  for (const g of groups.values()) {
+    let status = 'PENDING';
+    if (g.givenCount > 0) status = 'GIVEN';
+    else if (g.missedCount > 0 && g.pendingCount === 0) status = 'MISSED';
+    const notes = truncateStr(
+      `${g.givenCount} given / ${g.missedCount} missed / ${g.pendingCount} pending. ${g.events.join('; ')}`,
+      8000,
+    );
+    batch.push({
+      chartId: g.chartId,
+      status,
+      administeredAt: g.latestGivenAt,
+      administeredBy: truncateStr(g.administeredBy, 100),
+      notes,
+      updatedDate: g.latestGivenAt ?? g.latestAt ?? new Date(),
+    });
+    processed++;
+    if (batch.length >= batchSize) {
+      await flush();
+      if (processed % 1000 === 0) {
+        logger.log(
+          `DRUG_CHART_DETAILS progress: grouped=${processed} updated=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+        );
+      }
+    }
+  }
+  await flush();
+  logger.log(
+    `DRUG_CHART_DETAILS progress: grouped=${processed} updated=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+  );
+}
+
+async function importFluids(client, filePath, logger, stats) {
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const admissionIds = await loadIdSet(client, 'ADMISSIONS', 'ADMISSION_ID');
+  const userIds = await loadIdSet(client, 'USERS', 'USER_ID');
+  const batchSize = 100;
+  const batchBuf = [];
+  let processed = 0;
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const observationId = toInt(row.FLUID_ID);
+    const personId = toInt(row.PERSON_ID);
+
+    if (observationId === null) {
+      stats.skipped++;
+      continue;
+    }
+    if (personId === null || !personIds.has(personId)) {
+      stats.skipped++;
+      continue;
+    }
+
+    const recordedAt =
+      parseOracleTimestamp(row.I_TIME) ??
+      parseOracleTimestamp(row.O_TIME) ??
+      parseLegacyDate(row.CREATED_DATE) ??
+      new Date();
+    const createdByRaw = toInt(row.CREATED_BY);
+    const createdById =
+      createdByRaw !== null && userIds.has(createdByRaw) ? createdByRaw : null;
+
+    batchBuf.push({
+      lineNo,
+      id: observationId,
+      values: [
+        observationId,
+        resolveAdmissionId(row.ADMISSION_ID, admissionIds),
+        personId,
+        'IntakeOutput',
+        truncateStr(emptyToNull(row.I_PERIOD) ?? emptyToNull(row.O_PERIOD), 20),
+        buildFluidFieldsJson(row),
+        truncateStr(emptyToNull(row.CREATED_BY), 100),
+        recordedAt,
+        createdById,
+      ],
+    });
+    processed++;
+
+    if (batchBuf.length >= batchSize) {
+      await flushUpsertBatch(
+        client,
+        'NURSING_OBSERVATIONS',
+        'OBSERVATION_ID',
+        OBSERVATION_COLUMNS,
+        batchBuf,
+        stats,
+        logger,
+        'NURSING_OBSERVATIONS',
+      );
+      if (processed % 1000 === 0) {
+        logger.log(
+          `NURSING_OBSERVATIONS progress: processed=${processed} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+        );
+      }
+    }
+  }
+
+  await flushUpsertBatch(
+    client,
+    'NURSING_OBSERVATIONS',
+    'OBSERVATION_ID',
+    OBSERVATION_COLUMNS,
+    batchBuf,
+    stats,
+    logger,
+    'NURSING_OBSERVATIONS',
+  );
+  logger.log(
+    `NURSING_OBSERVATIONS progress: processed=${processed} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+  );
+  await resetSequence(client, 'NURSING_OBSERVATIONS', 'OBSERVATION_ID');
+}
+
+function isTruthyFlag(v) {
+  const s = String(v ?? '').trim().toUpperCase();
+  return s === 'Y' || s === 'YES' || s === '1' || s === 'TRUE';
+}
+
+function isDiscontinuedFlag(v) {
+  const s = String(v ?? '').trim().toUpperCase();
+  return s === 'Y' || s === 'YES' || s === '1' || s === 'TRUE';
+}
+
+function appendKeyword(existing, term) {
+  const t = emptyToNull(term);
+  if (!t) return existing ?? null;
+  if (!existing) return truncateStr(t, 4000);
+  if (existing.toLowerCase().includes(t.toLowerCase())) return existing;
+  return truncateStr(`${existing}; ${t}`, 4000);
+}
+
+async function upsertDiagnosisCodesByCode(client, rows, dryRun) {
+  if (rows.length === 0) return;
+  if (dryRun) return;
+  const columns = [
+    'CODE',
+    'SYSTEM',
+    'NAME',
+    'CATEGORY',
+    'DESCRIPTION',
+    'KEYWORDS',
+    'STATUS',
+    'LEGACY_THESAURUS_ID',
+    'LEGACY_DISEASE_ID',
+    'ICPC_CODE',
+    'CREATED_BY',
+    'CREATED_DATE',
+    'UPDATED_BY',
+    'UPDATED_DATE',
+  ];
+  const colList = columns.map((c) => `"${c}"`).join(', ');
+  const updates = [
+    `"SYSTEM" = EXCLUDED."SYSTEM"`,
+    `"NAME" = EXCLUDED."NAME"`,
+    `"CATEGORY" = COALESCE(EXCLUDED."CATEGORY", "DIAGNOSIS_CODES"."CATEGORY")`,
+    `"DESCRIPTION" = COALESCE(EXCLUDED."DESCRIPTION", "DIAGNOSIS_CODES"."DESCRIPTION")`,
+    `"KEYWORDS" = CASE
+      WHEN EXCLUDED."KEYWORDS" IS NULL THEN "DIAGNOSIS_CODES"."KEYWORDS"
+      WHEN "DIAGNOSIS_CODES"."KEYWORDS" IS NULL THEN EXCLUDED."KEYWORDS"
+      WHEN POSITION(LOWER(EXCLUDED."KEYWORDS") IN LOWER("DIAGNOSIS_CODES"."KEYWORDS")) > 0 THEN "DIAGNOSIS_CODES"."KEYWORDS"
+      ELSE LEFT("DIAGNOSIS_CODES"."KEYWORDS" || '; ' || EXCLUDED."KEYWORDS", 4000)
+    END`,
+    `"STATUS" = EXCLUDED."STATUS"`,
+    `"LEGACY_THESAURUS_ID" = COALESCE(EXCLUDED."LEGACY_THESAURUS_ID", "DIAGNOSIS_CODES"."LEGACY_THESAURUS_ID")`,
+    `"LEGACY_DISEASE_ID" = COALESCE(EXCLUDED."LEGACY_DISEASE_ID", "DIAGNOSIS_CODES"."LEGACY_DISEASE_ID")`,
+    `"ICPC_CODE" = COALESCE(EXCLUDED."ICPC_CODE", "DIAGNOSIS_CODES"."ICPC_CODE")`,
+    `"UPDATED_BY" = EXCLUDED."UPDATED_BY"`,
+    `"UPDATED_DATE" = EXCLUDED."UPDATED_DATE"`,
+  ].join(', ');
+  const values = [];
+  const tuples = rows
+    .map((row, rowIdx) => {
+      const placeholders = columns.map((_, colIdx) => {
+        values.push(row[colIdx]);
+        return `$${rowIdx * columns.length + colIdx + 1}`;
+      });
+      return `(${placeholders.join(', ')})`;
+    })
+    .join(', ');
+  const sql = `INSERT INTO "DIAGNOSIS_CODES" (${colList}) VALUES ${tuples}
+    ON CONFLICT ("CODE") DO UPDATE SET ${updates}`;
+  await client.query(sql, values);
+}
+
+async function importDiseases(client, filePath, logger, stats, options = {}) {
+  const dryRun = Boolean(options.dryRun);
+  const batchSize = options.batch ?? 250;
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? null;
+  const byCode = new Map();
+  let seen = 0;
+  let considered = 0;
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    seen++;
+    if (seen <= offset) continue;
+    if (limit !== null && considered >= limit) break;
+    considered++;
+
+    const diseaseId = toInt(row.DISEASE_ID);
+    if (diseaseId === null) {
+      stats.skipped++;
+      continue;
+    }
+    const rawCode = emptyToNull(row.CODE);
+    const code = truncateStr(rawCode || `DIS-${diseaseId}`, 40);
+    const name =
+      truncateStr(emptyToNull(row.DISEASE_NAME) || emptyToNull(row.DESCRIPTION) || `Disease ${diseaseId}`, 255) ||
+      `Disease ${diseaseId}`;
+    const discontinued = isDiscontinuedFlag(row.DISCONTINUE_FLAG);
+    const category = truncateStr(emptyToNull(row.DISEASE_TYPE), 100);
+    const description = emptyToNull(row.DESCRIPTION);
+    const now = new Date();
+
+    const prev = byCode.get(code);
+    if (prev) {
+      prev[5] = appendKeyword(prev[5], name);
+      if (!prev[8]) prev[8] = diseaseId;
+      stats.skipped++;
+      continue;
+    }
+    byCode.set(code, [
+      code,
+      rawCode ? 'ICD-11' : 'Local',
+      name,
+      category,
+      description,
+      `legacy_disease_id=${diseaseId}`,
+      discontinued ? 'Inactive' : 'Active',
+      null,
+      diseaseId,
+      null,
+      'legacy-csv',
+      now,
+      'legacy-csv',
+      now,
+    ]);
+    if (lineNo && considered % 2000 === 0) {
+      logger.log(`DISEASES progress: considered=${considered} uniqueCodes=${byCode.size}`);
+    }
+  }
+
+  const rows = [...byCode.values()];
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const chunk = rows.slice(i, i + batchSize);
+    try {
+      if (dryRun) {
+        stats.upserted += chunk.length;
+      } else {
+        await upsertDiagnosisCodesByCode(client, chunk, false);
+        stats.upserted += chunk.length;
+      }
+    } catch (e) {
+      for (const row of chunk) {
+        try {
+          if (!dryRun) await upsertDiagnosisCodesByCode(client, [row], false);
+          stats.upserted++;
+        } catch (rowErr) {
+          stats.errors++;
+          logger.log(`DISEASES CODE=${row[0]}: ${rowErr.message}`);
+        }
+      }
+    }
+  }
+  logger.log(
+    `DISEASES done: uniqueCodes=${rows.length} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors} dryRun=${dryRun}`,
+  );
+}
+
+async function importThesaurus(client, filePath, logger, stats, options = {}) {
+  const dryRun = Boolean(options.dryRun);
+  const batchSize = options.batch ?? 200;
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? null;
+  const byCode = new Map();
+  let seen = 0;
+  let considered = 0;
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    seen++;
+    if (seen <= offset) continue;
+    if (limit !== null && considered >= limit) break;
+    considered++;
+
+    const thesaurusId = toInt(row.THESAURUS_ID);
+    const icdCode = emptyToNull(row.ICD_CODE);
+    if (!icdCode) {
+      stats.skipped++;
+      continue;
+    }
+    if (thesaurusId === null) {
+      stats.skipped++;
+      continue;
+    }
+    const code = truncateStr(icdCode, 40);
+    const name =
+      truncateStr(
+        emptyToNull(row.ICD_LABLE) || emptyToNull(row.ICD_LABEL) || emptyToNull(row.TERMS) || `Thesaurus ${thesaurusId}`,
+        255,
+      ) || `Thesaurus ${thesaurusId}`;
+    const terms = emptyToNull(row.TERMS);
+    const icpc = truncateStr(emptyToNull(row.ICPC_CODE), 40);
+    const now = new Date();
+
+    const prev = byCode.get(code);
+    if (prev) {
+      prev[5] = appendKeyword(prev[5], terms);
+      if (!prev[7]) prev[7] = thesaurusId;
+      if (!prev[9] && icpc) prev[9] = icpc;
+      continue;
+    }
+    byCode.set(code, [
+      code,
+      'ICD-11',
+      name,
+      truncateStr(emptyToNull(row.ICPC_LABLE) || emptyToNull(row.ICPC_LABEL), 100),
+      emptyToNull(row.EXTENSION),
+      terms,
+      'Active',
+      thesaurusId,
+      null,
+      icpc,
+      'legacy-csv',
+      now,
+      'legacy-csv',
+      now,
+    ]);
+    if (considered % 10000 === 0) {
+      logger.log(`THESAURUS progress: considered=${considered} uniqueCodes=${byCode.size} line=${lineNo}`);
+    }
+  }
+
+  const rows = [...byCode.values()];
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const chunk = rows.slice(i, i + batchSize);
+    try {
+      if (dryRun) stats.upserted += chunk.length;
+      else {
+        await upsertDiagnosisCodesByCode(client, chunk, false);
+        stats.upserted += chunk.length;
+      }
+    } catch (e) {
+      for (const row of chunk) {
+        try {
+          if (!dryRun) await upsertDiagnosisCodesByCode(client, [row], false);
+          stats.upserted++;
+        } catch (rowErr) {
+          stats.errors++;
+          logger.log(`THESAURUS CODE=${row[0]}: ${rowErr.message}`);
+        }
+      }
+    }
+    if ((i + chunk.length) % 2000 === 0 || i + chunk.length >= rows.length) {
+      logger.log(`THESAURUS write progress: ${Math.min(i + chunk.length, rows.length)}/${rows.length}`);
+    }
+  }
+  logger.log(
+    `THESAURUS done: uniqueCodes=${rows.length} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors} dryRun=${dryRun}`,
+  );
+}
+
+async function importPatientDiagnosesEnrich(client, filePath, logger, stats, options = {}) {
+  const dryRun = Boolean(options.dryRun);
+  const batchSize = options.batch ?? 200;
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? null;
+
+  const thesaurusCsv = path.join(DOCS_DIR, 'DOCTORS', 'THESAURUS.csv');
+  const diseasesCsv = path.join(DOCS_DIR, 'DOCTORS', 'DISEASES.csv');
+  const thIdToIcd = new Map();
+  const thIdToName = new Map();
+  const disIdToCode = new Map();
+  const disIdToName = new Map();
+
+  if (fs.existsSync(thesaurusCsv)) {
+    for await (const { row } of streamCsvRows(thesaurusCsv)) {
+      const id = toPositiveInt(row.THESAURUS_ID);
+      if (id === null) continue;
+      const icd = emptyToNull(row.ICD_CODE);
+      if (icd) thIdToIcd.set(id, truncateStr(icd, 40));
+      const label =
+        emptyToNull(row.ICD_LABLE) ||
+        emptyToNull(row.ICD_LABEL) ||
+        emptyToNull(row.TERMS);
+      if (label) thIdToName.set(id, truncateStr(label, 255));
+    }
+  }
+  if (fs.existsSync(diseasesCsv)) {
+    for await (const { row } of streamCsvRows(diseasesCsv)) {
+      const id = toPositiveInt(row.DISEASE_ID);
+      if (id === null) continue;
+      const code = truncateStr(emptyToNull(row.CODE) || `DIS-${id}`, 40);
+      disIdToCode.set(id, code);
+      disIdToName.set(
+        id,
+        truncateStr(emptyToNull(row.DISEASE_NAME) || emptyToNull(row.DESCRIPTION) || `Disease ${id}`, 255),
+      );
+    }
+  }
+  logger.log(
+    `ENRICH csv maps: thesaurusWithIcd=${thIdToIcd.size} thesaurusNames=${thIdToName.size} diseaseIds=${disIdToCode.size}`,
+  );
+
+  const codeRes = await client.query(
+    `SELECT "CODE", "NAME", "SYSTEM", "ICPC_CODE", "LEGACY_THESAURUS_ID", "LEGACY_DISEASE_ID"
+     FROM "DIAGNOSIS_CODES"`,
+  );
+  const byCode = new Map();
+  for (const r of codeRes.rows) byCode.set(String(r.CODE), r);
+  logger.log(`ENRICH catalog codes loaded=${byCode.size}`);
+
+  let seen = 0;
+  let considered = 0;
+  let batch = [];
+
+  const flush = async () => {
+    if (batch.length === 0) return;
+    if (dryRun) {
+      stats.upserted += batch.length;
+      batch = [];
+      return;
+    }
+    for (const item of batch) {
+      try {
+        const result = await client.query(
+          `UPDATE "PATIENT_DIAGNOSES"
+           SET "CODE" = $2,
+               "NAME" = $3,
+               "SYSTEM" = $4,
+               "UPDATED_BY" = 'legacy-enrich',
+               "UPDATED_DATE" = NOW()
+           WHERE "PATIENT_DIAGNOSIS_ID" = $1
+             AND (
+               "CODE" LIKE 'TH-%' OR "CODE" LIKE 'DIS-%' OR "CODE" LIKE 'LEG-%'
+               OR "NAME" LIKE 'Thesaurus diagnosis %'
+               OR "NAME" LIKE 'Disease %'
+               OR "NAME" LIKE 'Legacy diagnosis %'
+             )`,
+          [item.id, item.code, item.name, item.system],
+        );
+        if ((result.rowCount ?? 0) > 0) stats.upserted++;
+        else stats.skipped++;
+      } catch (e) {
+        stats.errors++;
+        logger.log(`ENRICH PATIENT_DIAGNOSIS_ID=${item.id}: ${e.message}`);
+      }
+    }
+    batch = [];
+  };
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    seen++;
+    if (seen <= offset) continue;
+    if (limit !== null && considered >= limit) break;
+    considered++;
+
+    const diagnosisId = toInt(row.DIAGNOSIS_ID);
+    if (diagnosisId === null) {
+      stats.skipped++;
+      continue;
+    }
+    const thesaurusId = toPositiveInt(row.THESAURUS_ID);
+    const diseaseId = toPositiveInt(row.DISEASE_ID);
+
+    let resolvedCode = null;
+    let fallbackName = null;
+    let system = 'ICD-11';
+    if (thesaurusId !== null && thIdToIcd.has(thesaurusId)) {
+      resolvedCode = thIdToIcd.get(thesaurusId);
+      fallbackName = thIdToName.get(thesaurusId) || `Thesaurus diagnosis ${thesaurusId}`;
+    } else if (diseaseId !== null && disIdToCode.has(diseaseId)) {
+      resolvedCode = disIdToCode.get(diseaseId);
+      fallbackName = disIdToName.get(diseaseId) || `Disease ${diseaseId}`;
+      system = emptyToNull(row.CODE) ? 'ICD-11' : 'Local';
+    } else if (thesaurusId !== null && thIdToName.has(thesaurusId)) {
+      // No ICD in thesaurus — still replace synthetic name with real terms
+      resolvedCode = `TH-${thesaurusId}`;
+      fallbackName = thIdToName.get(thesaurusId);
+      system = 'Local';
+    }
+
+    if (!resolvedCode) {
+      stats.skipped++;
+      continue;
+    }
+
+    const catalog = byCode.get(resolvedCode);
+    const code = truncateStr(catalog ? String(catalog.CODE) : resolvedCode, 40);
+    const name = truncateStr(
+      catalog ? String(catalog.NAME) : fallbackName || resolvedCode,
+      255,
+    );
+    if (catalog) system = String(catalog.SYSTEM || system);
+
+    batch.push({
+      id: diagnosisId,
+      code,
+      name,
+      system,
+      lineNo,
+    });
+    if (batch.length >= batchSize) {
+      await flush();
+      if (considered % 2000 === 0) {
+        logger.log(
+          `ENRICH progress: considered=${considered} updated=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+        );
+      }
+    }
+  }
+  await flush();
+  logger.log(
+    `ENRICH pass1 done: updated=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors} dryRun=${dryRun}`,
+  );
+
+  // Pass 2: free-text NAME → catalog CODE (exact / alias / shortest prefix)
+  const ALIASES = new Map([
+    ['htn', 'I10'],
+    ['hbp', 'I10'],
+    ['dm', 'E11'],
+    ['dm2', 'E11'],
+    ['t2dm', 'E11'],
+    ['diabetes', 'E11'],
+    ['diabetes mellitus', 'E11'],
+    ['type 2 diabetes', 'E11'],
+    ['seizure disorder', 'G40.9'],
+    ['seizure', 'G40.9'],
+    ['epilepsy', 'G40.9'],
+    ['malaria', 'B54'],
+    ['hypertension', 'I10'],
+    ['essential hypertension', 'I10'],
+    ['schizophrenia', 'F20'],
+    ['depression', 'F32.9'],
+    ['bipolar', 'F31.9'],
+    ['asthma', 'J45.9'],
+    ['uti', 'N39.0'],
+    ['urinary tract infection', 'N39.0'],
+    ['peptic ulcer disease', 'K27.9'],
+    ['pud', 'K27.9'],
+    ['cva', 'I64'],
+    ['stroke', 'I64'],
+    ['hiv', 'B24'],
+    ['aids', 'B24'],
+  ]);
+  const byExact = new Map();
+  const byCodeLookup = new Map();
+  const prefixBuckets = new Map();
+  for (const r of codeRes.rows) {
+    byCodeLookup.set(String(r.CODE), r);
+    const key = String(r.NAME).trim().toLowerCase();
+    if (!byExact.has(key)) byExact.set(key, r);
+    if (key.length >= 3) {
+      const pref = key.slice(0, 3);
+      if (!prefixBuckets.has(pref)) prefixBuckets.set(pref, []);
+      prefixBuckets.get(pref).push(r);
+    }
+  }
+  for (const [alias, code] of ALIASES) {
+    if (byCodeLookup.has(code) && !byExact.has(alias)) {
+      byExact.set(alias, byCodeLookup.get(code));
+    }
+  }
+  const resolveName = (name) => {
+    const n = String(name || '').trim().toLowerCase();
+    if (n.length < 3) return null;
+    if (byExact.has(n)) return byExact.get(n);
+    const bucket = prefixBuckets.get(n.slice(0, 3)) || [];
+    let best = null;
+    for (const r of bucket) {
+      const cn = String(r.NAME).trim().toLowerCase();
+      if (cn === n || cn.startsWith(`${n},`) || cn.startsWith(`${n} `)) {
+        if (!best || cn.length < String(best.NAME).length) best = r;
+      }
+    }
+    return best;
+  };
+
+  const synth = await client.query(`
+    SELECT "PATIENT_DIAGNOSIS_ID", "NAME"
+    FROM "PATIENT_DIAGNOSES"
+    WHERE "CODE" LIKE 'LEG-%' OR "CODE" LIKE 'TH-%' OR "CODE" LIKE 'DIS-%'
+  `);
+  let pass2 = 0;
+  if (dryRun) {
+    for (const row of synth.rows) {
+      if (resolveName(row.NAME)) pass2++;
+    }
+    stats.upserted += pass2;
+    logger.log(`ENRICH pass2 dryRun would-update=${pass2} of ${synth.rows.length}`);
+    return;
+  }
+  for (const row of synth.rows) {
+    const hit = resolveName(row.NAME);
+    if (!hit) continue;
+    try {
+      const result = await client.query(
+        `UPDATE "PATIENT_DIAGNOSES"
+         SET "CODE" = $2, "SYSTEM" = $3, "UPDATED_BY" = 'legacy-enrich-name', "UPDATED_DATE" = NOW()
+         WHERE "PATIENT_DIAGNOSIS_ID" = $1
+           AND ("CODE" LIKE 'LEG-%' OR "CODE" LIKE 'TH-%' OR "CODE" LIKE 'DIS-%')`,
+        [row.PATIENT_DIAGNOSIS_ID, hit.CODE, hit.SYSTEM || 'ICD-11'],
+      );
+      if ((result.rowCount ?? 0) > 0) {
+        pass2++;
+        stats.upserted++;
+      }
+    } catch (e) {
+      stats.errors++;
+      logger.log(`ENRICH pass2 id=${row.PATIENT_DIAGNOSIS_ID}: ${e.message}`);
+    }
+  }
+  logger.log(
+    `ENRICH pass2 name-match updated=${pass2}; totals upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+  );
+}
+
+async function loadConsumableTypeMap(filePath) {
+  const map = new Map();
+  if (!fs.existsSync(filePath)) return map;
+  for await (const { row } of streamCsvRows(filePath)) {
+    const id = toInt(row.DRUG_CONSUMABLE_TYPE_ID);
+    const name = emptyToNull(row.DRUG_CONSUMABLE_NAME);
+    if (id !== null && name) map.set(id, name);
+    if (name) map.set(String(name).toLowerCase(), name);
+  }
+  return map;
+}
+
+function isPharmacyItem(row) {
+  const itemType = String(emptyToNull(row.ITEM_TYPE) ?? '').trim().toLowerCase();
+  if (itemType === 'pharmacy') return true;
+  if (isTruthyFlag(row.IS_MEDICATION)) return true;
+  return false;
+}
+
+async function upsertDrugByLegacyItemId(client, values, dryRun) {
+  if (dryRun) return;
+  const columns = [
+    'NAME',
+    'GENERIC_NAME',
+    'CATEGORY',
+    'FORM',
+    'STRENGTH',
+    'UNIT',
+    'UNIT_PRICE',
+    'REORDER_LEVEL',
+    'STATUS',
+    'LEGACY_ITEM_ID',
+    'CREATED_BY',
+    'CREATED_DATE',
+    'UPDATED_BY',
+    'UPDATED_DATE',
+  ];
+  const colList = columns.map((c) => `"${c}"`).join(', ');
+  const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
+  const updates = columns
+    .filter((c) => c !== 'LEGACY_ITEM_ID' && c !== 'CREATED_BY' && c !== 'CREATED_DATE')
+    .map((c) => `"${c}" = EXCLUDED."${c}"`)
+    .join(', ');
+  const sql = `INSERT INTO "DRUGS" (${colList}) VALUES (${placeholders})
+    ON CONFLICT ("LEGACY_ITEM_ID") DO UPDATE SET ${updates}`;
+  await client.query(sql, values);
+}
+
+async function importPharmacyItems(client, filePath, logger, stats, options = {}) {
+  const dryRun = Boolean(options.dryRun);
+  const batchSize = options.batch ?? 100;
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? null;
+  const consumablePath =
+    options.consumableTypesPath ||
+    path.join(DOCS_DIR, 'PHAMACY', 'DRUG_CONSUMABLE_TYPES.csv');
+  const consumableMap = await loadConsumableTypeMap(consumablePath);
+  logger.log(
+    `PHARMACY_ITEMS openingStockPolicy=${PHARMACY_OPENING_STOCK_POLICY} consumableTypes=${consumableMap.size / 2}`,
+  );
+
+  let seen = 0;
+  let considered = 0;
+  let batch = [];
+
+  const flush = async () => {
+    if (batch.length === 0) return;
+    for (const item of batch) {
+      try {
+        if (!dryRun) await upsertDrugByLegacyItemId(client, item.values, false);
+        stats.upserted++;
+      } catch (e) {
+        stats.errors++;
+        logger.log(`DRUGS line ${item.lineNo} ITEM_ID=${item.itemId}: ${e.message}`);
+      }
+    }
+    batch = [];
+  };
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    seen++;
+    if (seen <= offset) continue;
+    if (limit !== null && considered >= limit) break;
+    considered++;
+
+    const itemId = toInt(row.ITEM_ID);
+    const name = emptyToNull(row.ITEM_NAME);
+    if (itemId === null || !name) {
+      stats.skipped++;
+      continue;
+    }
+    if (!isPharmacyItem(row)) {
+      stats.skipped++;
+      continue;
+    }
+
+    const drugTypeRaw = emptyToNull(row.DRUG_TYPE);
+    const drugTypeId = toInt(drugTypeRaw);
+    let category = null;
+    if (drugTypeId !== null && consumableMap.has(drugTypeId)) {
+      category = consumableMap.get(drugTypeId);
+    } else if (drugTypeRaw && consumableMap.has(String(drugTypeRaw).toLowerCase())) {
+      category = consumableMap.get(String(drugTypeRaw).toLowerCase());
+    } else {
+      category = truncateStr(drugTypeRaw || emptyToNull(row.ITEM_CATEGORY) || 'Pharmacy', 100);
+    }
+
+    const unitPrice = toDecimal(row.SELLING_PRICE) ?? toDecimal(row.PURCHASE_PRICE) ?? '0';
+    let reorder = toInt(row.OUT_OF_STOCK_LEVEL) ?? 0;
+    if (reorder < 0) reorder = 0;
+    if (reorder > 2_147_483_647) reorder = 2_147_483_647;
+    const status = isDiscontinuedFlag(row.DISCONTINUE_FLAG) ? 'Discontinued' : 'Active';
+    const now = new Date();
+    const created =
+      parseOracleTimestamp(row.CREATED_DATE) || parseLegacyDate(row.CREATED_DATE) || now;
+    const updated =
+      parseOracleTimestamp(row.UPDATED_DATE) || parseLegacyDate(row.UPDATED_DATE) || created;
+
+    batch.push({
+      lineNo,
+      itemId,
+      values: [
+        truncateStr(name, 255),
+        truncateStr(emptyToNull(row.GENERIC_NAME), 255),
+        category,
+        truncateStr(emptyToNull(row.DRUG_TYPE) || emptyToNull(row.SUB_ITEM_TYPE), 50),
+        truncateStr(emptyToNull(row.DRUG_STRENGTH), 100),
+        truncateStr(emptyToNull(row.UOM) || emptyToNull(row.ITEM_DISPENSED_IN), 50),
+        unitPrice,
+        reorder,
+        status,
+        itemId,
+        emptyToNull(row.CREATED_BY) || 'legacy-csv',
+        created,
+        emptyToNull(row.UPDATED_BY) || 'legacy-csv',
+        updated,
+      ],
+    });
+
+    // Opening stock intentionally skipped (Phase 0 policy = skip)
+    if (PHARMACY_OPENING_STOCK_POLICY !== 'skip' && emptyToNull(row.BALANCE)) {
+      logger.log(`ITEM_ID=${itemId}: balance ignored by policy=${PHARMACY_OPENING_STOCK_POLICY}`);
+    }
+
+    if (batch.length >= batchSize) {
+      await flush();
+      if (considered % 500 === 0) {
+        logger.log(
+          `PHARMACY_ITEMS progress: considered=${considered} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+        );
+      }
+    }
+  }
+  await flush();
+  logger.log(
+    `PHARMACY_ITEMS done: upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors} dryRun=${dryRun}`,
+  );
+}
+
+async function importDrugConsumableTypes(client, filePath, logger, stats, options = {}) {
+  // Types are applied as DRUGS.CATEGORY during pharmacy_items import.
+  // This importer verifies the file and logs the map size for audit completeness.
+  const dryRun = Boolean(options.dryRun);
+  const map = await loadConsumableTypeMap(filePath);
+  const names = new Set();
+  for (const [k, v] of map.entries()) {
+    if (typeof k === 'number') names.add(v);
+  }
+  stats.upserted = names.size;
+  logger.log(
+    `DRUG_CONSUMABLE_TYPES loaded=${names.size} (applied via pharmacy_items CATEGORY; dryRun=${dryRun}; no separate table write)`,
+  );
+  if (names.size === 0) stats.skipped++;
+}
+
+function rowField(row, ...keys) {
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+      return row[k];
+    }
+  }
+  // Apostrophe / odd header fallbacks
+  for (const key of Object.keys(row)) {
+    const norm = key.replace(/['"]/g, '').toUpperCase();
+    for (const k of keys) {
+      if (norm === String(k).replace(/['"]/g, '').toUpperCase()) return row[key];
+    }
+  }
+  return null;
+}
+
+function resolveAuthorId(row, userIds) {
+  const candidates = [
+    toPositiveInt(rowField(row, 'DOCTOR_ID', 'USER_ID', "DOCTOR'S_CODE_NO", 'DOCTORS_CODE_NO')),
+    toPositiveInt(rowField(row, 'CREATED_BY')),
+    toPositiveInt(rowField(row, 'UPDATED_BY')),
+  ];
+  for (const id of candidates) {
+    if (id !== null && userIds.has(id)) return id;
+  }
+  return null;
+}
+
+async function upsertClinicalNoteByNoteNo(client, values, dryRun) {
+  if (dryRun) return;
+  await upsertClinicalNotesBatch(client, [values]);
+}
+
+async function upsertClinicalNotesBatch(client, rows) {
+  if (rows.length === 0) return;
+  const columns = [
+    'NOTE_NO',
+    'PERSON_ID',
+    'ENCOUNTER_ID',
+    'AUTHOR_ID',
+    'NOTE_TYPE',
+    'CLINIC',
+    'STATUS',
+    'PRIORITY',
+    'FIELDS',
+    'VERSION',
+    'SIGNED_AT',
+    'SIGNED_BY_ID',
+    'SIGNED_BY',
+    'CREATED_BY_ID',
+    'CREATED_BY',
+    'CREATED_DATE',
+    'UPDATED_BY_ID',
+    'UPDATED_BY',
+    'UPDATED_DATE',
+  ];
+  const colList = columns.map((c) => `"${c}"`).join(', ');
+  const updates = columns
+    .filter((c) => c !== 'NOTE_NO' && c !== 'CREATED_BY_ID' && c !== 'CREATED_BY' && c !== 'CREATED_DATE')
+    .map((c) => `"${c}" = EXCLUDED."${c}"`)
+    .join(', ');
+  const values = [];
+  const tuples = rows
+    .map((rowValues, rowIdx) => {
+      const placeholders = columns.map((_, colIdx) => {
+        values.push(rowValues[colIdx]);
+        return `$${rowIdx * columns.length + colIdx + 1}`;
+      });
+      return `(${placeholders.join(', ')})`;
+    })
+    .join(', ');
+  const sql = `INSERT INTO "CLINICAL_NOTES" (${colList}) VALUES ${tuples}
+    ON CONFLICT ("NOTE_NO") DO UPDATE SET ${updates}`;
+  await client.query(sql, values);
+}
+
+async function importNoteCsvFile(
+  client,
+  filePath,
+  logger,
+  stats,
+  options,
+  {
+    idColumn,
+    noteType,
+    noteNoPrefix,
+    bodyColumns,
+    personIds,
+    userIds,
+  },
+) {
+  if (!fs.existsSync(filePath)) {
+    logger.log(`SKIP missing file ${filePath}`);
+    return;
+  }
+  const dryRun = Boolean(options.dryRun);
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? null;
+  const batchSize = options.batch ?? 100;
+  let seen = 0;
+  let considered = 0;
+  let batch = [];
+
+  const flush = async () => {
+    if (batch.length === 0) return;
+    try {
+      if (!dryRun) await upsertClinicalNotesBatch(client, batch);
+      stats.upserted += batch.length;
+    } catch (e) {
+      for (const values of batch) {
+        try {
+          if (!dryRun) await upsertClinicalNotesBatch(client, [values]);
+          stats.upserted++;
+        } catch (rowErr) {
+          stats.errors++;
+          logger.log(`${noteType} NOTE_NO=${values[0]}: ${rowErr.message}`);
+        }
+      }
+    }
+    batch = [];
+  };
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    seen++;
+    if (seen <= offset) continue;
+    if (limit !== null && considered >= limit) break;
+    considered++;
+
+    const legacyId = toPositiveInt(rowField(row, idColumn));
+    const personId = toPositiveInt(rowField(row, 'PERSON_ID'));
+    const body =
+      emptyToNull(rowField(row, ...bodyColumns)) ||
+      emptyToNull(rowField(row, 'NOTE_AREA', 'DETAILS', 'DESCRIPTION', 'COMMENT_NOTE'));
+
+    if (legacyId === null) {
+      stats.skipped++;
+      continue;
+    }
+    if (personId === null || !personIds.has(personId)) {
+      stats.skipped++;
+      continue;
+    }
+    if (!body) {
+      stats.skipped++;
+      continue;
+    }
+    const authorId = resolveAuthorId(row, userIds);
+    if (authorId === null) {
+      stats.skipped++;
+      if (stats.skipped <= 20 || stats.skipped % 500 === 0) {
+        logger.log(
+          `${noteType} line ${lineNo} id=${legacyId}: skip unresolved AUTHOR (person=${personId})`,
+        );
+      }
+      continue;
+    }
+
+    const created =
+      parseOracleTimestamp(rowField(row, 'CREATED_DATE', 'EXAM_DATE', 'COMPLAINT_DATE', 'DATE_TIME', 'ISSUED_DATE')) ||
+      parseLegacyDate(rowField(row, 'CREATED_DATE', 'EXAM_DATE', 'COMPLAINT_DATE', 'DATE_TIME', 'ISSUED_DATE')) ||
+      new Date();
+    const noteNo = truncateStr(`${noteNoPrefix}-${legacyId}`, 50);
+    const fields = {
+      Narrative: body,
+      legacySource: noteType,
+      legacyId,
+      admissionId: toPositiveInt(rowField(row, 'ADMISSION_ID')),
+      msgLogId: toPositiveInt(rowField(row, 'MSG_LOG_ID')),
+      action: emptyToNull(rowField(row, 'ACTION')),
+      requestLocation: emptyToNull(rowField(row, 'REQUEST_LOCATION')),
+      imported: true,
+    };
+    if (options.extraFieldsBuilder) {
+      Object.assign(fields, options.extraFieldsBuilder(row) || {});
+    }
+
+    batch.push([
+      noteNo,
+      personId,
+      null,
+      authorId,
+      noteType,
+      truncateStr(emptyToNull(rowField(row, 'REQUEST_LOCATION', 'CLINIC', 'HISTORY_TYPE')), 100),
+      'Signed',
+      'Routine',
+      fields,
+      1,
+      created,
+      authorId,
+      String(authorId),
+      authorId,
+      String(authorId),
+      created,
+      authorId,
+      String(authorId),
+      created,
+    ]);
+
+    if (batch.length >= batchSize) {
+      await flush();
+      if (considered % 2000 === 0) {
+        logger.log(
+          `${noteType} progress: considered=${considered} upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors}`,
+        );
+      }
+    }
+  }
+  await flush();
+}
+
+async function importLegacyClinicalNotesPilot(client, filePath, logger, stats, options = {}) {
+  const dir =
+    fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()
+      ? filePath
+      : path.dirname(filePath);
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const userIds = await loadIdSet(client, 'USERS', 'USER_ID');
+  logger.log(`PILOT authors/users=${userIds.size} persons=${personIds.size} dir=${dir}`);
+
+  const local = { upserted: 0, skipped: 0, errors: 0 };
+  await importNoteCsvFile(client, path.join(dir, 'P_EXAM.csv'), logger, local, options, {
+    idColumn: 'P_EXAM_ID',
+    noteType: 'Physical Exam',
+    noteNoPrefix: 'LEG-PEXAM',
+    bodyColumns: ['DESCRIPTION'],
+    personIds,
+    userIds,
+  });
+  await importNoteCsvFile(client, path.join(dir, 'OLD_HISTORY.csv'), logger, local, options, {
+    idColumn: 'OLD_HISTORY_ID',
+    noteType: 'Past Medical History',
+    noteNoPrefix: 'LEG-OHIST',
+    bodyColumns: ['DETAILS'],
+    personIds,
+    userIds,
+  });
+  await importNoteCsvFile(client, path.join(dir, 'CALL_NOTE.csv'), logger, local, options, {
+    idColumn: 'CALL_NOTE_ID',
+    noteType: 'Call Note',
+    noteNoPrefix: 'LEG-CALL',
+    bodyColumns: ['NOTE_AREA'],
+    personIds,
+    userIds,
+  });
+  stats.upserted += local.upserted;
+  stats.skipped += local.skipped;
+  stats.errors += local.errors;
+  logger.log(
+    `PILOT done: upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors} dryRun=${Boolean(options.dryRun)}`,
+  );
+}
+
+async function loadComplaintDetailsMap(detailsPath) {
+  const map = new Map();
+  if (!fs.existsSync(detailsPath)) return map;
+  for await (const { row } of streamCsvRows(detailsPath)) {
+    const complaintId = toPositiveInt(row.COMPLAINT_ID);
+    if (complaintId === null) continue;
+    const title = emptyToNull(row.P_TITLE);
+    const value = emptyToNull(row.P_VALUE);
+    if (!title && !value) continue;
+    if (!map.has(complaintId)) map.set(complaintId, []);
+    map.get(complaintId).push({
+      title: title || '',
+      value: value || '',
+      note: emptyToNull(row.P_NOTE),
+      control: emptyToNull(row.CONTROL),
+    });
+  }
+  return map;
+}
+
+async function importComplaints(client, filePath, logger, stats, options = {}) {
+  const dryRun = Boolean(options.dryRun);
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const userIds = await loadIdSet(client, 'USERS', 'USER_ID');
+  const detailsPath = path.join(path.dirname(filePath), 'COMPLAINT_DETAILS.csv');
+  const detailsMap = await loadComplaintDetailsMap(detailsPath);
+  logger.log(
+    `COMPLAINTS detailsLoaded=${detailsMap.size} persons=${personIds.size} users=${userIds.size}`,
+  );
+
+  await importNoteCsvFile(
+    client,
+    filePath,
+    logger,
+    stats,
+    {
+      ...options,
+      extraFieldsBuilder: (row) => {
+        const id = toPositiveInt(row.COMPLAINT_ID);
+        const details = id !== null ? detailsMap.get(id) : undefined;
+        return {
+          details: details || [],
+          genericTemplateId: toPositiveInt(row.GENERIC_TEMPLATE_ID),
+          historyType: emptyToNull(row.HISTORY_TYPE),
+          historyOfComplaints: emptyToNull(row.HISTORY_OF_COMPIANTS),
+        };
+      },
+    },
+    {
+      idColumn: 'COMPLAINT_ID',
+      noteType: 'Legacy Complaint',
+      noteNoPrefix: 'LEG-COMP',
+      bodyColumns: ['DESCRIPTION'],
+      personIds,
+      userIds,
+    },
+  );
+  logger.log(
+    `COMPLAINTS done: upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors} dryRun=${dryRun}`,
+  );
+}
+
+async function importClinicalNoteTemplates(client, filePath, logger, stats, options = {}) {
+  const dryRun = Boolean(options.dryRun);
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const legacyId = toPositiveInt(row.GENERIC_TEMPLATE_ID);
+    const name = emptyToNull(row.TEMPLATE_NAME);
+    if (legacyId === null || !name) {
+      stats.skipped++;
+      continue;
+    }
+    const code = truncateStr(`LEG-TPL-${legacyId}`, 80);
+    const content = emptyToNull(row.CONTENT);
+    const templateType = truncateStr(emptyToNull(row.TEMPLATE_TYPE) || 'CLINICAL NOTE', 100);
+    const now = new Date();
+    const status = content ? 'Active' : 'Inactive';
+    if (dryRun) {
+      stats.upserted++;
+      continue;
+    }
+    try {
+      await client.query(
+        `INSERT INTO "CLINICAL_NOTE_TEMPLATES"
+          ("LEGACY_TEMPLATE_ID","CODE","NAME","TEMPLATE_TYPE","CONTENT_HTML","STATUS","CREATED_BY","CREATED_DATE","UPDATED_BY","UPDATED_DATE")
+         VALUES ($1,$2,$3,$4,$5,$6,'legacy-csv',$7,'legacy-csv',$7)
+         ON CONFLICT ("LEGACY_TEMPLATE_ID") DO UPDATE SET
+           "CODE" = EXCLUDED."CODE",
+           "NAME" = EXCLUDED."NAME",
+           "TEMPLATE_TYPE" = EXCLUDED."TEMPLATE_TYPE",
+           "CONTENT_HTML" = EXCLUDED."CONTENT_HTML",
+           "STATUS" = EXCLUDED."STATUS",
+           "UPDATED_BY" = EXCLUDED."UPDATED_BY",
+           "UPDATED_DATE" = EXCLUDED."UPDATED_DATE"`,
+        [legacyId, code, truncateStr(name, 255), templateType, content, status, now],
+      );
+      stats.upserted++;
+    } catch (e) {
+      stats.errors++;
+      logger.log(`TEMPLATE line ${lineNo} id=${legacyId}: ${e.message}`);
+    }
+  }
+  logger.log(
+    `TEMPLATES done: upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors} dryRun=${dryRun}`,
+  );
+}
+
+async function importProphylactics(client, filePath, logger, stats, options = {}) {
+  const dryRun = Boolean(options.dryRun);
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const userIds = await loadIdSet(client, 'USERS', 'USER_ID');
+  const drugs = await client.query(`SELECT "DRUG_ID", "NAME", "GENERIC_NAME" FROM "DRUGS"`);
+  const drugByName = new Map();
+  for (const d of drugs.rows) {
+    const keys = [d.NAME, d.GENERIC_NAME].filter(Boolean).map((s) => String(s).trim().toLowerCase());
+    for (const k of keys) if (!drugByName.has(k)) drugByName.set(k, d);
+  }
+  // Prefer any existing user as author for prophylactics (no doctor column)
+  let fallbackAuthor = null;
+  for (const id of userIds) {
+    fallbackAuthor = id;
+    break;
+  }
+  if (fallbackAuthor === null) {
+    logger.log('PROPHYLACTICS abort: no USERS for AUTHOR_ID');
+    stats.errors++;
+    return;
+  }
+  logger.log(`PROPHYLACTICS fallbackAuthor=${fallbackAuthor} drugsIndexed=${drugByName.size}`);
+
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const legacyId = toPositiveInt(row.PROPHYLATICS_DRUGS_ID);
+    const personId = toPositiveInt(row.PERSON_ID);
+    const drugName = emptyToNull(row.DRUG_NAME);
+    if (legacyId === null || !drugName) {
+      stats.skipped++;
+      continue;
+    }
+    if (personId === null || !personIds.has(personId)) {
+      stats.skipped++;
+      continue;
+    }
+    const matched = drugByName.get(drugName.toLowerCase()) || null;
+    const created = parseLegacyDate(row.ISSUED_DATE) || new Date();
+    const authorId =
+      toPositiveInt(row.CREATED_BY) && userIds.has(toPositiveInt(row.CREATED_BY))
+        ? toPositiveInt(row.CREATED_BY)
+        : fallbackAuthor;
+    const noteNo = truncateStr(`LEG-PROPH-${legacyId}`, 50);
+    const fields = {
+      Narrative: `Prophylactic drug: ${drugName}`,
+      drugName,
+      matchedDrugId: matched ? matched.DRUG_ID : null,
+      matchedDrugName: matched ? matched.NAME : null,
+      issuedDate: emptyToNull(row.ISSUED_DATE),
+      caseFileId: toPositiveInt(row.CASE_FILE_ID),
+      imported: true,
+      legacySource: 'PROPHYLATICS_DRUGS',
+    };
+    const values = [
+      noteNo,
+      personId,
+      null,
+      authorId,
+      'Prophylactic Drugs',
+      null,
+      'Signed',
+      'Routine',
+      fields,
+      1,
+      created,
+      authorId,
+      String(authorId),
+      authorId,
+      String(authorId),
+      created,
+      authorId,
+      String(authorId),
+      created,
+    ];
+    try {
+      if (!dryRun) await upsertClinicalNoteByNoteNo(client, values, false);
+      stats.upserted++;
+    } catch (e) {
+      stats.errors++;
+      logger.log(`PROPHYLACTICS line ${lineNo} id=${legacyId}: ${e.message}`);
+    }
+  }
+  logger.log(
+    `PROPHYLACTICS done: upserted=${stats.upserted} skipped=${stats.skipped} errors=${stats.errors} dryRun=${Boolean(options.dryRun)}`,
+  );
+}
+
+async function importLegacyComments(client, filePath, logger, stats, options = {}) {
+  const dryRun = Boolean(options.dryRun);
+  const personIds = await loadIdSet(client, 'PERSONS', 'PERSON_ID');
+  const userIds = await loadIdSet(client, 'USERS', 'USER_ID');
+
+  // Build MSG_LOG_ID → PERSON_ID from complaints + p_exam for person linkage
+  const msgToPerson = new Map();
+  const complaintsPath = path.join(DOCS_DIR, 'DOCTORS', 'COMPLAINTS.csv');
+  const pexamPath = path.join(DOCS_DIR, 'DOCTORS', 'P_EXAM.csv');
+  for (const src of [complaintsPath, pexamPath]) {
+    if (!fs.existsSync(src)) continue;
+    for await (const { row } of streamCsvRows(src)) {
+      const msg = toPositiveInt(row.MSG_LOG_ID);
+      const personId = toPositiveInt(row.PERSON_ID);
+      if (msg !== null && personId !== null && personIds.has(personId) && !msgToPerson.has(msg)) {
+        msgToPerson.set(msg, personId);
+      }
+    }
+  }
+  logger.log(`COMMENTS msgLog→person map size=${msgToPerson.size}`);
+
+  let heldNoPerson = 0;
+  for await (const { row, lineNo } of streamCsvRows(filePath)) {
+    const legacyId = toPositiveInt(row.COMMENT_ID);
+    const body = emptyToNull(row.COMMENT_NOTE);
+    if (legacyId === null || !body) {
+      stats.skipped++;
+      continue;
+    }
+    const msg = toPositiveInt(row.MSG_LOG_ID);
+    const personId = msg !== null ? msgToPerson.get(msg) ?? null : null;
+    if (personId === null) {
+      heldNoPerson++;
+      stats.skipped++;
+      continue;
+    }
+    const authorId = resolveAuthorId(row, userIds);
+    if (authorId === null) {
+      stats.skipped++;
+      continue;
+    }
+    const created =
+      parseLegacyDate(row.CREATED_DATE) || parseOracleTimestamp(row.CREATED_DATE) || new Date();
+    const noteNo = truncateStr(`LEG-CMT-${legacyId}`, 50);
+    const fields = {
+      Narrative: body,
+      legacySource: 'COMMENTS',
+      legacyId,
+      msgLogId: msg,
+      requestDetailId: toPositiveInt(row.REQUEST_DETAIL_ID),
+      imported: true,
+    };
+    const values = [
+      noteNo,
+      personId,
+      null,
+      authorId,
+      'Legacy Comment',
+      null,
+      'Signed',
+      'Routine',
+      fields,
+      1,
+      created,
+      authorId,
+      String(authorId),
+      authorId,
+      String(authorId),
+      created,
+      authorId,
+      String(authorId),
+      created,
+    ];
+    try {
+      if (!dryRun) await upsertClinicalNoteByNoteNo(client, values, false);
+      stats.upserted++;
+    } catch (e) {
+      stats.errors++;
+      logger.log(`COMMENTS line ${lineNo} id=${legacyId}: ${e.message}`);
+    }
+  }
+  logger.log(
+    `COMMENTS done: upserted=${stats.upserted} skipped=${stats.skipped} heldNoPerson=${heldNoPerson} errors=${stats.errors} dryRun=${dryRun}`,
+  );
+}
+
 const IMPORTERS = {
   user_types: importUserTypes,
   roles: importRoles,
@@ -1384,13 +3440,30 @@ const IMPORTERS = {
   admissions: importAdmissions,
   nursing_care_plans: importNursingCarePlans,
   nursing_notes: importNursingNotes,
+  patient_diagnoses: importPatientDiagnoses,
+  nurse_shift_reports: importNurseShiftReports,
+  drug_chart: importDrugChart,
+  drug_chart_details: importDrugChartDetails,
+  fluids: importFluids,
+  diseases: importDiseases,
+  thesaurus: importThesaurus,
+  patient_diagnoses_enrich: importPatientDiagnosesEnrich,
+  pharmacy_items: importPharmacyItems,
+  drug_consumable_types: importDrugConsumableTypes,
+  legacy_clinical_notes_pilot: importLegacyClinicalNotesPilot,
+  complaints: importComplaints,
+  clinical_note_templates: importClinicalNoteTemplates,
+  prophylactics: importProphylactics,
+  legacy_comments: importLegacyComments,
 };
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const runId = new Date().toISOString().replace(/[:.]/g, '-');
   const logger = createLogger(runId);
-  logger.log(`Start migrate-legacy-csv only=${args.only.join(',')} offset=${args.offset} limit=${args.limit ?? 'none'} batch=${args.batch}`);
+  logger.log(
+    `Start migrate-legacy-csv only=${args.only.join(',')} offset=${args.offset} limit=${args.limit ?? 'none'} batch=${args.batch} dryRun=${args.dryRun} from=${args.from ?? 'default'} path=${args.path ?? 'default'}`,
+  );
 
   const client = buildPgClient();
   await client.connect();
@@ -1398,21 +3471,24 @@ async function main() {
 
   try {
     for (const table of args.only) {
-      const fileName = CSV_FILES[table];
-      const filePath = path.join(DOCS_DIR, fileName);
+      const filePath = resolveCsvPath(table, args);
       if (!fs.existsSync(filePath)) {
         logger.log(`SKIP ${table}: file not found ${filePath}`);
         continue;
       }
       const stats = { upserted: 0, skipped: 0, errors: 0 };
-      logger.log(`--- Importing ${table} from ${fileName} ---`);
+      logger.log(`--- Importing ${table} from ${filePath} ---`);
       const importer = IMPORTERS[table];
+      const opts = {
+        offset: args.offset,
+        limit: args.limit,
+        batch: args.batch,
+        dryRun: args.dryRun,
+      };
       if (table === 'persons') {
-        await importer(client, filePath, logger, stats, {
-          offset: args.offset,
-          limit: args.limit,
-          batch: args.batch,
-        });
+        await importer(client, filePath, logger, stats, opts);
+      } else if (DOCTOR_PHARMACY_TABLES.includes(table)) {
+        await importer(client, filePath, logger, stats, opts);
       } else {
         await importer(client, filePath, logger, stats);
       }

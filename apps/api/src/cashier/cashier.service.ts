@@ -58,7 +58,7 @@ function dayBounds(from?: string, to?: string, offsetMin = 60) {
     : new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const end = to
     ? new Date(`${to}T23:59:59.999Z`)
-    : new Date(`${(from ?? now.toISOString().slice(0, 10))}T23:59:59.999Z`);
+    : new Date(`${from ?? now.toISOString().slice(0, 10)}T23:59:59.999Z`);
   return { start, end };
 }
 
@@ -114,11 +114,13 @@ function dec(n: number | Prisma.Decimal | string): number {
   return Number(n);
 }
 
-function personName(p?: {
-  FIRST_NAME?: string | null;
-  MIDDLE_NAME?: string | null;
-  LAST_NAME?: string | null;
-} | null): string {
+function personName(
+  p?: {
+    FIRST_NAME?: string | null;
+    MIDDLE_NAME?: string | null;
+    LAST_NAME?: string | null;
+  } | null,
+): string {
   if (!p) return 'Unknown';
   return (
     [p.FIRST_NAME, p.MIDDLE_NAME, p.LAST_NAME].filter(Boolean).join(' ') ||
@@ -241,7 +243,10 @@ export class CashierService {
     return { NOT: { DELETED_FLAG: 'Y' } };
   }
 
-  private async nextNo(prefix: string, table: 'receipt' | 'refund' | 'discount' | 'shift') {
+  private async nextNo(
+    prefix: string,
+    table: 'receipt' | 'refund' | 'discount' | 'shift',
+  ) {
     const year = new Date().getFullYear();
     const start = `${prefix}-${year}-`;
     let last: string | null = null;
@@ -500,7 +505,11 @@ export class CashierService {
       createdBy: label,
       newValue: { amount: dto.amount, receiptId: dto.receiptId },
     });
-    return { refundId: row.REFUND_ID, refundNo: row.REFUND_NO, status: row.STATUS };
+    return {
+      refundId: row.REFUND_ID,
+      refundNo: row.REFUND_NO,
+      status: row.STATUS,
+    };
   }
 
   async approveRefund(id: number, user: AuthUser) {
@@ -597,7 +606,9 @@ export class CashierService {
   async listEligibleBills(opts?: { personId?: number }) {
     const personId = opts?.personId;
     const personWhere =
-      personId != null ? { PERSON_ID: personId } : ({} as { PERSON_ID?: number });
+      personId != null
+        ? { PERSON_ID: personId }
+        : ({} as { PERSON_ID?: number });
     const partialErrors: string[] = [];
     const personSelect = {
       FIRST_NAME: true,
@@ -965,7 +976,11 @@ export class CashierService {
       entityId: row.DISCOUNT_ID,
       userId: user.id,
       createdBy: label,
-      newValue: { computed, sourceType: dto.sourceType, sourceId: dto.sourceId },
+      newValue: {
+        computed,
+        sourceType: dto.sourceType,
+        sourceId: dto.sourceId,
+      },
     });
     return {
       discountId: row.DISCOUNT_ID,
@@ -1310,7 +1325,8 @@ export class CashierService {
       const ch = (r.CHANNEL || '').toLowerCase();
       if (ch.includes('cash')) totals.cash += net;
       else if (ch.includes('pos')) totals.pos += net;
-      else if (ch.includes('transfer') || ch.includes('bank')) totals.transfer += net;
+      else if (ch.includes('transfer') || ch.includes('bank'))
+        totals.transfer += net;
       else if (ch.includes('online')) totals.online += net;
       else if (ch.includes('wallet')) totals.wallet += net;
       else if (ch.includes('nhia') || ch.includes('nhis')) totals.nhia += net;
@@ -1331,7 +1347,8 @@ export class CashierService {
     });
     if (!shift) return { shift: null };
     const totals = await this.shiftTotals(user.id, shift.OPENED_AT);
-    const expectedCash = dec(shift.OPENING_FLOAT) + totals.cash - totals.refunds;
+    const expectedCash =
+      dec(shift.OPENING_FLOAT) + totals.cash - totals.refunds;
     return {
       shift: {
         shiftId: shift.SHIFT_ID,
@@ -1555,9 +1572,15 @@ export class CashierService {
         department,
         amount,
       })),
-      byChannel: ['Cash', 'POS', 'Transfer', 'Online', 'Wallet', 'NHIA', 'HMO'].map(
-        (c) => ({ channel: c, amount: byChannelMap.get(c) ?? 0 }),
-      ),
+      byChannel: [
+        'Cash',
+        'POS',
+        'Transfer',
+        'Online',
+        'Wallet',
+        'NHIA',
+        'HMO',
+      ].map((c) => ({ channel: c, amount: byChannelMap.get(c) ?? 0 })),
       outstandingItems,
       partialErrors:
         eligible.partialErrors.length > 0 ? eligible.partialErrors : undefined,
@@ -1707,26 +1730,17 @@ export class CashierService {
         }),
         this.prisma.audits.count({
           where: {
-            AND: [
-              period,
-              { AUDIT_TYPE: { startsWith: 'cashier-refund' } },
-            ],
+            AND: [period, { AUDIT_TYPE: { startsWith: 'cashier-refund' } }],
           },
         }),
         this.prisma.audits.count({
           where: {
-            AND: [
-              period,
-              { AUDIT_TYPE: { startsWith: 'cashier-discount' } },
-            ],
+            AND: [period, { AUDIT_TYPE: { startsWith: 'cashier-discount' } }],
           },
         }),
         this.prisma.audits.count({
           where: {
-            AND: [
-              period,
-              { AUDIT_TYPE: { startsWith: 'cashier-shift' } },
-            ],
+            AND: [period, { AUDIT_TYPE: { startsWith: 'cashier-shift' } }],
           },
         }),
       ]);

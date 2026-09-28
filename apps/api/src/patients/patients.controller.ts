@@ -35,10 +35,7 @@ export class PatientsController {
    */
   @Post()
   @RequirePermissions(PERMISSIONS.PATIENT_CREATE)
-  async register(
-    @Body() dto: CreatePersonDto,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async register(@Body() dto: CreatePersonDto, @CurrentUser() user: AuthUser) {
     const person = await this.patientsService.register(dto, user);
     return { data: person };
   }

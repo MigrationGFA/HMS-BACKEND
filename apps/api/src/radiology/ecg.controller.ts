@@ -31,7 +31,8 @@ export class EcgController {
     return {
       data: await this.radiology.listEcgs({
         personId: personId ? Number(personId) : undefined,
-        critical: critical === 'true' ? true : critical === 'false' ? false : undefined,
+        critical:
+          critical === 'true' ? true : critical === 'false' ? false : undefined,
       }),
     };
   }

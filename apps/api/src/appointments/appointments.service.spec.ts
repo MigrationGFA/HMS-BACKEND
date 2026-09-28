@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 
 describe('AppointmentsService', () => {
@@ -13,15 +10,46 @@ describe('AppointmentsService', () => {
       consultFee: 5500,
       total: 7500,
       items: [
-        { code: 'SVC-REG-FEE', label: 'Registration Fee', amount: 1500, serviceId: 1, source: 'GENERAL' },
-        { code: 'SVC-CARD-FEE', label: 'Card Fee', amount: 500, serviceId: 2, source: 'GENERAL' },
-        { code: 'SVC-REG-CONSULT', label: 'Consultation Fee', amount: 5500, serviceId: 3, source: 'GENERAL' },
+        {
+          code: 'SVC-REG-FEE',
+          label: 'Registration Fee',
+          amount: 1500,
+          serviceId: 1,
+          source: 'GENERAL',
+        },
+        {
+          code: 'SVC-CARD-FEE',
+          label: 'Card Fee',
+          amount: 500,
+          serviceId: 2,
+          source: 'GENERAL',
+        },
+        {
+          code: 'SVC-REG-CONSULT',
+          label: 'Consultation Fee',
+          amount: 5500,
+          serviceId: 3,
+          source: 'GENERAL',
+        },
       ],
     }),
   };
   const cards = {
     createForPerson: jest.fn().mockResolvedValue({ cardId: 1 }),
   };
+  const auth = {
+    issueSessionForUserId: jest.fn().mockResolvedValue({
+      accessToken: 't',
+      refreshToken: 'r',
+      expiresIn: 3600,
+      user: { id: 1, email: 'p@test.com', roles: ['PATIENT'] },
+    }),
+  };
+  const email = {
+    send: jest.fn().mockResolvedValue({ queued: true, delivered: false }),
+    isConfigured: jest.fn().mockReturnValue(false),
+  };
+  const config = { get: jest.fn().mockReturnValue('http://localhost:8080') };
   const prisma: Record<string, any> = {
     masterServices: { findUnique: jest.fn() },
     serviceBookings: {
@@ -55,6 +83,9 @@ describe('AppointmentsService', () => {
       audit as any,
       catalog as any,
       cards as any,
+      auth as any,
+      email as any,
+      config as any,
     );
   });
 
@@ -92,10 +123,34 @@ describe('AppointmentsService', () => {
       expect(result.price).toBe(5000);
       expect(result.onlineSlotLimit).toBe(1);
       expect(result.slots).toEqual([
-        { start: '08:00', end: '08:30', available: true, bookedCount: 0, remainingSpots: 1 },
-        { start: '08:30', end: '09:00', available: false, bookedCount: 1, remainingSpots: 0 },
-        { start: '09:00', end: '09:30', available: true, bookedCount: 0, remainingSpots: 1 },
-        { start: '09:30', end: '10:00', available: true, bookedCount: 0, remainingSpots: 1 },
+        {
+          start: '08:00',
+          end: '08:30',
+          available: true,
+          bookedCount: 0,
+          remainingSpots: 1,
+        },
+        {
+          start: '08:30',
+          end: '09:00',
+          available: false,
+          bookedCount: 1,
+          remainingSpots: 0,
+        },
+        {
+          start: '09:00',
+          end: '09:30',
+          available: true,
+          bookedCount: 0,
+          remainingSpots: 1,
+        },
+        {
+          start: '09:30',
+          end: '10:00',
+          available: true,
+          bookedCount: 0,
+          remainingSpots: 1,
+        },
       ]);
     });
 
@@ -253,7 +308,12 @@ describe('AppointmentsService', () => {
         service.amountDueForBooking({
           PATIENT_TYPE: 'NEW',
           PRICE_AMOUNT: 7000,
-          FEE_BREAKDOWN: { service: 5000, registration: 1500, card: 500, total: 7000 },
+          FEE_BREAKDOWN: {
+            service: 5000,
+            registration: 1500,
+            card: 500,
+            total: 7000,
+          },
         }),
       ).toBe(5000);
     });
@@ -263,7 +323,12 @@ describe('AppointmentsService', () => {
         service.amountDueForBooking({
           PATIENT_TYPE: 'RETURNING',
           PRICE_AMOUNT: 5000,
-          FEE_BREAKDOWN: { service: 5000, registration: 0, card: 0, total: 5000 },
+          FEE_BREAKDOWN: {
+            service: 5000,
+            registration: 0,
+            card: 0,
+            total: 5000,
+          },
         }),
       ).toBe(5000);
     });
@@ -296,7 +361,9 @@ describe('AppointmentsService', () => {
           HOSPITAL_NO: 'FNPH-2026-00001',
           FIRST_NAME: 'Ada',
           LAST_NAME: 'Obi',
-          cards: [{ CARD_ID: 1, PAYMENT_STATUS: 'Paid', CARD_NO: 'FNPH-2026-00001' }],
+          cards: [
+            { CARD_ID: 1, PAYMENT_STATUS: 'Paid', CARD_NO: 'FNPH-2026-00001' },
+          ],
         },
       };
       prisma.serviceBookings.findUnique.mockResolvedValue(row);
@@ -308,7 +375,12 @@ describe('AppointmentsService', () => {
       const result = await service.confirmBookingPayment(
         9,
         { paymentChannel: 'Cash' },
-        { id: 1, email: 'cashier@test', firstName: 'Cash', lastName: 'Ier' } as any,
+        {
+          id: 1,
+          email: 'cashier@test',
+          firstName: 'Cash',
+          lastName: 'Ier',
+        } as any,
       );
       expect(result.paymentStatus).toBe('Paid');
       expect(result.collectedAmount).toBe(5000);

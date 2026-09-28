@@ -43,7 +43,17 @@ import { LaboratoryService } from './laboratory.service';
     LabHistoryController,
     BloodBankController,
   ],
-  providers: [LaboratoryService, LabSpecialtyService, LabExtendedService, BloodBankService],
-  exports: [LaboratoryService, LabSpecialtyService, LabExtendedService, BloodBankService],
+  providers: [
+    LaboratoryService,
+    LabSpecialtyService,
+    LabExtendedService,
+    BloodBankService,
+  ],
+  exports: [
+    LaboratoryService,
+    LabSpecialtyService,
+    LabExtendedService,
+    BloodBankService,
+  ],
 })
 export class LaboratoryModule {}

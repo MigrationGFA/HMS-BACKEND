@@ -1,10 +1,7 @@
 import { registerAs } from '@nestjs/config';
 
 function parseCorsOrigins(): string[] | true {
-  const raw =
-    process.env.CORS_ORIGINS ??
-    process.env.FRONTEND_URL ??
-    '';
+  const raw = process.env.CORS_ORIGINS ?? process.env.FRONTEND_URL ?? '';
   const list = raw
     .split(',')
     .map((s) => s.trim().replace(/\/$/, ''))

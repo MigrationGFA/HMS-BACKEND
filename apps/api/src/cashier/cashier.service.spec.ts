@@ -32,7 +32,11 @@ describe('CashierService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new CashierService(prisma as any, audit as any, patientsService as any);
+    service = new CashierService(
+      prisma as any,
+      audit as any,
+      patientsService as any,
+    );
     prisma.cashierPaymentReceipts.findMany.mockResolvedValue([]);
     prisma.cashierDiscountRequests.aggregate.mockResolvedValue({
       _sum: { COMPUTED_AMOUNT: 0 },
@@ -56,7 +60,12 @@ describe('CashierService', () => {
           PERSON_ID: 5,
           TOTAL_AMOUNT: 1000,
           PAYMENT_STATUS: 'Pending',
-          person: { FIRST_NAME: 'Ada', MIDDLE_NAME: null, LAST_NAME: 'Oka', HOSPITAL_NO: 'H001' },
+          person: {
+            FIRST_NAME: 'Ada',
+            MIDDLE_NAME: null,
+            LAST_NAME: 'Oka',
+            HOSPITAL_NO: 'H001',
+          },
         },
       ]);
       prisma.pharmacySales.findMany.mockResolvedValue([]);
@@ -64,7 +73,9 @@ describe('CashierService', () => {
       prisma.labRequests.findMany.mockResolvedValue([]);
       prisma.admissionBills.findMany.mockResolvedValue([]);
       prisma.imagingRequests.findMany.mockResolvedValue([]);
-      prisma.opcVisits.findMany.mockRejectedValue(new Error('OpcVisits table missing'));
+      prisma.opcVisits.findMany.mockRejectedValue(
+        new Error('OpcVisits table missing'),
+      );
 
       const result = await service.listEligibleBills();
 
@@ -103,7 +114,9 @@ describe('CashierService', () => {
       prisma.labRequests.findMany.mockResolvedValue([]);
       prisma.admissionBills.findMany.mockResolvedValue([]);
       prisma.imagingRequests.findMany.mockResolvedValue([]);
-      prisma.opcVisits.findMany.mockRejectedValue(new Error('OpcVisits unavailable'));
+      prisma.opcVisits.findMany.mockRejectedValue(
+        new Error('OpcVisits unavailable'),
+      );
 
       const result = await service.getReports();
 
@@ -203,9 +216,9 @@ describe('CashierService', () => {
   describe('getPatientPaymentHistory', () => {
     it('throws when patient not found', async () => {
       prisma.persons.findUnique.mockResolvedValue(null);
-      await expect(service.getPatientPaymentHistory(999)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.getPatientPaymentHistory(999),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('returns receipts and outstanding for a patient', async () => {
@@ -240,7 +253,12 @@ describe('CashierService', () => {
           PERSON_ID: 5,
           TOTAL_AMOUNT: 2000,
           PAYMENT_STATUS: 'Unpaid',
-          person: { FIRST_NAME: 'Ada', MIDDLE_NAME: null, LAST_NAME: 'Oka', HOSPITAL_NO: 'H005' },
+          person: {
+            FIRST_NAME: 'Ada',
+            MIDDLE_NAME: null,
+            LAST_NAME: 'Oka',
+            HOSPITAL_NO: 'H005',
+          },
         },
       ]);
       prisma.admissionBills.findMany.mockResolvedValue([]);

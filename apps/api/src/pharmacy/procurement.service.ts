@@ -202,7 +202,10 @@ function toGrnResponse(row: GrnRow): GrnResponse {
 }
 
 const PR_INCLUDE = { drug: { include: { batches: true } } } as const;
-const PO_INCLUDE = { supplier: true, items: { include: { drug: true } } } as const;
+const PO_INCLUDE = {
+  supplier: true,
+  items: { include: { drug: true } },
+} as const;
 const GRN_INCLUDE = {
   drug: true,
   purchaseOrder: { include: { supplier: true } },
@@ -272,7 +275,9 @@ export class ProcurementService {
     const page = Math.max(params?.page ?? 1, 1);
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
     const where: Prisma.PurchaseRequestsWhereInput = {
-      ...(params?.status && params.status !== 'all' ? { STATUS: params.status } : {}),
+      ...(params?.status && params.status !== 'all'
+        ? { STATUS: params.status }
+        : {}),
       ...(params?.q
         ? {
             OR: [
@@ -417,10 +422,15 @@ export class ProcurementService {
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
     const deliveryStatuses =
       params?.deliveryStatus && params.deliveryStatus !== 'all'
-        ? params.deliveryStatus.split(',').map((s) => s.trim()).filter(Boolean)
+        ? params.deliveryStatus
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
         : [];
     const where: Prisma.PurchaseOrdersWhereInput = {
-      ...(params?.status && params.status !== 'all' ? { STATUS: params.status } : {}),
+      ...(params?.status && params.status !== 'all'
+        ? { STATUS: params.status }
+        : {}),
       ...(params?.approvalStatus && params.approvalStatus !== 'all'
         ? { APPROVAL_STATUS: params.approvalStatus }
         : {}),
@@ -433,7 +443,9 @@ export class ProcurementService {
         ? {
             OR: [
               { PO_NO: { contains: params.q, mode: 'insensitive' } },
-              { supplier: { NAME: { contains: params.q, mode: 'insensitive' } } },
+              {
+                supplier: { NAME: { contains: params.q, mode: 'insensitive' } },
+              },
             ],
           }
         : {}),
@@ -457,7 +469,11 @@ export class ProcurementService {
    * POs eligible for Receive Stock: approved and not fully delivered/cancelled.
    * Includes Approved+Not Sent so pharmacists can accept goods without a separate Send step.
    */
-  async listReceivableOrders(params?: { q?: string; page?: number; limit?: number }) {
+  async listReceivableOrders(params?: {
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) {
     const page = Math.max(params?.page ?? 1, 1);
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
     const where: Prisma.PurchaseOrdersWhereInput = {
@@ -468,7 +484,9 @@ export class ProcurementService {
         ? {
             OR: [
               { PO_NO: { contains: params.q, mode: 'insensitive' } },
-              { supplier: { NAME: { contains: params.q, mode: 'insensitive' } } },
+              {
+                supplier: { NAME: { contains: params.q, mode: 'insensitive' } },
+              },
             ],
           }
         : {}),
@@ -489,13 +507,16 @@ export class ProcurementService {
   }
 
   /** Completed / cancelled POs with GRN aggregates for the History tab. */
-  async history(params?: { q?: string; status?: string; page?: number; limit?: number }) {
+  async history(params?: {
+    q?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
     const page = Math.max(params?.page ?? 1, 1);
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
     const statusFilter =
-      params?.status && params.status !== 'all'
-        ? params.status
-        : undefined;
+      params?.status && params.status !== 'all' ? params.status : undefined;
 
     const where: Prisma.PurchaseOrdersWhereInput = {
       STATUS: statusFilter
@@ -505,7 +526,9 @@ export class ProcurementService {
         ? {
             OR: [
               { PO_NO: { contains: params.q, mode: 'insensitive' } },
-              { supplier: { NAME: { contains: params.q, mode: 'insensitive' } } },
+              {
+                supplier: { NAME: { contains: params.q, mode: 'insensitive' } },
+              },
             ],
           }
         : {}),
@@ -534,7 +557,9 @@ export class ProcurementService {
       this.prisma.purchaseOrders.count({ where }),
       this.prisma.purchaseOrders.count({ where: { STATUS: 'Completed' } }),
       this.prisma.purchaseOrders.count({ where: { STATUS: 'Cancelled' } }),
-      this.prisma.purchaseOrders.count({ where: { DELIVERY_STATUS: 'Partial' } }),
+      this.prisma.purchaseOrders.count({
+        where: { DELIVERY_STATUS: 'Partial' },
+      }),
       this.prisma.goodsReceivedNotes.count(),
       this.prisma.purchaseOrders.aggregate({
         _sum: { TOTAL: true },
@@ -572,8 +597,14 @@ export class ProcurementService {
     const items: ProcurementHistoryItem[] = rows.map((row) => {
       const qtyOrdered = row.items.reduce((s, i) => s + i.QTY, 0);
       const qtyReceived = row.items.reduce((s, i) => s + i.QTY_RECEIVED, 0);
-      const qtyAccepted = row.goodsReceived.reduce((s, g) => s + g.QTY_ACCEPTED, 0);
-      const qtyDamaged = row.goodsReceived.reduce((s, g) => s + g.QTY_DAMAGED, 0);
+      const qtyAccepted = row.goodsReceived.reduce(
+        (s, g) => s + g.QTY_ACCEPTED,
+        0,
+      );
+      const qtyDamaged = row.goodsReceived.reduce(
+        (s, g) => s + g.QTY_DAMAGED,
+        0,
+      );
       return {
         poId: row.PO_ID,
         poNo: row.PO_NO,
@@ -621,7 +652,9 @@ export class ProcurementService {
     });
     if (!existing) throw new NotFoundException('Purchase order not found');
     if (existing.APPROVAL_STATUS !== 'Pending') {
-      throw new BadRequestException(`Order is already ${existing.APPROVAL_STATUS}`);
+      throw new BadRequestException(
+        `Order is already ${existing.APPROVAL_STATUS}`,
+      );
     }
 
     const updated = await this.prisma.purchaseOrders.update({
@@ -645,14 +678,20 @@ export class ProcurementService {
       userId: actor?.id,
       createdBy: actorLabel(actor),
       item: `Purchase order ${updated.PO_NO} ${approval.toLowerCase()}`,
-      oldValue: { approvalStatus: existing.APPROVAL_STATUS, status: existing.STATUS },
+      oldValue: {
+        approvalStatus: existing.APPROVAL_STATUS,
+        status: existing.STATUS,
+      },
       newValue: { approvalStatus: approval, status: updated.STATUS },
     });
 
     return toPoResponse(updated);
   }
 
-  async sendOrder(id: number, actor?: AuthUser): Promise<PurchaseOrderResponse> {
+  async sendOrder(
+    id: number,
+    actor?: AuthUser,
+  ): Promise<PurchaseOrderResponse> {
     const existing = await this.prisma.purchaseOrders.findUnique({
       where: { PO_ID: id },
       include: PO_INCLUDE,
@@ -662,7 +701,9 @@ export class ProcurementService {
       throw new BadRequestException('Order must be approved before sending');
     }
     if (existing.DELIVERY_STATUS !== 'Not Sent') {
-      throw new BadRequestException(`Order is already ${existing.DELIVERY_STATUS}`);
+      throw new BadRequestException(
+        `Order is already ${existing.DELIVERY_STATUS}`,
+      );
     }
 
     const updated = await this.prisma.purchaseOrders.update({
@@ -693,7 +734,10 @@ export class ProcurementService {
 
   // ---------- Goods Received / Stock Receipt ----------
 
-  async receiveStock(dto: ReceiveStockDto, actor?: AuthUser): Promise<GrnResponse> {
+  async receiveStock(
+    dto: ReceiveStockDto,
+    actor?: AuthUser,
+  ): Promise<GrnResponse> {
     const drug = await this.prisma.drugs.findUnique({
       where: { DRUG_ID: dto.drugId },
     });
@@ -708,13 +752,19 @@ export class ProcurementService {
       });
       if (!po) throw new BadRequestException('Purchase order does not exist');
       if (po.STATUS === 'Cancelled') {
-        throw new BadRequestException('Cannot receive against a cancelled purchase order');
+        throw new BadRequestException(
+          'Cannot receive against a cancelled purchase order',
+        );
       }
       if (po.APPROVAL_STATUS !== 'Approved') {
-        throw new BadRequestException('Purchase order must be approved before receiving stock');
+        throw new BadRequestException(
+          'Purchase order must be approved before receiving stock',
+        );
       }
       if (po.DELIVERY_STATUS === 'Delivered' || po.STATUS === 'Completed') {
-        throw new BadRequestException('Purchase order is already fully delivered');
+        throw new BadRequestException(
+          'Purchase order is already fully delivered',
+        );
       }
       poItem = po.items.find((i) => i.DRUG_ID === dto.drugId) ?? null;
       if (!poItem) {
@@ -724,7 +774,9 @@ export class ProcurementService {
 
     const qtyDamaged = dto.qtyDamaged ?? 0;
     if (qtyDamaged > dto.qtyReceived) {
-      throw new BadRequestException('Damaged quantity cannot exceed received quantity');
+      throw new BadRequestException(
+        'Damaged quantity cannot exceed received quantity',
+      );
     }
     const qtyAccepted = dto.qtyReceived - qtyDamaged;
     if (poItem) {
@@ -855,7 +907,11 @@ export class ProcurementService {
             { GRN_NO: { contains: params.q, mode: 'insensitive' } },
             { BATCH_NO: { contains: params.q, mode: 'insensitive' } },
             { drug: { NAME: { contains: params.q, mode: 'insensitive' } } },
-            { purchaseOrder: { PO_NO: { contains: params.q, mode: 'insensitive' } } },
+            {
+              purchaseOrder: {
+                PO_NO: { contains: params.q, mode: 'insensitive' },
+              },
+            },
           ],
         }
       : {};
@@ -887,9 +943,13 @@ export class ProcurementService {
       this.prisma.purchaseRequests.count({
         where: { STATUS: { in: ['Submitted', 'Pending Approval'] } },
       }),
-      this.prisma.purchaseOrders.count({ where: { APPROVAL_STATUS: 'Pending' } }),
+      this.prisma.purchaseOrders.count({
+        where: { APPROVAL_STATUS: 'Pending' },
+      }),
       this.prisma.purchaseOrders.count({ where: { DELIVERY_STATUS: 'Sent' } }),
-      this.prisma.purchaseOrders.count({ where: { DELIVERY_STATUS: 'Partial' } }),
+      this.prisma.purchaseOrders.count({
+        where: { DELIVERY_STATUS: 'Partial' },
+      }),
       this.prisma.purchaseOrders.count({ where: { STATUS: 'Completed' } }),
       this.prisma.purchaseOrders.aggregate({
         _sum: { TOTAL: true },

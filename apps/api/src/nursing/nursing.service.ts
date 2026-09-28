@@ -103,7 +103,10 @@ export class NursingService {
     timezoneOffsetMinutes?: number;
     page?: number;
     limit?: number;
-  }): Promise<{ items: PatientQueueItem[]; meta: { page: number; limit: number; total: number } }> {
+  }): Promise<{
+    items: PatientQueueItem[];
+    meta: { page: number; limit: number; total: number };
+  }> {
     const page = Math.max(params?.page ?? 1, 1);
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 100);
     const { startOfDay, endOfDay } = dayBounds(
@@ -165,7 +168,10 @@ export class NursingService {
     );
 
     let items = rows.map((row) =>
-      this.enrichMapped(this.mapTriageRow(row), cardByPerson.get(row.PERSON_ID)),
+      this.enrichMapped(
+        this.mapTriageRow(row),
+        cardByPerson.get(row.PERSON_ID),
+      ),
     );
 
     if (params?.paymentStatus) {
@@ -211,7 +217,16 @@ export class NursingService {
         }),
         this.prisma.triage.findMany({
           where: todayFilter,
-          select: { PERSON_ID: true, TRIAGE_ID: true, BLOOD_PRESSURE: true, TEMPERATURE_C: true, PULSE_BPM: true, WEIGHT_KG: true, SPO2_PCT: true, RESPIRATORY_RATE: true },
+          select: {
+            PERSON_ID: true,
+            TRIAGE_ID: true,
+            BLOOD_PRESSURE: true,
+            TEMPERATURE_C: true,
+            PULSE_BPM: true,
+            WEIGHT_KG: true,
+            SPO2_PCT: true,
+            RESPIRATORY_RATE: true,
+          },
         }),
       ]);
 
@@ -282,9 +297,7 @@ export class NursingService {
   ): Promise<PatientQueueItem> {
     const existing = await this.triage.findById(triageId);
     const statusPatch =
-      existing.status === 'Waiting'
-        ? ({ status: 'In Triage' } as const)
-        : {};
+      existing.status === 'Waiting' ? ({ status: 'In Triage' } as const) : {};
 
     const updated = await this.triage.update(
       triageId,
@@ -368,7 +381,8 @@ export class NursingService {
 
   private enrichMapped(
     base: TriageResponse,
-    card: Awaited<ReturnType<CardsService['latestForPerson']>> | null | undefined,
+    card:
+      Awaited<ReturnType<CardsService['latestForPerson']>> | null | undefined,
   ): PatientQueueItem {
     const paymentStatus = card?.paymentStatus ?? null;
     return {

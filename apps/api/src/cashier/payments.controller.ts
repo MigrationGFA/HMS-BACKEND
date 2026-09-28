@@ -33,11 +33,13 @@ import { PsychiatryService } from '../psychiatry/psychiatry.service';
 import { PayOpcConsultationDto } from '../psychiatry/dto/psychiatric-opc.dto';
 import { AppointmentsService } from '../appointments/appointments.service';
 
-function personLabel(person?: {
-  firstName?: string | null;
-  middleName?: string | null;
-  lastName?: string | null;
-} | null): string {
+function personLabel(
+  person?: {
+    firstName?: string | null;
+    middleName?: string | null;
+    lastName?: string | null;
+  } | null,
+): string {
   if (!person) return 'Unknown';
   return (
     [person.firstName, person.middleName, person.lastName]
