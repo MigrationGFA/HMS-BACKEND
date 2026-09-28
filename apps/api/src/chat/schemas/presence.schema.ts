@@ -8,7 +8,11 @@ export class Presence {
   @Prop({ required: true, unique: true, index: true })
   userId!: number;
 
-  @Prop({ required: true, enum: ['online', 'away', 'offline'], default: 'offline' })
+  @Prop({
+    required: true,
+    enum: ['online', 'away', 'offline'],
+    default: 'offline',
+  })
   status!: string;
 
   @Prop()

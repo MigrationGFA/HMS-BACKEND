@@ -118,6 +118,9 @@ model Persons {
   opcNotes                  OpcNotes[]
   serviceBookings           ServiceBookings[]
   publicBookingVerifications PublicBookingVerifications[]
+  portalPrefs               PortalPatientPrefs?
+  kitchenOrders             KitchenOrders[]
+  fleetTripRequests         FleetTripRequests[]
   hmoPayer                  ServicePayers?           @relation(fields: [HMO_ID], references: [PAYER_ID])
   hmoCoverages              PatientHmoCoverage[]
   hmoEligibilityChecks      HmoEligibilityChecks[]

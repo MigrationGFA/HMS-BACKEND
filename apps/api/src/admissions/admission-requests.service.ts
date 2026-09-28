@@ -32,16 +32,19 @@ function actorLabelOf(actor?: AuthUser): string {
 }
 
 function mapPerson(
-  p: {
-    PERSON_ID: number;
-    HOSPITAL_NO: string | null;
-    FIRST_NAME: string | null;
-    LAST_NAME: string | null;
-    MIDDLE_NAME: string | null;
-    SEX: string | null;
-    DATE_OF_BIRTH: Date | null;
-    PATIENT_PHONE_NO: string | null;
-  } | null | undefined,
+  p:
+    | {
+        PERSON_ID: number;
+        HOSPITAL_NO: string | null;
+        FIRST_NAME: string | null;
+        LAST_NAME: string | null;
+        MIDDLE_NAME: string | null;
+        SEX: string | null;
+        DATE_OF_BIRTH: Date | null;
+        PATIENT_PHONE_NO: string | null;
+      }
+    | null
+    | undefined,
 ) {
   if (!p) return null;
   const age = p.DATE_OF_BIRTH
@@ -253,13 +256,18 @@ export class AdmissionRequestsService {
     const scope = (params.scope ?? 'all').toLowerCase();
     if (scope === 'mine') {
       if (!params.actor?.id) {
-        throw new BadRequestException('Authenticated user required for scope=mine');
+        throw new BadRequestException(
+          'Authenticated user required for scope=mine',
+        );
       }
       where.REQUESTED_BY_USER_ID = params.actor.id;
     }
 
     if (params.status) {
-      const statuses = params.status.split(',').map((s) => s.trim()).filter(Boolean);
+      const statuses = params.status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       where.STATUS = statuses.length === 1 ? statuses[0] : { in: statuses };
     }
     if (params.personId) where.PERSON_ID = params.personId;
@@ -341,7 +349,8 @@ export class AdmissionRequestsService {
     if (dto.priority !== undefined) data.PRIORITY = dto.priority;
     if (dto.priorityReason !== undefined)
       data.PRIORITY_REASON = dto.priorityReason.trim() || null;
-    if (dto.admissionType !== undefined) data.ADMISSION_TYPE = dto.admissionType;
+    if (dto.admissionType !== undefined)
+      data.ADMISSION_TYPE = dto.admissionType;
     if (dto.estimatedLos !== undefined)
       data.ESTIMATED_LOS = dto.estimatedLos.trim() || null;
     if (dto.provisionalDiagnosis !== undefined)
@@ -369,7 +378,8 @@ export class AdmissionRequestsService {
       data.WITHDRAWAL_RISK = dto.withdrawalRisk;
     if (dto.specialBed !== undefined)
       data.SPECIAL_BED = dto.specialBed.trim() || null;
-    if (dto.consentStatus !== undefined) data.CONSENT_STATUS = dto.consentStatus;
+    if (dto.consentStatus !== undefined)
+      data.CONSENT_STATUS = dto.consentStatus;
     if (dto.nokInformed !== undefined) data.NOK_INFORMED = dto.nokInformed;
     if (dto.clinicDepartment !== undefined)
       data.CLINIC_DEPARTMENT = dto.clinicDepartment.trim() || null;

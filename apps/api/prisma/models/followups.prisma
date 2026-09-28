@@ -14,6 +14,8 @@ model FollowUps {
   PRIORITY       String    @default("Routine") @db.VarChar(50)
   /// Scheduled | Attended | Cancelled
   STATUS         String    @default("Scheduled") @db.VarChar(50)
+  /// staff = doctor-scheduled (legacy CSV); patient = public / self-booked
+  CREATOR_TYPE   String    @default("staff") @db.VarChar(20)
   PREV_DX        String?   @db.VarChar(500)
   REASON         String?   @db.Text
   REMINDER       String?   @db.VarChar(50)
@@ -33,5 +35,6 @@ model FollowUps {
   @@index([SCHEDULED_DATE])
   @@index([STATUS])
   @@index([ENCOUNTER_ID])
+  @@index([CREATOR_TYPE])
   @@map("FOLLOW_UPS")
 }

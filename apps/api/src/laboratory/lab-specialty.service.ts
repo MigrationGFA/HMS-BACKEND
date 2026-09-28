@@ -118,26 +118,35 @@ export class LabSpecialtyService {
         { person: { LAST_NAME: { contains: q, mode: 'insensitive' } } },
       ];
     }
-    const baseWhere: Prisma.LabDrugScreensWhereInput = { NOT: { DELETED_FLAG: 'Y' } };
-    const [total, rows, draft, validated, rejected, inProgress] = await Promise.all([
-      this.prisma.labDrugScreens.count({ where }),
-      this.prisma.labDrugScreens.findMany({
-        where,
-        include: { person: { select: PERSON_SELECT }, results: true },
-        orderBy: { SCREEN_ID: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.labDrugScreens.count({ where: { ...baseWhere, STATUS: 'Draft' } }),
-      this.prisma.labDrugScreens.count({ where: { ...baseWhere, STATUS: 'Validated' } }),
-      this.prisma.labDrugScreens.count({ where: { ...baseWhere, STATUS: 'Rejected' } }),
-      this.prisma.labDrugScreens.count({
-        where: {
-          ...baseWhere,
-          STATUS: { in: ['Collected', 'ResultsEntered', 'Submitted'] },
-        },
-      }),
-    ]);
+    const baseWhere: Prisma.LabDrugScreensWhereInput = {
+      NOT: { DELETED_FLAG: 'Y' },
+    };
+    const [total, rows, draft, validated, rejected, inProgress] =
+      await Promise.all([
+        this.prisma.labDrugScreens.count({ where }),
+        this.prisma.labDrugScreens.findMany({
+          where,
+          include: { person: { select: PERSON_SELECT }, results: true },
+          orderBy: { SCREEN_ID: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        this.prisma.labDrugScreens.count({
+          where: { ...baseWhere, STATUS: 'Draft' },
+        }),
+        this.prisma.labDrugScreens.count({
+          where: { ...baseWhere, STATUS: 'Validated' },
+        }),
+        this.prisma.labDrugScreens.count({
+          where: { ...baseWhere, STATUS: 'Rejected' },
+        }),
+        this.prisma.labDrugScreens.count({
+          where: {
+            ...baseWhere,
+            STATUS: { in: ['Collected', 'ResultsEntered', 'Submitted'] },
+          },
+        }),
+      ]);
     return {
       items: rows.map((r) => this.mapDrugScreen(r)),
       meta: { page, limit, total },
@@ -167,8 +176,11 @@ export class LabSpecialtyService {
       select: PERSON_SELECT,
     });
     if (!person) throw new NotFoundException('Patient not found');
-    const codes = [...new Set(dto.drugCodes.map((c) => c.trim().toLowerCase()))];
-    if (!codes.length) throw new BadRequestException('Select at least one drug');
+    const codes = [
+      ...new Set(dto.drugCodes.map((c) => c.trim().toLowerCase())),
+    ];
+    if (!codes.length)
+      throw new BadRequestException('Select at least one drug');
     const drugs = codes.map((code) => {
       const hit = DRUG_CATALOG.find((d) => d.code === code);
       if (!hit) throw new BadRequestException(`Unknown drug code: ${code}`);
@@ -224,13 +236,14 @@ export class LabSpecialtyService {
   ) {
     const existing = await this.getDrugScreen(id);
     if (!['Draft', 'Collected'].includes(existing.status)) {
-      throw new BadRequestException(`Cannot collect while status is ${existing.status}`);
+      throw new BadRequestException(
+        `Cannot collect while status is ${existing.status}`,
+      );
     }
     const now = new Date();
     const label = actorLabel(actor);
     const sampleNo =
-      dto.sampleNo?.trim() ||
-      `UDS-SMP-${now.getFullYear()}-${pad(id)}`;
+      dto.sampleNo?.trim() || `UDS-SMP-${now.getFullYear()}-${pad(id)}`;
     await this.prisma.labDrugScreens.update({
       where: { SCREEN_ID: id },
       data: {
@@ -266,8 +279,14 @@ export class LabSpecialtyService {
     if (['Validated', 'Rejected'].includes(existing.status)) {
       throw new BadRequestException('Cannot edit validated/rejected screen');
     }
-    if (!['Collected', 'ResultsEntered', 'Submitted', 'Draft'].includes(existing.status)) {
-      throw new BadRequestException(`Cannot enter results while status is ${existing.status}`);
+    if (
+      !['Collected', 'ResultsEntered', 'Submitted', 'Draft'].includes(
+        existing.status,
+      )
+    ) {
+      throw new BadRequestException(
+        `Cannot enter results while status is ${existing.status}`,
+      );
     }
     const now = new Date();
     const label = actorLabel(actor);
@@ -285,7 +304,8 @@ export class LabSpecialtyService {
       await tx.labDrugScreens.update({
         where: { SCREEN_ID: id },
         data: {
-          STATUS: existing.status === 'Submitted' ? 'Submitted' : 'ResultsEntered',
+          STATUS:
+            existing.status === 'Submitted' ? 'Submitted' : 'ResultsEntered',
           UPDATED_BY_ID: actor?.id ?? null,
           UPDATED_BY: label,
           UPDATED_DATE: now,
@@ -307,12 +327,18 @@ export class LabSpecialtyService {
 
   async submitDrugScreen(id: number, actor?: AuthUser) {
     const existing = await this.getDrugScreen(id);
-    if (!['ResultsEntered', 'Collected', 'Submitted'].includes(existing.status)) {
-      throw new BadRequestException(`Cannot submit while status is ${existing.status}`);
+    if (
+      !['ResultsEntered', 'Collected', 'Submitted'].includes(existing.status)
+    ) {
+      throw new BadRequestException(
+        `Cannot submit while status is ${existing.status}`,
+      );
     }
     const pending = existing.results.filter((r) => r.result === 'Pending');
     if (pending.length) {
-      throw new BadRequestException('All selected drugs must have a result before submit');
+      throw new BadRequestException(
+        'All selected drugs must have a result before submit',
+      );
     }
     const now = new Date();
     const label = actorLabel(actor);
@@ -340,7 +366,10 @@ export class LabSpecialtyService {
 
   async validateDrugScreen(id: number, actor?: AuthUser) {
     const existing = await this.getDrugScreen(id);
-    if (existing.status !== 'Submitted' && existing.status !== 'ResultsEntered') {
+    if (
+      existing.status !== 'Submitted' &&
+      existing.status !== 'ResultsEntered'
+    ) {
       throw new BadRequestException('Only submitted screens can be validated');
     }
     const now = new Date();
@@ -369,7 +398,11 @@ export class LabSpecialtyService {
     return response;
   }
 
-  async rejectDrugScreen(id: number, dto: RejectDrugScreenDto, actor?: AuthUser) {
+  async rejectDrugScreen(
+    id: number,
+    dto: RejectDrugScreenDto,
+    actor?: AuthUser,
+  ) {
     const existing = await this.getDrugScreen(id);
     if (existing.status === 'Validated') {
       throw new BadRequestException('Cannot reject a validated screen');
@@ -567,21 +600,32 @@ export class LabSpecialtyService {
       await tx.labCultures.update({
         where: { CULTURE_ID: id },
         data: {
-          ORGANISM: dto.organism !== undefined ? dto.organism.trim() || null : undefined,
+          ORGANISM:
+            dto.organism !== undefined
+              ? dto.organism.trim() || null
+              : undefined,
           COLONY_COUNT:
-            dto.colonyCount !== undefined ? dto.colonyCount.trim() || null : undefined,
+            dto.colonyCount !== undefined
+              ? dto.colonyCount.trim() || null
+              : undefined,
           GRAM_STAIN:
-            dto.gramStain !== undefined ? dto.gramStain.trim() || null : undefined,
+            dto.gramStain !== undefined
+              ? dto.gramStain.trim() || null
+              : undefined,
           STATUS: dto.status,
           SCIENTIST:
-            dto.scientist !== undefined ? dto.scientist.trim() || null : undefined,
+            dto.scientist !== undefined
+              ? dto.scientist.trim() || null
+              : undefined,
           UPDATED_BY_ID: actor?.id ?? null,
           UPDATED_BY: label,
           UPDATED_DATE: now,
         },
       });
       if (dto.sensitivities) {
-        await tx.labCultureSensitivities.deleteMany({ where: { CULTURE_ID: id } });
+        await tx.labCultureSensitivities.deleteMany({
+          where: { CULTURE_ID: id },
+        });
         if (dto.sensitivities.length) {
           await tx.labCultureSensitivities.createMany({
             data: dto.sensitivities.map((s) => ({
@@ -734,8 +778,7 @@ export class LabSpecialtyService {
 
     const label = actorLabel(actor);
     const title =
-      dto.title?.trim() ||
-      `${dto.reportType} · ${dto.from} → ${dto.to}`;
+      dto.title?.trim() || `${dto.reportType} · ${dto.from} → ${dto.to}`;
     const json = JSON.stringify(payload);
     const sizeKb = Math.max(1, Math.round(json.length / 1024));
     const row = await this.prisma.labReportSnapshots.create({
@@ -744,7 +787,7 @@ export class LabSpecialtyService {
         FROM_DATE: from,
         TO_DATE: to,
         TITLE: title,
-        PAYLOAD: payload as Prisma.InputJsonValue,
+        PAYLOAD: payload,
         FILE_SIZE_LABEL: `${sizeKb} KB`,
         CREATED_BY_ID: actor?.id ?? null,
         CREATED_BY: label,

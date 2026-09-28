@@ -171,10 +171,7 @@ export class AdmissionsController {
    */
   @Post()
   @RequirePermissions(PERMISSIONS.ADMISSION_CREATE)
-  async admit(
-    @Body() dto: CreateAdmissionDto,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async admit(@Body() dto: CreateAdmissionDto, @CurrentUser() user: AuthUser) {
     const row = await this.admissionsService.admit(dto, user);
     return { data: row };
   }

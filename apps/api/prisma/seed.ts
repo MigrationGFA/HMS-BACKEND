@@ -215,6 +215,20 @@ const TEST_ACCOUNTS: SeedAccount[] = [
     lastName: 'Patient',
     userName: 'patient',
   },
+  {
+    email: 'stores@fnpharo.gov.ng',
+    role: ROLES.STORES,
+    firstName: 'General',
+    lastName: 'Stores',
+    userName: 'stores',
+  },
+  {
+    email: 'fleet@fnpharo.gov.ng',
+    role: ROLES.FLEET,
+    firstName: 'Fleet',
+    lastName: 'Transport',
+    userName: 'fleet',
+  },
 ];
 
 const { prisma, pool } = createPrismaClient(databaseConfigFromEnv());
@@ -323,6 +337,268 @@ async function main() {
   await seedCertificateTemplates();
   await seedBloodBankDemo();
   await seedServiceCatalog();
+  await seedPatientPortalLink();
+  await seedNonClinicalSmokeData();
+  await seedHrDemoEmployees();
+}
+
+/** Link patient@ test user to a demo PERSONS row for portal APIs. */
+async function seedPatientPortalLink() {
+  const patientUser = await prisma.users.findFirst({
+    where: {
+      EMAIL_ADDRESS: { equals: 'patient@fnpharo.gov.ng', mode: 'insensitive' },
+    },
+  });
+  if (!patientUser) return;
+
+  let person = patientUser.PERSON_ID
+    ? await prisma.persons.findUnique({
+        where: { PERSON_ID: patientUser.PERSON_ID },
+      })
+    : null;
+
+  if (!person) {
+    person = await prisma.persons.findFirst({
+      where: { HOSPITAL_NO: 'DEMO-PORTAL-001' },
+    });
+  }
+
+  if (!person) {
+    person = await prisma.persons.create({
+      data: {
+        HOSPITAL_NO: 'DEMO-PORTAL-001',
+        FIRST_NAME: 'Demo',
+        LAST_NAME: 'Patient',
+        SEX: 'Female',
+        PATIENT_PHONE_NO: '08000000099',
+        E_MAIL: 'patient@fnpharo.gov.ng',
+        DATE_OF_REGISTRATION: new Date(),
+        CARD_STATUS: 'Active',
+        STATUS: 'Active',
+        CREATED_BY: 'SYSTEM',
+        CREATED_DATE: new Date(),
+      },
+    });
+    console.log(`Created demo portal person ${person.HOSPITAL_NO}`);
+  }
+
+  if (patientUser.PERSON_ID !== person.PERSON_ID) {
+    await prisma.users.update({
+      where: { USER_ID: patientUser.USER_ID },
+      data: {
+        PERSON_ID: person.PERSON_ID,
+        UPDATED_BY: 'SYSTEM',
+        UPDATED_DATE: new Date(),
+      },
+    });
+    console.log(
+      `Linked patient@fnpharo.gov.ng → PERSON_ID ${person.PERSON_ID}`,
+    );
+  }
+}
+
+/** Sample store item + fleet vehicle for post-seed smoke tests. */
+async function seedNonClinicalSmokeData() {
+  const category = await prisma.storeItemCategories.findFirst({
+    where: { CODE: 'STATIONERY' },
+  });
+  const location = await prisma.storeLocations.findFirst({
+    where: { CODE: 'CENTRAL' },
+  });
+
+  if (category && location) {
+    const existingItem = await prisma.storeItems.findFirst({
+      where: { SKU: 'DEMO-GLOVES-100' },
+    });
+    if (!existingItem) {
+      const item = await prisma.storeItems.create({
+        data: {
+          SKU: 'DEMO-GLOVES-100',
+          NAME: 'Demo Nitrile Gloves (box)',
+          CATEGORY_ID: category.CATEGORY_ID,
+          UNIT: 'box',
+          REORDER_LEVEL: 5,
+          CREATED_BY: 'SYSTEM',
+        },
+      });
+      await prisma.storeBatches.create({
+        data: {
+          ITEM_ID: item.ITEM_ID,
+          LOCATION_ID: location.LOCATION_ID,
+          BATCH_NO: 'DEMO-BATCH-001',
+          QTY_RECEIVED: 20,
+          QTY_AVAILABLE: 20,
+          CREATED_BY: 'SYSTEM',
+        },
+      });
+      console.log('Seeded demo store item DEMO-GLOVES-100');
+    }
+  }
+
+  const existingVehicle = await prisma.fleetVehicles.findFirst({
+    where: { REG_NO: 'FNPH-DEMO-01' },
+  });
+  if (!existingVehicle) {
+    await prisma.fleetVehicles.create({
+      data: {
+        REG_NO: 'FNPH-DEMO-01',
+        TYPE: 'Ambulance',
+        MODEL: 'Demo Unit',
+        STATUS: 'Available',
+        CREATED_BY: 'SYSTEM',
+      },
+    });
+    console.log('Seeded demo fleet vehicle FNPH-DEMO-01');
+  }
+
+  const existingDriver = await prisma.fleetDrivers.findFirst({
+    where: { NAME: 'Demo Driver Musa' },
+  });
+  if (!existingDriver) {
+    await prisma.fleetDrivers.create({
+      data: {
+        NAME: 'Demo Driver Musa',
+        PHONE: '08030000001',
+        LICENSE_NO: 'DRV-DEMO-001',
+        STATUS: 'Active',
+        CREATED_BY: 'SYSTEM',
+      },
+    });
+    console.log('Seeded demo fleet driver');
+  }
+
+  const existingSupplier = await prisma.scmSuppliers.findFirst({
+    where: { NAME: 'Demo Hospital Supplies Ltd' },
+  });
+  if (!existingSupplier) {
+    await prisma.scmSuppliers.create({
+      data: {
+        NAME: 'Demo Hospital Supplies Ltd',
+        CONTACT_PERSON: 'Ada Okoro',
+        PHONE: '08030000002',
+        EMAIL: 'supplies.demo@example.com',
+        STATUS: 'Active',
+        CREATED_BY: 'SYSTEM',
+      },
+    });
+    console.log('Seeded demo SCM supplier');
+  }
+
+  const existingMenu = await prisma.kitchenMenus.findFirst({
+    where: { NAME: 'Demo Regular Lunch' },
+  });
+  if (!existingMenu) {
+    await prisma.kitchenMenus.create({
+      data: {
+        NAME: 'Demo Regular Lunch',
+        MEAL_SLOT: 'Lunch',
+        DESCRIPTION: 'Rice, stew, protein, vegetables',
+        DIET_TAGS: 'Regular',
+        STATUS: 'Active',
+        CREATED_BY: 'SYSTEM',
+      },
+    });
+    console.log('Seeded demo kitchen menu');
+  }
+}
+
+/** Sample HR employees + link hr@ USERS.EMPLOYEE_ID for leave self-service tests. */
+async function seedHrDemoEmployees() {
+  const hrUser = await prisma.users.findFirst({
+    where: {
+      EMAIL_ADDRESS: { equals: 'hr@fnpharo.gov.ng', mode: 'insensitive' },
+    },
+  });
+
+  const ensureEmployee = async (input: {
+    employeeNo: string;
+    firstName: string;
+    lastName: string;
+    departmentName: string;
+    designation: string;
+    employmentType: string;
+    email?: string;
+    baseSalary?: number;
+    userId?: number;
+  }) => {
+    const existing = await prisma.hrEmployees.findUnique({
+      where: { EMPLOYEE_NO: input.employeeNo },
+    });
+    if (existing) return existing;
+    return prisma.hrEmployees.create({
+      data: {
+        EMPLOYEE_NO: input.employeeNo,
+        FIRST_NAME: input.firstName,
+        LAST_NAME: input.lastName,
+        DEPARTMENT_NAME: input.departmentName,
+        DESIGNATION: input.designation,
+        EMPLOYMENT_TYPE: input.employmentType,
+        STATUS: 'Active',
+        EMAIL: input.email ?? null,
+        BASE_SALARY: input.baseSalary ?? 250000,
+        USER_ID: input.userId ?? null,
+        DATE_JOINED: new Date('2020-01-15'),
+        CREATED_BY: 'SYSTEM',
+      },
+    });
+  };
+
+  const hrEmployee = await ensureEmployee({
+    employeeNo: 'FNPH-HR-001',
+    firstName: hrUser?.FIRST_NAME ?? 'Human',
+    lastName: hrUser?.LAST_NAME ?? 'Resources',
+    departmentName: 'Human Resources',
+    designation: 'HR Officer',
+    employmentType: 'Permanent',
+    email: 'hr@fnpharo.gov.ng',
+    baseSalary: 320000,
+    userId: hrUser?.USER_ID,
+  });
+
+  await ensureEmployee({
+    employeeNo: 'FNPH-NUR-001',
+    firstName: 'Blessing',
+    lastName: 'Okonkwo',
+    departmentName: 'Nursing',
+    designation: 'Senior Nurse',
+    employmentType: 'Permanent',
+    email: 'nurse.demo@fnpharo.gov.ng',
+    baseSalary: 280000,
+  });
+
+  await ensureEmployee({
+    employeeNo: 'FNPH-DOC-001',
+    firstName: 'Adewale',
+    lastName: 'Ogunleye',
+    departmentName: 'Surgery',
+    designation: 'Consultant',
+    employmentType: 'Permanent',
+    email: 'doctor.demo@fnpharo.gov.ng',
+    baseSalary: 750000,
+  });
+
+  if (hrUser && hrUser.EMPLOYEE_ID !== hrEmployee.EMPLOYEE_ID) {
+    await prisma.users.update({
+      where: { USER_ID: hrUser.USER_ID },
+      data: {
+        EMPLOYEE_ID: hrEmployee.EMPLOYEE_ID,
+        UPDATED_BY: 'SYSTEM',
+        UPDATED_DATE: new Date(),
+      },
+    });
+    // Keep bidirectional link if model has USER_ID on employee
+    if (hrEmployee.USER_ID !== hrUser.USER_ID) {
+      await prisma.hrEmployees.update({
+        where: { EMPLOYEE_ID: hrEmployee.EMPLOYEE_ID },
+        data: { USER_ID: hrUser.USER_ID },
+      });
+    }
+    console.log(
+      `Linked hr@fnpharo.gov.ng → EMPLOYEE_ID ${hrEmployee.EMPLOYEE_ID}`,
+    );
+  } else {
+    console.log('HR demo employees present (FNPH-HR-001 / NUR-001 / DOC-001)');
+  }
 }
 
 /**

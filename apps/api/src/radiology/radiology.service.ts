@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { StorageService } from '../files/storage.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import type {
   CompleteImagingDto,
@@ -54,14 +55,70 @@ const DEFAULT_STUDIES: Array<{
   price: number;
   turnaround: string;
 }> = [
-  { code: 'XR-CHEST', name: 'Chest X-Ray PA', modality: 'X-Ray', region: 'Chest', price: 8500, turnaround: '2h' },
-  { code: 'US-ABD', name: 'Abdominal Ultrasound', modality: 'Ultrasound', region: 'Abdomen', price: 12000, turnaround: '4h' },
-  { code: 'CT-BRAIN', name: 'CT Brain', modality: 'CT Scan', region: 'Brain', price: 45000, turnaround: '6h' },
-  { code: 'MRI-BRAIN', name: 'MRI Brain', modality: 'MRI', region: 'Brain', price: 120000, turnaround: '24h' },
-  { code: 'ECG-12', name: 'ECG 12-Lead', modality: 'ECG', region: 'Heart', price: 5500, turnaround: '1h' },
-  { code: 'EEG-STD', name: 'Standard EEG', modality: 'EEG', region: 'Brain', price: 25000, turnaround: '24h' },
-  { code: 'ECHO', name: 'Echocardiography', modality: 'Echocardiography', region: 'Heart', price: 22000, turnaround: '6h' },
-  { code: 'MAMMO', name: 'Mammography', modality: 'Mammography', region: 'Breast', price: 18000, turnaround: '24h' },
+  {
+    code: 'XR-CHEST',
+    name: 'Chest X-Ray PA',
+    modality: 'X-Ray',
+    region: 'Chest',
+    price: 8500,
+    turnaround: '2h',
+  },
+  {
+    code: 'US-ABD',
+    name: 'Abdominal Ultrasound',
+    modality: 'Ultrasound',
+    region: 'Abdomen',
+    price: 12000,
+    turnaround: '4h',
+  },
+  {
+    code: 'CT-BRAIN',
+    name: 'CT Brain',
+    modality: 'CT Scan',
+    region: 'Brain',
+    price: 45000,
+    turnaround: '6h',
+  },
+  {
+    code: 'MRI-BRAIN',
+    name: 'MRI Brain',
+    modality: 'MRI',
+    region: 'Brain',
+    price: 120000,
+    turnaround: '24h',
+  },
+  {
+    code: 'ECG-12',
+    name: 'ECG 12-Lead',
+    modality: 'ECG',
+    region: 'Heart',
+    price: 5500,
+    turnaround: '1h',
+  },
+  {
+    code: 'EEG-STD',
+    name: 'Standard EEG',
+    modality: 'EEG',
+    region: 'Brain',
+    price: 25000,
+    turnaround: '24h',
+  },
+  {
+    code: 'ECHO',
+    name: 'Echocardiography',
+    modality: 'Echocardiography',
+    region: 'Heart',
+    price: 22000,
+    turnaround: '6h',
+  },
+  {
+    code: 'MAMMO',
+    name: 'Mammography',
+    modality: 'Mammography',
+    region: 'Breast',
+    price: 18000,
+    turnaround: '24h',
+  },
 ];
 
 type RequestWithRelations = Prisma.ImagingRequestsGetPayload<{
@@ -87,6 +144,7 @@ export class RadiologyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   private async ensureStudiesSeeded() {
@@ -114,9 +172,7 @@ export class RadiologyService {
       orderBy: { IMAGING_REQUEST_ID: 'desc' },
       select: { REQUEST_NO: true },
     });
-    const seq = latest
-      ? Number(latest.REQUEST_NO.slice(prefix.length)) + 1
-      : 1;
+    const seq = latest ? Number(latest.REQUEST_NO.slice(prefix.length)) + 1 : 1;
     return `${prefix}${String(seq).padStart(4, '0')}`;
   }
 
@@ -210,7 +266,10 @@ export class RadiologyService {
     return row;
   }
 
-  private assertPaymentCleared(row: { PAYMENT_STATUS: string; PRIORITY: string }, action: string) {
+  private assertPaymentCleared(
+    row: { PAYMENT_STATUS: string; PRIORITY: string },
+    action: string,
+  ) {
     if (PAYMENT_CLEARED.has(row.PAYMENT_STATUS)) return;
     if (row.PRIORITY === 'Emergency') return;
     throw new BadRequestException(`Payment required before ${action}`);
@@ -218,7 +277,11 @@ export class RadiologyService {
 
   // ΓöÇΓöÇ Studies ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
-  async listStudies(params?: { modality?: string; status?: string; q?: string }) {
+  async listStudies(params?: {
+    modality?: string;
+    status?: string;
+    q?: string;
+  }) {
     await this.ensureStudiesSeeded();
     const where: Prisma.ImagingStudiesWhereInput = {
       ...(params?.modality ? { MODALITY: params.modality } : {}),
@@ -235,21 +298,42 @@ export class RadiologyService {
     };
     const rows = await this.prisma.imagingStudies.findMany({
       where,
+      include: {
+        masterService: {
+          select: {
+            SERVICE_ID: true,
+            SERVICE_CODE: true,
+            GENERAL_PRICE: true,
+            STATUS: true,
+          },
+        },
+      },
       orderBy: [{ MODALITY: 'asc' }, { NAME: 'asc' }],
     });
     return {
-      items: rows.map((s) => ({
-        imagingStudyId: s.IMAGING_STUDY_ID,
-        studyCode: s.STUDY_CODE,
-        name: s.NAME,
-        modality: s.MODALITY,
-        bodyRegion: s.BODY_REGION,
-        turnaround: s.TURNAROUND,
-        unitPrice: num(s.UNIT_PRICE),
-        status: s.STATUS,
-        createdAt: s.CREATED_DATE?.toISOString() ?? null,
-        updatedAt: s.UPDATED_DATE?.toISOString() ?? null,
-      })),
+      items: rows.map((s) => {
+        const masterPrice =
+          s.SERVICE_ID != null &&
+          s.masterService?.STATUS === 'ACTIVE' &&
+          s.masterService.GENERAL_PRICE != null
+            ? num(s.masterService.GENERAL_PRICE)
+            : null;
+        return {
+          imagingStudyId: s.IMAGING_STUDY_ID,
+          studyCode: s.STUDY_CODE,
+          name: s.NAME,
+          modality: s.MODALITY,
+          bodyRegion: s.BODY_REGION,
+          turnaround: s.TURNAROUND,
+          unitPrice: masterPrice ?? num(s.UNIT_PRICE),
+          serviceId: s.SERVICE_ID,
+          masterServiceCode: s.masterService?.SERVICE_CODE ?? null,
+          priceSource: masterPrice != null ? 'master' : 'study',
+          status: s.STATUS,
+          createdAt: s.CREATED_DATE?.toISOString() ?? null,
+          updatedAt: s.UPDATED_DATE?.toISOString() ?? null,
+        };
+      }),
     };
   }
 
@@ -269,10 +353,16 @@ export class RadiologyService {
     const page = Math.max(1, params?.page ?? 1);
     const limit = Math.min(200, Math.max(1, params?.limit ?? 50));
     const statuses = params?.status
-      ? params.status.split(',').map((s) => s.trim()).filter(Boolean)
+      ? params.status
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
       : undefined;
     const payments = params?.paymentStatus
-      ? params.paymentStatus.split(',').map((s) => s.trim()).filter(Boolean)
+      ? params.paymentStatus
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
       : undefined;
 
     const where: Prisma.ImagingRequestsWhereInput = {
@@ -294,13 +384,20 @@ export class RadiologyService {
         ? {
             OR: [
               { REQUEST_NO: { contains: params.q, mode: 'insensitive' } },
-              { CLINICAL_INDICATION: { contains: params.q, mode: 'insensitive' } },
+              {
+                CLINICAL_INDICATION: {
+                  contains: params.q,
+                  mode: 'insensitive',
+                },
+              },
               {
                 person: {
                   OR: [
                     { FIRST_NAME: { contains: params.q, mode: 'insensitive' } },
                     { LAST_NAME: { contains: params.q, mode: 'insensitive' } },
-                    { HOSPITAL_NO: { contains: params.q, mode: 'insensitive' } },
+                    {
+                      HOSPITAL_NO: { contains: params.q, mode: 'insensitive' },
+                    },
                   ],
                 },
               },
@@ -330,7 +427,8 @@ export class RadiologyService {
     const person = await this.prisma.persons.findUnique({
       where: { PERSON_ID: dto.personId },
     });
-    if (!person) throw new NotFoundException(`Person ${dto.personId} not found`);
+    if (!person)
+      throw new NotFoundException(`Person ${dto.personId} not found`);
     await this.ensureStudiesSeeded();
 
     const studyIds = dto.items.map((i) => i.studyId);
@@ -341,7 +439,9 @@ export class RadiologyService {
       },
     });
     if (studies.length !== studyIds.length) {
-      throw new BadRequestException('One or more imaging studies are invalid or inactive');
+      throw new BadRequestException(
+        'One or more imaging studies are invalid or inactive',
+      );
     }
     const byId = new Map(studies.map((s) => [s.IMAGING_STUDY_ID, s]));
     let total = 0;
@@ -428,7 +528,10 @@ export class RadiologyService {
     if (dto.nursingOrderId != null) {
       const updated = await this.prisma.imagingRequests.update({
         where: { IMAGING_REQUEST_ID: created.imagingRequestId },
-        data: { NURSING_ORDER_ID: dto.nursingOrderId, UPDATED_DATE: new Date() },
+        data: {
+          NURSING_ORDER_ID: dto.nursingOrderId,
+          UPDATED_DATE: new Date(),
+        },
         include: this.requestInclude(),
       });
       return this.mapRequest(updated);
@@ -484,7 +587,9 @@ export class RadiologyService {
         nursingOrderId: input.nursingOrderId,
         source: 'Nursing',
         clinicalIndication: 'Nursing / doctor imaging order',
-        clinicalNotes: input.orderedBy ? `Ordered by ${input.orderedBy}` : undefined,
+        clinicalNotes: input.orderedBy
+          ? `Ordered by ${input.orderedBy}`
+          : undefined,
         items: studyIds.map((studyId) => ({ studyId })),
       },
       input.actor,
@@ -504,7 +609,11 @@ export class RadiologyService {
     return 'X-Ray';
   }
 
-  async updateRequest(id: number, dto: UpdateImagingRequestDto, actor?: AuthUser) {
+  async updateRequest(
+    id: number,
+    dto: UpdateImagingRequestDto,
+    actor?: AuthUser,
+  ) {
     const row = await this.getRequestOrThrow(id);
     const nextStatus = dto.status;
 
@@ -513,7 +622,9 @@ export class RadiologyService {
     }
     if (nextStatus === 'Rejected') {
       if (!dto.rejectionReason || dto.rejectionReason.trim().length < 4) {
-        throw new BadRequestException('Provide a rejection reason (min 4 characters)');
+        throw new BadRequestException(
+          'Provide a rejection reason (min 4 characters)',
+        );
       }
     }
     if (nextStatus === 'Scheduled') {
@@ -524,8 +635,12 @@ export class RadiologyService {
       where: { IMAGING_REQUEST_ID: id },
       data: {
         ...(nextStatus ? { STATUS: nextStatus } : {}),
-        ...(dto.rejectionReason != null ? { REJECTION_REASON: dto.rejectionReason } : {}),
-        ...(dto.scheduledRoom != null ? { SCHEDULED_ROOM: dto.scheduledRoom } : {}),
+        ...(dto.rejectionReason != null
+          ? { REJECTION_REASON: dto.rejectionReason }
+          : {}),
+        ...(dto.scheduledRoom != null
+          ? { SCHEDULED_ROOM: dto.scheduledRoom }
+          : {}),
         ...(dto.scheduledAt ? { SCHEDULED_AT: new Date(dto.scheduledAt) } : {}),
         ...(dto.equipmentId != null ? { EQUIPMENT_ID: dto.equipmentId } : {}),
         ...(dto.prepJson != null ? { PREP_JSON: dto.prepJson } : {}),
@@ -564,10 +679,16 @@ export class RadiologyService {
     });
   }
 
-  async confirmPayment(id: number, dto: ConfirmImagingPaymentDto, actor?: AuthUser) {
+  async confirmPayment(
+    id: number,
+    dto: ConfirmImagingPaymentDto,
+    actor?: AuthUser,
+  ) {
     const row = await this.getRequestOrThrow(id);
     if (PAYMENT_CLEARED.has(row.PAYMENT_STATUS)) {
-      throw new ConflictException(`Request ${row.REQUEST_NO} is already ${row.PAYMENT_STATUS}`);
+      throw new ConflictException(
+        `Request ${row.REQUEST_NO} is already ${row.PAYMENT_STATUS}`,
+      );
     }
     const updated = await this.prisma.imagingRequests.update({
       where: { IMAGING_REQUEST_ID: id },
@@ -589,7 +710,10 @@ export class RadiologyService {
       personId: row.PERSON_ID,
       userId: actor?.id,
       createdBy: actorLabelOf(actor),
-      newValue: { paymentChannel: dto.paymentChannel, paymentRef: dto.paymentRef },
+      newValue: {
+        paymentChannel: dto.paymentChannel,
+        paymentRef: dto.paymentRef,
+      },
     });
 
     return this.mapRequest(updated);
@@ -613,7 +737,10 @@ export class RadiologyService {
   async startExam(id: number, actor?: AuthUser) {
     const row = await this.getRequestOrThrow(id);
     this.assertPaymentCleared(row, 'start exam');
-    if (!['Accepted', 'Scheduled', 'Sent'].includes(row.STATUS) && row.PRIORITY !== 'Emergency') {
+    if (
+      !['Accepted', 'Scheduled', 'Sent'].includes(row.STATUS) &&
+      row.PRIORITY !== 'Emergency'
+    ) {
       // allow Emergency from Sent
     }
     const updated = await this.prisma.imagingRequests.update({
@@ -640,8 +767,7 @@ export class RadiologyService {
     const row = await this.getRequestOrThrow(id);
     this.assertPaymentCleared(row, 'complete imaging');
     const studyUid =
-      dto.studyUid ||
-      `1.2.840.${row.IMAGING_REQUEST_ID}.${Date.now()}`;
+      dto.studyUid || `1.2.840.${row.IMAGING_REQUEST_ID}.${Date.now()}`;
 
     if (dto.consumableId != null) {
       const qty = dto.consumableQty ?? 1;
@@ -649,7 +775,8 @@ export class RadiologyService {
         where: { CONSUMABLE_ID: dto.consumableId },
       });
       if (!c) throw new NotFoundException('Consumable not found');
-      if (c.STOCK < qty) throw new BadRequestException('Insufficient consumable stock');
+      if (c.STOCK < qty)
+        throw new BadRequestException('Insufficient consumable stock');
       await this.prisma.radConsumables.update({
         where: { CONSUMABLE_ID: dto.consumableId },
         data: { STOCK: c.STOCK - qty, UPDATED_DATE: new Date() },
@@ -657,14 +784,16 @@ export class RadiologyService {
     }
 
     if (row.EQUIPMENT_ID != null) {
-      await this.prisma.radEquipment.update({
-        where: { EQUIPMENT_ID: row.EQUIPMENT_ID },
-        data: {
-          USAGE_HOURS: { increment: 0.5 },
-          STATUS: 'Available',
-          UPDATED_DATE: new Date(),
-        },
-      }).catch(() => undefined);
+      await this.prisma.radEquipment
+        .update({
+          where: { EQUIPMENT_ID: row.EQUIPMENT_ID },
+          data: {
+            USAGE_HOURS: { increment: 0.5 },
+            STATUS: 'Available',
+            UPDATED_DATE: new Date(),
+          },
+        })
+        .catch(() => undefined);
     }
 
     const updated = await this.prisma.imagingRequests.update({
@@ -693,7 +822,10 @@ export class RadiologyService {
 
   async submitReport(dto: CreateRadiologyReportDto, actor?: AuthUser) {
     const req = await this.getRequestOrThrow(dto.imagingRequestId);
-    if (!['Completed', 'Reported', 'Verified'].includes(req.STATUS) && req.STATUS !== 'InProgress') {
+    if (
+      !['Completed', 'Reported', 'Verified'].includes(req.STATUS) &&
+      req.STATUS !== 'InProgress'
+    ) {
       // allow Completed primarily; also InProgress for rapid reporting
     }
     const report = await this.prisma.radiologyReports.create({
@@ -756,7 +888,11 @@ export class RadiologyService {
     };
   }
 
-  async listReports(params?: { imagingRequestId?: number; status?: string; critical?: boolean }) {
+  async listReports(params?: {
+    imagingRequestId?: number;
+    status?: string;
+    critical?: boolean;
+  }) {
     const rows = await this.prisma.radiologyReports.findMany({
       where: {
         ...(params?.imagingRequestId
@@ -776,7 +912,9 @@ export class RadiologyService {
     });
     if (!report) throw new NotFoundException('Report not found');
     if (report.STATUS !== 'SUBMITTED' && report.STATUS !== 'RETURNED') {
-      throw new BadRequestException('Only submitted/returned reports can be verified');
+      throw new BadRequestException(
+        'Only submitted/returned reports can be verified',
+      );
     }
     const updated = await this.prisma.radiologyReports.update({
       where: { REPORT_ID: reportId },
@@ -889,7 +1027,7 @@ export class RadiologyService {
     };
   }
 
-  /** Consumer surface for EMR / ICU / Doctor ΓÇö released (+ optional critical) results with patient context. */
+  /** Consumer surface for EMR / ICU / Doctor — released (+ optional critical) results with patient context. */
   async listConsumerResults(params?: {
     status?: string;
     personId?: number;
@@ -917,21 +1055,27 @@ export class RadiologyService {
               },
             },
             items: { include: { study: true }, take: 3 },
+            studyFiles: { orderBy: { CREATED_DATE: 'desc' } },
           },
         },
       },
       orderBy: { RELEASED_AT: 'desc' },
       take: params?.limit ?? 100,
     });
-    return {
-      items: rows.map((r) => {
+    const items = await Promise.all(
+      rows.map(async (r) => {
         const person = r.request?.person;
         const name = person
-          ? [person.FIRST_NAME, person.MIDDLE_NAME, person.LAST_NAME].filter(Boolean).join(' ')
-          : 'ΓÇö';
+          ? [person.FIRST_NAME, person.MIDDLE_NAME, person.LAST_NAME]
+              .filter(Boolean)
+              .join(' ')
+          : '—';
         const item = r.request?.items?.[0];
         const modality = item?.study?.MODALITY ?? item?.MODALITY ?? 'Imaging';
         const studyName = item?.study?.NAME ?? item?.STUDY_NAME ?? 'Study';
+        const files = await Promise.all(
+          (r.request?.studyFiles ?? []).map((f) => this.mapStudyFile(f)),
+        );
         return {
           ...this.mapReport(r),
           personId: r.request?.PERSON_ID ?? null,
@@ -941,9 +1085,171 @@ export class RadiologyService {
           studyName,
           studyUid: r.request?.STUDY_UID ?? null,
           requestNo: r.request?.REQUEST_NO ?? null,
+          files,
         };
       }),
+    );
+    return { items };
+  }
+
+  private async mapStudyFile(row: {
+    FILE_ID: number;
+    IMAGING_REQUEST_ID: number;
+    STUDY_UID: string | null;
+    KIND: string;
+    ORIGINAL_NAME: string;
+    CONTENT_TYPE: string;
+    SIZE_BYTES: number;
+    STORAGE_PROVIDER: string;
+    BLOB_PATH: string;
+    UPLOADED_BY: string | null;
+    CREATED_DATE: Date;
+  }) {
+    const url = await this.storage.resolveUrl(row.BLOB_PATH);
+    return {
+      fileId: row.FILE_ID,
+      imagingRequestId: row.IMAGING_REQUEST_ID,
+      studyUid: row.STUDY_UID,
+      kind: row.KIND,
+      originalName: row.ORIGINAL_NAME,
+      contentType: row.CONTENT_TYPE,
+      sizeBytes: row.SIZE_BYTES,
+      storageProvider: row.STORAGE_PROVIDER,
+      blobPath: row.BLOB_PATH,
+      url,
+      uploadedBy: row.UPLOADED_BY,
+      createdAt: row.CREATED_DATE.toISOString(),
     };
+  }
+
+  async listStudyFiles(imagingRequestId: number) {
+    const request = await this.prisma.imagingRequests.findUnique({
+      where: { IMAGING_REQUEST_ID: imagingRequestId },
+      select: { IMAGING_REQUEST_ID: true },
+    });
+    if (!request)
+      throw new NotFoundException(
+        `Imaging request ${imagingRequestId} not found`,
+      );
+    const rows = await this.prisma.imagingStudyFiles.findMany({
+      where: { IMAGING_REQUEST_ID: imagingRequestId },
+      orderBy: { CREATED_DATE: 'desc' },
+    });
+    return {
+      items: await Promise.all(rows.map((r) => this.mapStudyFile(r))),
+    };
+  }
+
+  async uploadStudyFile(
+    imagingRequestId: number,
+    file: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+    opts?: { kind?: string },
+    actor?: AuthUser,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('File is required');
+    }
+    const maxBytes = 40 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      throw new BadRequestException('File exceeds 40MB limit');
+    }
+
+    const request = await this.prisma.imagingRequests.findUnique({
+      where: { IMAGING_REQUEST_ID: imagingRequestId },
+    });
+    if (!request)
+      throw new NotFoundException(
+        `Imaging request ${imagingRequestId} not found`,
+      );
+
+    const mime = (file.mimetype || 'application/octet-stream').toLowerCase();
+    const allowed =
+      mime.startsWith('image/') ||
+      mime === 'application/pdf' ||
+      mime === 'application/dicom' ||
+      mime === 'application/octet-stream';
+    if (!allowed) {
+      throw new BadRequestException(
+        'Unsupported file type. Upload image, PDF, or DICOM files.',
+      );
+    }
+
+    let kind = (opts?.kind ?? '').trim().toLowerCase();
+    if (!kind) {
+      if (mime.startsWith('image/')) kind = 'preview';
+      else if (mime === 'application/pdf') kind = 'pdf';
+      else if (mime === 'application/dicom') kind = 'dicom';
+      else kind = 'other';
+    }
+
+    const stored = await this.storage.putObject({
+      prefix: `radiology/${imagingRequestId}`,
+      originalName: file.originalname || 'study-file',
+      contentType: mime,
+      buffer: file.buffer,
+    });
+
+    const row = await this.prisma.imagingStudyFiles.create({
+      data: {
+        IMAGING_REQUEST_ID: imagingRequestId,
+        STUDY_UID: request.STUDY_UID,
+        KIND: kind,
+        ORIGINAL_NAME: stored.originalName,
+        CONTENT_TYPE: stored.contentType,
+        SIZE_BYTES: stored.size,
+        STORAGE_PROVIDER: stored.provider,
+        BLOB_PATH: stored.blobPath,
+        UPLOADED_BY_ID: actor?.id ?? null,
+        UPLOADED_BY: actorLabelOf(actor),
+      },
+    });
+
+    await this.audit.log({
+      type: 'radiology-file:upload',
+      entity: 'imaging-study-file',
+      entityId: String(row.FILE_ID),
+      personId: request.PERSON_ID,
+      userId: actor?.id,
+      createdBy: actorLabelOf(actor),
+      newValue: {
+        imagingRequestId,
+        blobPath: stored.blobPath,
+        provider: stored.provider,
+        kind,
+      },
+    });
+
+    return this.mapStudyFile(row);
+  }
+
+  async deleteStudyFile(
+    imagingRequestId: number,
+    fileId: number,
+    actor?: AuthUser,
+  ) {
+    const row = await this.prisma.imagingStudyFiles.findFirst({
+      where: { FILE_ID: fileId, IMAGING_REQUEST_ID: imagingRequestId },
+    });
+    if (!row) throw new NotFoundException(`Study file ${fileId} not found`);
+
+    await this.storage.deleteObject(row.BLOB_PATH);
+    await this.prisma.imagingStudyFiles.delete({ where: { FILE_ID: fileId } });
+
+    await this.audit.log({
+      type: 'radiology-file:delete',
+      entity: 'imaging-study-file',
+      entityId: String(fileId),
+      userId: actor?.id,
+      createdBy: actorLabelOf(actor),
+      oldValue: { imagingRequestId, blobPath: row.BLOB_PATH },
+    });
+
+    return { deleted: true, fileId };
   }
 
   async metrics() {
@@ -966,17 +1272,27 @@ export class RadiologyService {
       modalityGroups,
     ] = await Promise.all([
       this.prisma.imagingRequests.count(),
-      this.prisma.imagingRequests.count({ where: { PAYMENT_STATUS: 'Unpaid' } }),
-      this.prisma.imagingRequests.count({ where: { PAYMENT_STATUS: { in: ['Paid', 'Waived'] } } }),
+      this.prisma.imagingRequests.count({
+        where: { PAYMENT_STATUS: 'Unpaid' },
+      }),
+      this.prisma.imagingRequests.count({
+        where: { PAYMENT_STATUS: { in: ['Paid', 'Waived'] } },
+      }),
       this.prisma.imagingRequests.count({ where: { STATUS: 'Accepted' } }),
       this.prisma.imagingRequests.count({ where: { STATUS: 'Scheduled' } }),
       this.prisma.imagingRequests.count({ where: { STATUS: 'InProgress' } }),
       this.prisma.imagingRequests.count({ where: { STATUS: 'Completed' } }),
       this.prisma.imagingRequests.count({ where: { STATUS: 'Released' } }),
-      this.prisma.radiologyReports.count({ where: { CRITICAL: true, STATUS: { not: 'RELEASED' } } }),
-      this.prisma.ecgStudies.count({ where: { CRITICAL: true, STATUS: 'RECORDED' } }),
+      this.prisma.radiologyReports.count({
+        where: { CRITICAL: true, STATUS: { not: 'RELEASED' } },
+      }),
+      this.prisma.ecgStudies.count({
+        where: { CRITICAL: true, STATUS: 'RECORDED' },
+      }),
       this.prisma.radiologyReports.count({ where: { STATUS: 'SUBMITTED' } }),
-      this.prisma.radEquipment.count({ where: { STATUS: { in: ['Offline', 'Maintenance'] } } }),
+      this.prisma.radEquipment.count({
+        where: { STATUS: { in: ['Offline', 'Maintenance'] } },
+      }),
       this.prisma.ecgStudies.count({ where: { STATUS: 'RECORDED' } }),
       this.prisma.ecgStudies.count({ where: { STATUS: 'VERIFIED' } }),
       this.prisma.radConsumables.findMany(),
@@ -986,7 +1302,9 @@ export class RadiologyService {
       }),
     ]);
 
-    const lowStock = consumables.filter((c) => c.STOCK <= c.REORDER_LEVEL).length;
+    const lowStock = consumables.filter(
+      (c) => c.STOCK <= c.REORDER_LEVEL,
+    ).length;
     const modalityUtilisation = modalityGroups
       .map((g) => ({ modality: g.MODALITY || 'Unknown', count: g._count._all }))
       .sort((a, b) => b.count - a.count);
@@ -1070,7 +1388,8 @@ export class RadiologyService {
     const person = await this.prisma.persons.findUnique({
       where: { PERSON_ID: dto.personId },
     });
-    if (!person) throw new NotFoundException(`Person ${dto.personId} not found`);
+    if (!person)
+      throw new NotFoundException(`Person ${dto.personId} not found`);
     const flags = this.evaluateEcg(dto);
     const row = await this.prisma.ecgStudies.create({
       data: {
@@ -1114,7 +1433,9 @@ export class RadiologyService {
   }
 
   async interpretEcg(ecgId: number, dto: InterpretEcgDto, actor?: AuthUser) {
-    const row = await this.prisma.ecgStudies.findUnique({ where: { ECG_ID: ecgId } });
+    const row = await this.prisma.ecgStudies.findUnique({
+      where: { ECG_ID: ecgId },
+    });
     if (!row) throw new NotFoundException('ECG study not found');
     const updated = await this.prisma.ecgStudies.update({
       where: { ECG_ID: ecgId },
@@ -1175,7 +1496,9 @@ export class RadiologyService {
   }
 
   async updateEquipment(id: number, dto: UpdateEquipmentDto, actor?: AuthUser) {
-    const row = await this.prisma.radEquipment.findUnique({ where: { EQUIPMENT_ID: id } });
+    const row = await this.prisma.radEquipment.findUnique({
+      where: { EQUIPMENT_ID: id },
+    });
     if (!row) throw new NotFoundException('Equipment not found');
     const status = dto.status === 'InUse' ? 'In Use' : dto.status;
     const updated = await this.prisma.radEquipment.update({
@@ -1205,7 +1528,8 @@ export class RadiologyService {
   }
 
   async createEquipment(dto: CreateEquipmentDto, actor?: AuthUser) {
-    const status = dto.status === 'InUse' ? 'In Use' : (dto.status ?? 'Available');
+    const status =
+      dto.status === 'InUse' ? 'In Use' : (dto.status ?? 'Available');
     const created = await this.prisma.radEquipment.create({
       data: {
         NAME: dto.name,
@@ -1262,8 +1586,14 @@ export class RadiologyService {
     };
   }
 
-  async adjustConsumable(id: number, dto: AdjustConsumableDto, actor?: AuthUser) {
-    const row = await this.prisma.radConsumables.findUnique({ where: { CONSUMABLE_ID: id } });
+  async adjustConsumable(
+    id: number,
+    dto: AdjustConsumableDto,
+    actor?: AuthUser,
+  ) {
+    const row = await this.prisma.radConsumables.findUnique({
+      where: { CONSUMABLE_ID: id },
+    });
     if (!row) throw new NotFoundException('Consumable not found');
     const stock = Math.max(0, row.STOCK + dto.delta);
     const updated = await this.prisma.radConsumables.update({
@@ -1297,7 +1627,13 @@ export class RadiologyService {
       },
       include: {
         person: {
-          select: { PERSON_ID: true, HOSPITAL_NO: true, FIRST_NAME: true, LAST_NAME: true, MIDDLE_NAME: true },
+          select: {
+            PERSON_ID: true,
+            HOSPITAL_NO: true,
+            FIRST_NAME: true,
+            LAST_NAME: true,
+            MIDDLE_NAME: true,
+          },
         },
       },
       orderBy: { CREATED_DATE: 'desc' },
@@ -1313,7 +1649,9 @@ export class RadiologyService {
         signedBy: f.SIGNED_BY,
         createdAt: f.CREATED_DATE.toISOString(),
         patientName: f.person
-          ? [f.person.FIRST_NAME, f.person.MIDDLE_NAME, f.person.LAST_NAME].filter(Boolean).join(' ')
+          ? [f.person.FIRST_NAME, f.person.MIDDLE_NAME, f.person.LAST_NAME]
+              .filter(Boolean)
+              .join(' ')
           : 'ΓÇö',
         hospitalNo: f.person?.HOSPITAL_NO ?? null,
       })),
@@ -1321,8 +1659,11 @@ export class RadiologyService {
   }
 
   async createForm(dto: CreateRadFormDto, actor?: AuthUser) {
-    const person = await this.prisma.persons.findUnique({ where: { PERSON_ID: dto.personId } });
-    if (!person) throw new NotFoundException(`Person ${dto.personId} not found`);
+    const person = await this.prisma.persons.findUnique({
+      where: { PERSON_ID: dto.personId },
+    });
+    if (!person)
+      throw new NotFoundException(`Person ${dto.personId} not found`);
     const row = await this.prisma.radFormInstances.create({
       data: {
         FORM_TYPE: dto.formType,
@@ -1357,12 +1698,42 @@ export class RadiologyService {
     if (n > 0) return;
     await this.prisma.radEquipment.createMany({
       data: [
-        { NAME: 'GE Revolution CT', MODALITY: 'CT Scan', LOCATION: 'CT-1', STATUS: 'Available' },
-        { NAME: 'Siemens Magnetom MRI', MODALITY: 'MRI', LOCATION: 'MRI-1', STATUS: 'Available' },
-        { NAME: 'Philips Digital X-Ray', MODALITY: 'X-Ray', LOCATION: 'XR-1', STATUS: 'Available' },
-        { NAME: 'Mindray Ultrasound', MODALITY: 'Ultrasound', LOCATION: 'US-1', STATUS: 'Available' },
-        { NAME: 'ECG Cart A', MODALITY: 'ECG', LOCATION: 'ECG-Bay', STATUS: 'Available' },
-        { NAME: 'Nihon Kohden EEG', MODALITY: 'EEG', LOCATION: 'EEG-1', STATUS: 'Available' },
+        {
+          NAME: 'GE Revolution CT',
+          MODALITY: 'CT Scan',
+          LOCATION: 'CT-1',
+          STATUS: 'Available',
+        },
+        {
+          NAME: 'Siemens Magnetom MRI',
+          MODALITY: 'MRI',
+          LOCATION: 'MRI-1',
+          STATUS: 'Available',
+        },
+        {
+          NAME: 'Philips Digital X-Ray',
+          MODALITY: 'X-Ray',
+          LOCATION: 'XR-1',
+          STATUS: 'Available',
+        },
+        {
+          NAME: 'Mindray Ultrasound',
+          MODALITY: 'Ultrasound',
+          LOCATION: 'US-1',
+          STATUS: 'Available',
+        },
+        {
+          NAME: 'ECG Cart A',
+          MODALITY: 'ECG',
+          LOCATION: 'ECG-Bay',
+          STATUS: 'Available',
+        },
+        {
+          NAME: 'Nihon Kohden EEG',
+          MODALITY: 'EEG',
+          LOCATION: 'EEG-1',
+          STATUS: 'Available',
+        },
       ],
     });
   }
@@ -1372,10 +1743,34 @@ export class RadiologyService {
     if (n > 0) return;
     await this.prisma.radConsumables.createMany({
       data: [
-        { NAME: 'IV Contrast (Iopamidol)', CATEGORY: 'Contrast', STOCK: 40, UNIT: 'vial', REORDER_LEVEL: 10 },
-        { NAME: 'X-Ray Film 14x17', CATEGORY: 'Film', STOCK: 200, UNIT: 'sheet', REORDER_LEVEL: 50 },
-        { NAME: 'ECG Electrodes', CATEGORY: 'ECG Electrode', STOCK: 500, UNIT: 'pack', REORDER_LEVEL: 100 },
-        { NAME: 'Ultrasound Gel', CATEGORY: 'Ultrasound Gel', STOCK: 30, UNIT: 'bottle', REORDER_LEVEL: 8 },
+        {
+          NAME: 'IV Contrast (Iopamidol)',
+          CATEGORY: 'Contrast',
+          STOCK: 40,
+          UNIT: 'vial',
+          REORDER_LEVEL: 10,
+        },
+        {
+          NAME: 'X-Ray Film 14x17',
+          CATEGORY: 'Film',
+          STOCK: 200,
+          UNIT: 'sheet',
+          REORDER_LEVEL: 50,
+        },
+        {
+          NAME: 'ECG Electrodes',
+          CATEGORY: 'ECG Electrode',
+          STOCK: 500,
+          UNIT: 'pack',
+          REORDER_LEVEL: 100,
+        },
+        {
+          NAME: 'Ultrasound Gel',
+          CATEGORY: 'Ultrasound Gel',
+          STOCK: 30,
+          UNIT: 'bottle',
+          REORDER_LEVEL: 8,
+        },
       ],
     });
   }

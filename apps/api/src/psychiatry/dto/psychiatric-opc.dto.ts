@@ -10,9 +10,19 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export const OPC_VISIT_TYPES = ['New', 'Follow-up', 'Emergency', 'Review'] as const;
+export const OPC_VISIT_TYPES = [
+  'New',
+  'Follow-up',
+  'Emergency',
+  'Review',
+] as const;
 export const OPC_PAYERS = ['Cash', 'NHIS', 'HMO', 'Staff', 'Free'] as const;
-export const OPC_PRIORITIES = ['Normal', 'Urgent', 'Emergency', 'Crisis'] as const;
+export const OPC_PRIORITIES = [
+  'Normal',
+  'Urgent',
+  'Emergency',
+  'Crisis',
+] as const;
 export const OPC_STATUSES = [
   'WAITING',
   'WITH_NURSE',

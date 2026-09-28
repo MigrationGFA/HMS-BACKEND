@@ -27,7 +27,9 @@ function actorLabel(actor?: AuthUser): string {
   return name || actor.email || 'SYSTEM';
 }
 
-function dec(n: number | string | Prisma.Decimal | null | undefined): number | null {
+function dec(
+  n: number | string | Prisma.Decimal | null | undefined,
+): number | null {
   if (n == null) return null;
   return Number(n);
 }
@@ -79,7 +81,8 @@ export class ServiceCatalogService {
     const s = row.bookingSettings;
     return {
       onlineBookable: s?.ONLINE_BOOKABLE ?? row.ONLINE_BOOKABLE,
-      deliveryMode: s?.DELIVERY_MODE ?? (row.ONLINE_BOOKABLE ? 'BOTH' : 'PHYSICAL'),
+      deliveryMode:
+        s?.DELIVERY_MODE ?? (row.ONLINE_BOOKABLE ? 'BOTH' : 'PHYSICAL'),
       durationMinutes: s?.DURATION_MINUTES ?? row.DURATION_MINUTES ?? 30,
       dayStart: s?.DAY_START ?? '08:00',
       dayEnd: s?.DAY_END ?? '17:00',
@@ -185,7 +188,9 @@ export class ServiceCatalogService {
         where: { CODE: code },
       });
       if (existing) {
-        throw new BadRequestException(`Department code already exists: ${code}`);
+        throw new BadRequestException(
+          `Department code already exists: ${code}`,
+        );
       }
     }
     const now = new Date();
@@ -208,7 +213,11 @@ export class ServiceCatalogService {
       userId: actor?.id,
       createdBy: label,
       item: `Department created: ${row.NAME}`,
-      newValue: { departmentId: row.DEPARTMENT_ID, name: row.NAME, code: row.CODE },
+      newValue: {
+        departmentId: row.DEPARTMENT_ID,
+        name: row.NAME,
+        code: row.CODE,
+      },
     });
     return {
       departmentId: row.DEPARTMENT_ID,
@@ -644,11 +653,7 @@ export class ServiceCatalogService {
     };
   }
 
-  async setPricing(
-    id: number,
-    dto: SetServicePricingDto,
-    actor?: AuthUser,
-  ) {
+  async setPricing(id: number, dto: SetServicePricingDto, actor?: AuthUser) {
     const existing = await this.prisma.masterServices.findUnique({
       where: { SERVICE_ID: id },
     });
@@ -667,7 +672,9 @@ export class ServiceCatalogService {
         where: { PAYER_ID: { in: payerIds }, STATUS: 'Active' },
       });
       if (payers.length !== payerIds.length) {
-        throw new BadRequestException('One or more payers are invalid or inactive');
+        throw new BadRequestException(
+          'One or more payers are invalid or inactive',
+        );
       }
     }
 
@@ -709,7 +716,9 @@ export class ServiceCatalogService {
         data: {
           GENERAL_PRICE: dto.generalPrice,
           STAFF_PRICE:
-            dto.staffPrice === undefined ? existing.STAFF_PRICE : dto.staffPrice,
+            dto.staffPrice === undefined
+              ? existing.STAFF_PRICE
+              : dto.staffPrice,
           STATUS: submit ? 'PENDING_APPROVAL' : 'PENDING_PRICING',
           UPDATED_BY_ID: actor?.id ?? null,
           UPDATED_BY: label,
@@ -765,10 +774,14 @@ export class ServiceCatalogService {
     });
     if (!existing) throw new NotFoundException('Service not found');
     if (existing.GENERAL_PRICE == null) {
-      throw new BadRequestException('Set general price before submitting for approval');
+      throw new BadRequestException(
+        'Set general price before submitting for approval',
+      );
     }
     if (
-      !['PENDING_PRICING', 'DRAFT', 'REJECTED', 'ACTIVE'].includes(existing.STATUS)
+      !['PENDING_PRICING', 'DRAFT', 'REJECTED', 'ACTIVE'].includes(
+        existing.STATUS,
+      )
     ) {
       throw new BadRequestException(
         `Cannot submit from status ${existing.STATUS}`,
@@ -989,11 +1002,7 @@ export class ServiceCatalogService {
     };
   }
 
-  async updatePayer(
-    id: number,
-    dto: UpdateServicePayerDto,
-    actor?: AuthUser,
-  ) {
+  async updatePayer(id: number, dto: UpdateServicePayerDto, actor?: AuthUser) {
     const existing = await this.prisma.servicePayers.findUnique({
       where: { PAYER_ID: id },
     });
@@ -1110,7 +1119,9 @@ export class ServiceCatalogService {
     }
 
     if (service.GENERAL_PRICE == null) {
-      throw new BadRequestException('Service is not priced (GENERAL_PRICE null)');
+      throw new BadRequestException(
+        'Service is not priced (GENERAL_PRICE null)',
+      );
     }
     return {
       serviceId,

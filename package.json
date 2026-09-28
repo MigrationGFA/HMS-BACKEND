@@ -28,9 +28,13 @@
     "db:test": "node scripts/test-db-connection.mjs",
     "db:migrate-csv": "node scripts/migrate-legacy-csv.mjs",
     "db:drop-extra": "node scripts/drop-extra-tables.mjs",
-    "db:drop-extra:confirm": "node scripts/drop-extra-tables.mjs --yes"
+    "db:drop-extra:confirm": "node scripts/drop-extra-tables.mjs --yes",
+    "typecheck": "tsc -p apps/api/tsconfig.app.json --noEmit",
+    "audit": "npm audit"
   },
   "dependencies": {
+    "@azure/core-rest-pipeline": "^1.25.0",
+    "@azure/storage-blob": "^12.33.0",
     "@golevelup/nestjs-rabbitmq": "^9.0.2",
     "@nest-lab/throttler-storage-redis": "^1.2.0",
     "@nestjs/bullmq": "^11.0.4",
@@ -67,6 +71,7 @@
     "pg": "^8.22.0",
     "prisma": "^7.8.0",
     "reflect-metadata": "^0.2.2",
+    "resend": "^6.28.1",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
     "typescript": "^5.7.3"
@@ -80,6 +85,7 @@
     "@types/express": "^5.0.0",
     "@types/express-session": "^1.19.0",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^24.0.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
@@ -115,6 +121,10 @@
     ],
     "coverageDirectory": "../../../coverage",
     "testEnvironment": "node"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0",
+    "mysql2": "^3.24.3"
   },
   "prisma": {
     "schema": "apps/api/prisma",

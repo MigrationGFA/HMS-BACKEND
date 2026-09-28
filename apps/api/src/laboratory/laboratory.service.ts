@@ -78,8 +78,9 @@ const REQUEST_INCLUDE = {
   },
 } as const;
 
-type RequestRow = Prisma.LabRequestsGetPayload<{ include: typeof REQUEST_INCLUDE }>;
-type TestRow = Prisma.LabTestsGetPayload<object>;
+type RequestRow = Prisma.LabRequestsGetPayload<{
+  include: typeof REQUEST_INCLUDE;
+}>;
 
 export type LabTestResponse = {
   labTestId: number;
@@ -90,12 +91,76 @@ export type LabTestResponse = {
   container: string | null;
   turnaround: string;
   unitPrice: number;
+  serviceId: number | null;
+  masterServiceCode: string | null;
+  priceSource: 'master' | 'test';
   loincCode: string | null;
   isPanel: boolean;
   status: string;
   createdAt: string | null;
   updatedAt: string | null;
 };
+
+type TestRow = Prisma.LabTestsGetPayload<{
+  include: {
+    masterService: {
+      select: {
+        SERVICE_ID: true;
+        SERVICE_CODE: true;
+        GENERAL_PRICE: true;
+        STATUS: true;
+      };
+    };
+  };
+}>;
+
+function toTestResponse(row: {
+  LAB_TEST_ID: number;
+  TEST_CODE: string;
+  NAME: string;
+  CATEGORY: string;
+  SPECIMEN_TYPE: string;
+  CONTAINER: string | null;
+  TURNAROUND: string;
+  UNIT_PRICE: Prisma.Decimal | number;
+  SERVICE_ID?: number | null;
+  LOINC_CODE: string | null;
+  IS_PANEL: boolean;
+  STATUS: string;
+  CREATED_DATE: Date | null;
+  UPDATED_DATE: Date | null;
+  masterService?: {
+    SERVICE_ID: number;
+    SERVICE_CODE: string;
+    GENERAL_PRICE: Prisma.Decimal | number | null;
+    STATUS: string;
+  } | null;
+}): LabTestResponse {
+  const masterPrice =
+    row.SERVICE_ID != null &&
+    row.masterService?.STATUS === 'ACTIVE' &&
+    row.masterService.GENERAL_PRICE != null
+      ? Number(row.masterService.GENERAL_PRICE)
+      : null;
+  return {
+    labTestId: row.LAB_TEST_ID,
+    testCode: row.TEST_CODE,
+    name: row.NAME,
+    category: row.CATEGORY,
+    specimenType: row.SPECIMEN_TYPE,
+    container: row.CONTAINER,
+    turnaround: row.TURNAROUND,
+    unitPrice: masterPrice ?? Number(row.UNIT_PRICE),
+    serviceId: row.SERVICE_ID ?? null,
+    masterServiceCode: row.masterService?.SERVICE_CODE ?? null,
+    priceSource: masterPrice != null ? 'master' : 'test',
+    loincCode: row.LOINC_CODE,
+    isPanel: row.IS_PANEL,
+    status: row.STATUS,
+    createdAt: row.CREATED_DATE?.toISOString() ?? null,
+    updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
+  };
+}
 
 export type LabRequestItemResponse = {
   itemId: number;
@@ -176,24 +241,6 @@ function redactUnpaidForLab(res: LabRequestResponse): LabRequestResponse {
           dateOfBirth: null,
         }
       : null,
-  };
-}
-
-function toTestResponse(row: TestRow): LabTestResponse {
-  return {
-    labTestId: row.LAB_TEST_ID,
-    testCode: row.TEST_CODE,
-    name: row.NAME,
-    category: row.CATEGORY,
-    specimenType: row.SPECIMEN_TYPE,
-    container: row.CONTAINER,
-    turnaround: row.TURNAROUND,
-    unitPrice: Number(row.UNIT_PRICE),
-    loincCode: row.LOINC_CODE,
-    isPanel: row.IS_PANEL,
-    status: row.STATUS,
-    createdAt: row.CREATED_DATE?.toISOString() ?? null,
-    updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
   };
 }
 
@@ -573,6 +620,16 @@ export class LaboratoryService {
       this.prisma.labTests.count({ where }),
       this.prisma.labTests.findMany({
         where,
+        include: {
+          masterService: {
+            select: {
+              SERVICE_ID: true,
+              SERVICE_CODE: true,
+              GENERAL_PRICE: true,
+              STATUS: true,
+            },
+          },
+        },
         orderBy: [{ CATEGORY: 'asc' }, { NAME: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
@@ -587,6 +644,16 @@ export class LaboratoryService {
   async findTestById(id: number): Promise<LabTestResponse> {
     const row = await this.prisma.labTests.findUnique({
       where: { LAB_TEST_ID: id },
+      include: {
+        masterService: {
+          select: {
+            SERVICE_ID: true,
+            SERVICE_CODE: true,
+            GENERAL_PRICE: true,
+            STATUS: true,
+          },
+        },
+      },
     });
     if (!row) throw new NotFoundException('Lab test not found');
     return toTestResponse(row);
@@ -614,7 +681,9 @@ export class LaboratoryService {
         ...(dto.container !== undefined
           ? { CONTAINER: dto.container?.trim() ?? null }
           : {}),
-        ...(dto.turnaround != null ? { TURNAROUND: dto.turnaround.trim() } : {}),
+        ...(dto.turnaround != null
+          ? { TURNAROUND: dto.turnaround.trim() }
+          : {}),
         ...(dto.unitPrice != null ? { UNIT_PRICE: dto.unitPrice } : {}),
         ...(dto.loincCode !== undefined
           ? { LOINC_CODE: dto.loincCode?.trim() ?? null }
@@ -793,8 +862,7 @@ export class LaboratoryService {
           .split(',')
           .map((s) => s.trim())
           .filter(Boolean);
-        where.PAYMENT_STATUS =
-          parts.length > 1 ? { in: parts } : parts[0];
+        where.PAYMENT_STATUS = parts.length > 1 ? { in: parts } : parts[0];
       }
     }
 
@@ -1217,7 +1285,12 @@ export class LaboratoryService {
       where: { LAB_REQUEST_ID: existing.LAB_REQUEST_ID },
       select: { LAB_STATUS: true, REQUEST_NO: true, PERSON_ID: true },
     });
-    if (request && ['AwaitingValidation', 'Validated', 'PendingRevalidation'].includes(request.LAB_STATUS)) {
+    if (
+      request &&
+      ['AwaitingValidation', 'Validated', 'PendingRevalidation'].includes(
+        request.LAB_STATUS,
+      )
+    ) {
       throw new BadRequestException(
         'Cannot reject a sample after results have been submitted',
       );
@@ -1814,7 +1887,8 @@ export class LaboratoryService {
       const created: Prisma.DateTimeNullableFilter = {};
       if (params.from) created.gte = new Date(params.from);
       if (params.to) created.lte = new Date(params.to);
-      (itemWhere.request as Prisma.LabRequestsWhereInput).CREATED_DATE = created;
+      (itemWhere.request as Prisma.LabRequestsWhereInput).CREATED_DATE =
+        created;
     }
     if (params.q?.trim()) {
       const q = params.q.trim();
@@ -1858,7 +1932,10 @@ export class LaboratoryService {
 
     const summarize = (values: unknown): string | null => {
       if (!values || typeof values !== 'object') return null;
-      const entries = Object.entries(values as Record<string, unknown>).slice(0, 4);
+      const entries = Object.entries(values as Record<string, unknown>).slice(
+        0,
+        4,
+      );
       if (!entries.length) return null;
       return entries
         .map(([k, v]) => `${k}: ${v == null ? '—' : String(v)}`)
@@ -1889,7 +1966,8 @@ export class LaboratoryService {
         labStatus: row.request.LAB_STATUS,
         resultId: row.result?.LAB_RESULT_ID ?? null,
         resultStatus: row.result?.STATUS ?? null,
-        resultSummary: summarize(row.result?.VALUES) ?? row.result?.COMMENT ?? null,
+        resultSummary:
+          summarize(row.result?.VALUES) ?? row.result?.COMMENT ?? null,
         validatedAt: row.result?.VALIDATED_AT?.toISOString() ?? null,
       })),
       meta: { page, limit, total },

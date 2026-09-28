@@ -30,6 +30,10 @@ export const ROLES = {
   STAFF: 'STAFF',
   STUDENT: 'STUDENT',
   PATIENT: 'PATIENT',
+  /** General Stores / non-pharmacy inventory + hospital SCM (Phases H–I). */
+  STORES: 'STORES',
+  /** Transport / ambulance fleet (Phase K). */
+  FLEET: 'FLEET',
 } as const;
 
 export type RoleName = (typeof ROLES)[keyof typeof ROLES];

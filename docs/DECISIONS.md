@@ -277,6 +277,57 @@ Frontend dual-paths via `nursing-ops.ts` when `VITE_USE_API=true`.
 
 ---
 
+## ADR: Patient portal auth (Phase F MVP)
+
+**Status:** Accepted  
+**Date:** 2026-09-16
+
+**Context:** Patient Dashboard needs authenticated self-service (appointments, invoices, labs, prescriptions) without a second identity system on day one.
+
+**Decision:** Reuse staff `USERS` + JWT auth with `ROLES.PATIENT` and mandatory `USERS.PERSON_ID` → `PERSONS`. All portal queries scope to `token.personId`; no client-supplied person id. Optional `PORTAL_PATIENT_PREFS` for notification settings only; clinical/billing reads come from existing tables.
+
+**Alternatives considered:** Separate portal JWT after OTP/hospital-number verification (deferred); anonymous portal access (rejected).
+
+**Consequences:** Records must link patient login accounts to `PERSONS` before portal works; staff must not share PATIENT role accounts.
+
+---
+
+## ADR: Doctor/Pharmacy CSV Phases 0–3 keys & opening stock
+
+**Status:** Accepted  
+**Date:** 2026-09-21
+
+**Context:** Legacy `DOCTORS/` + `PHAMACY/` CSVs need idempotent import without duplicating already-loaded diagnoses/notes or inventing pharmacy stock.
+
+**Decision:**
+- Add `DIAGNOSIS_CODES.LEGACY_THESAURUS_ID`, `LEGACY_DISEASE_ID`, `ICPC_CODE` and `DRUGS.LEGACY_ITEM_ID` (unique when set).
+- Upsert diagnosis catalogs by `CODE` (thesaurus collapses many TERMS rows per ICD).
+- Pharmacy opening stock policy = **`skip`** (`ITEMS.BALANCE` / `OPENING_STOCK_BAL` ignored; no synthetic `DRUG_BATCHES`).
+- Pharmacy import filters `ITEM_TYPE=Pharmacy` or `IS_MEDICATION` truthy; clamp `REORDER_LEVEL` to Int32.
+- Patient diagnosis enrich is **update-only** (pass1 FK→ICD, pass2 name/alias/prefix); never insert new `PATIENT_DIAGNOSIS_ID`.
+- CLI: `--from=`, `--path=`, `--dry-run` on `migrate-legacy-csv.mjs`.
+
+**Alternatives considered:** Quarantine opening batches (rejected until pharmacy confirms expiry policy); one catalog row per thesaurus id (rejected — explodes duplicates).
+
+**Consequences:** ~7.7k free-text diagnoses remain on `LEG-*` codes with clinical names but no ICD; pharmacy has catalog without inherited stock quantities.
+
+---
+
+## ADR: Clinical note templates table (Phase 6)
+
+**Status:** Accepted  
+**Date:** 2026-09-21
+
+**Context:** Legacy `GENERIC_TEMPLATES.csv` stores HTML clinical note templates, not discharge certificates.
+
+**Decision:** New `CLINICAL_NOTE_TEMPLATES` table (not `CERTIFICATE_TEMPLATES`). Import via `--only=clinical_note_templates`. Expose read-only `GET /api/clinical-notes/legacy-templates` and list under Doctor Clinical Documentation → Templates.
+
+**Alternatives considered:** Overload certificate templates (rejected — wrong product surface); skip storing templates (rejected — Phase 6 required full migrate).
+
+**Consequences:** Structured SOAP templates remain code-defined; legacy HTML is reference-only (strip tags in UI preview).
+
+---
+
 ## Template for New Decisions
 
 ```markdown
@@ -295,3 +346,22 @@ Frontend dual-paths via `nursing-ops.ts` when `VITE_USE_API=true`.
 
 **Consequences:** What are the trade-offs?
 ```
+
+---
+
+## ADR-HR-D1: Who runs payroll?
+
+**Status:** Accepted  
+**Date:** 2026-09-16  
+**Plan ref:** NON_CLINICAL §55 D1 / Phase E
+
+**Context:** Payroll APIs need a clear owner for `hr:payroll:run` vs read-only Finance access.
+
+**Decision:**
+- `ROLES.HR` receives full payroll permissions (`hr:payroll:read|run|update`).
+- `ROLES.FINANCE` receives `hr:payroll:read` (+ `hr:dashboard:read`, `hr:employee:read`) only — no run/lock.
+- Payroll stays on `HR_PAYROLL_*` tables; never cashier/billing tables.
+
+**Rationale:** Matches hospital HR ownership of staff compensation while letting Finance inspect totals.
+
+**Consequences:** Finance UI can view payroll; only HR (and FULL_ACCESS admins) can generate/lock runs.

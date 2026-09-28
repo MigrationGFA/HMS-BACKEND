@@ -48,16 +48,19 @@ function actorLabelOf(actor?: AuthUser): string {
 }
 
 function mapPerson(
-  p: {
-    PERSON_ID: number;
-    HOSPITAL_NO: string | null;
-    FIRST_NAME: string | null;
-    LAST_NAME: string | null;
-    MIDDLE_NAME: string | null;
-    SEX: string | null;
-    DATE_OF_BIRTH: Date | null;
-    PATIENT_PHONE_NO: string | null;
-  } | null | undefined,
+  p:
+    | {
+        PERSON_ID: number;
+        HOSPITAL_NO: string | null;
+        FIRST_NAME: string | null;
+        LAST_NAME: string | null;
+        MIDDLE_NAME: string | null;
+        SEX: string | null;
+        DATE_OF_BIRTH: Date | null;
+        PATIENT_PHONE_NO: string | null;
+      }
+    | null
+    | undefined,
 ) {
   if (!p) return null;
   const age = p.DATE_OF_BIRTH
@@ -287,16 +290,20 @@ export class ReferralsService {
     if (!person) throw new NotFoundException('Patient not found');
 
     if (dto.referralKind === 'Internal' && !dto.toDepartment?.trim()) {
-      throw new BadRequestException('Destination department is required for internal referrals');
+      throw new BadRequestException(
+        'Destination department is required for internal referrals',
+      );
     }
     if (dto.referralKind === 'External' && !dto.externalFacility?.trim()) {
-      throw new BadRequestException('External facility is required for external referrals');
+      throw new BadRequestException(
+        'External facility is required for external referrals',
+      );
     }
 
     const careSetting =
       dto.referralKind === 'External'
         ? 'Outpatient'
-        : dto.careSetting ?? 'Outpatient';
+        : (dto.careSetting ?? 'Outpatient');
     const actorLabel = actorLabelOf(actor);
     const now = new Date();
     const referralNo = await this.nextNo();
@@ -382,7 +389,10 @@ export class ReferralsService {
     const where: Prisma.ClinicalReferralsWhereInput = {};
 
     if (params.status) {
-      const statuses = params.status.split(',').map((s) => s.trim()).filter(Boolean);
+      const statuses = params.status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       where.STATUS = statuses.length === 1 ? statuses[0] : { in: statuses };
     }
     if (params.kind) where.REFERRAL_KIND = params.kind;
@@ -406,7 +416,11 @@ export class ReferralsService {
     if (params.q?.trim()) {
       const q = params.q.trim();
       where.AND = [
-        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        ...(Array.isArray(where.AND)
+          ? where.AND
+          : where.AND
+            ? [where.AND]
+            : []),
         {
           OR: [
             { REFERRAL_NO: { contains: q, mode: 'insensitive' } },
@@ -517,10 +531,13 @@ export class ReferralsService {
   async route(id: number, dto: RouteReferralDto, actor?: AuthUser) {
     const existing = await this.load(id);
     if (existing.REFERRAL_KIND !== 'Internal') {
-      throw new BadRequestException('Only internal referrals can be routed to a department');
+      throw new BadRequestException(
+        'Only internal referrals can be routed to a department',
+      );
     }
     const toDept = dto.toDepartment?.trim() || existing.TO_DEPARTMENT;
-    if (!toDept) throw new BadRequestException('Destination department is required');
+    if (!toDept)
+      throw new BadRequestException('Destination department is required');
 
     const result = await this.transition(
       id,
@@ -565,7 +582,9 @@ export class ReferralsService {
     if (existing.REFERRAL_KIND !== 'Internal') {
       throw new BadRequestException('External referrals do not allocate beds');
     }
-    if (!['Submitted', 'UnderReview', 'AwaitingBed'].includes(existing.STATUS)) {
+    if (
+      !['Submitted', 'UnderReview', 'AwaitingBed'].includes(existing.STATUS)
+    ) {
       throw new ConflictException(
         `Cannot allocate bed in status ${existing.STATUS}`,
       );
@@ -579,8 +598,13 @@ export class ReferralsService {
     if (bed.WARD_ID !== dto.wardId) {
       throw new BadRequestException('Bed does not belong to the selected ward');
     }
-    if (bed.STATUS !== 'AVAILABLE' && bed.BED_ID !== existing.ALLOCATED_BED_ID) {
-      throw new ConflictException(`Bed is not available (status: ${bed.STATUS})`);
+    if (
+      bed.STATUS !== 'AVAILABLE' &&
+      bed.BED_ID !== existing.ALLOCATED_BED_ID
+    ) {
+      throw new ConflictException(
+        `Bed is not available (status: ${bed.STATUS})`,
+      );
     }
 
     const actorLabel = actorLabelOf(actor);
@@ -591,7 +615,11 @@ export class ReferralsService {
       if (prevBedId && prevBedId !== dto.bedId) {
         await tx.beds.update({
           where: { BED_ID: prevBedId },
-          data: { STATUS: 'AVAILABLE', UPDATED_BY: actorLabel, UPDATED_DATE: now },
+          data: {
+            STATUS: 'AVAILABLE',
+            UPDATED_BY: actorLabel,
+            UPDATED_DATE: now,
+          },
         });
       }
       await tx.beds.update({
@@ -638,7 +666,9 @@ export class ReferralsService {
   async requestBed(id: number, dto: NoteDto, actor?: AuthUser) {
     const existing = await this.load(id);
     if (existing.REFERRAL_KIND !== 'Internal') {
-      throw new BadRequestException('Only internal referrals can request a bed');
+      throw new BadRequestException(
+        'Only internal referrals can request a bed',
+      );
     }
     return this.transition(
       id,
@@ -795,7 +825,9 @@ export class ReferralsService {
   async clearExternal(id: number, dto: NoteDto, actor?: AuthUser) {
     const existing = await this.load(id);
     if (existing.REFERRAL_KIND !== 'External') {
-      throw new BadRequestException('Only external referrals use clear-external');
+      throw new BadRequestException(
+        'Only external referrals use clear-external',
+      );
     }
     return this.transition(
       id,
@@ -838,7 +870,9 @@ export class ReferralsService {
   async reject(id: number, dto: ReasonDto, actor?: AuthUser) {
     const existing = await this.load(id);
     if (TERMINAL.has(existing.STATUS) || existing.STATUS === 'InAttendance') {
-      throw new ConflictException(`Cannot reject referral in status ${existing.STATUS}`);
+      throw new ConflictException(
+        `Cannot reject referral in status ${existing.STATUS}`,
+      );
     }
     const actorLabel = actorLabelOf(actor);
     const now = new Date();
@@ -846,7 +880,11 @@ export class ReferralsService {
       if (existing.ALLOCATED_BED_ID) {
         await tx.beds.update({
           where: { BED_ID: existing.ALLOCATED_BED_ID },
-          data: { STATUS: 'AVAILABLE', UPDATED_BY: actorLabel, UPDATED_DATE: now },
+          data: {
+            STATUS: 'AVAILABLE',
+            UPDATED_BY: actorLabel,
+            UPDATED_DATE: now,
+          },
         });
       }
       await tx.clinicalReferrals.update({
@@ -897,7 +935,9 @@ export class ReferralsService {
       TERMINAL.has(existing.STATUS) ||
       ['InAttendance', 'Accepted', 'BedAllocated'].includes(existing.STATUS)
     ) {
-      throw new ConflictException(`Cannot cancel referral in status ${existing.STATUS}`);
+      throw new ConflictException(
+        `Cannot cancel referral in status ${existing.STATUS}`,
+      );
     }
     const actorLabel = actorLabelOf(actor);
     const now = new Date();
@@ -905,7 +945,11 @@ export class ReferralsService {
       if (existing.ALLOCATED_BED_ID) {
         await tx.beds.update({
           where: { BED_ID: existing.ALLOCATED_BED_ID },
-          data: { STATUS: 'AVAILABLE', UPDATED_BY: actorLabel, UPDATED_DATE: now },
+          data: {
+            STATUS: 'AVAILABLE',
+            UPDATED_BY: actorLabel,
+            UPDATED_DATE: now,
+          },
         });
       }
       await tx.clinicalReferrals.update({

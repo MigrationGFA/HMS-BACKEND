@@ -37,7 +37,9 @@ type BillWithRels = Prisma.AdmissionBillsGetPayload<{
   include: {
     person: { select: typeof PERSON_SELECT };
     lines: true;
-    admission: { select: { ADMISSION_ID: true; WARD_ID: true; BED_ID: true; STATUS: true } };
+    admission: {
+      select: { ADMISSION_ID: true; WARD_ID: true; BED_ID: true; STATUS: true };
+    };
   };
 }>;
 

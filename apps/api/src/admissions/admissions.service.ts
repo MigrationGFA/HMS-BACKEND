@@ -54,16 +54,19 @@ function normalizePersonSex(raw?: string | null): 'Male' | 'Female' | null {
 }
 
 function mapPerson(
-  p: {
-    PERSON_ID: number;
-    HOSPITAL_NO: string | null;
-    FIRST_NAME: string | null;
-    LAST_NAME: string | null;
-    MIDDLE_NAME: string | null;
-    SEX: string | null;
-    DATE_OF_BIRTH: Date | null;
-    PATIENT_PHONE_NO: string | null;
-  } | null | undefined,
+  p:
+    | {
+        PERSON_ID: number;
+        HOSPITAL_NO: string | null;
+        FIRST_NAME: string | null;
+        LAST_NAME: string | null;
+        MIDDLE_NAME: string | null;
+        SEX: string | null;
+        DATE_OF_BIRTH: Date | null;
+        PATIENT_PHONE_NO: string | null;
+      }
+    | null
+    | undefined,
 ) {
   if (!p) return null;
   const age = p.DATE_OF_BIRTH
@@ -143,8 +146,12 @@ export class AdmissionsService {
     return {
       items: wards.map((w) => {
         const totalBeds = w.beds.length;
-        const availableBeds = w.beds.filter((b) => b.STATUS === 'AVAILABLE').length;
-        const occupiedBeds = w.beds.filter((b) => b.STATUS === 'OCCUPIED').length;
+        const availableBeds = w.beds.filter(
+          (b) => b.STATUS === 'AVAILABLE',
+        ).length;
+        const occupiedBeds = w.beds.filter(
+          (b) => b.STATUS === 'OCCUPIED',
+        ).length;
         return {
           wardId: w.WARD_ID,
           code: w.CODE,
@@ -179,7 +186,9 @@ export class AdmissionsService {
     bedsCreated: number;
   }> {
     const code = dto.code.trim();
-    const existing = await this.prisma.wards.findUnique({ where: { CODE: code } });
+    const existing = await this.prisma.wards.findUnique({
+      where: { CODE: code },
+    });
     if (existing) {
       throw new ConflictException(`Ward with code ${code} already exists`);
     }
@@ -235,10 +244,7 @@ export class AdmissionsService {
     };
   }
 
-  async listBeds(params?: {
-    wardId?: number;
-    status?: string;
-  }): Promise<{
+  async listBeds(params?: { wardId?: number; status?: string }): Promise<{
     items: Array<{
       bedId: number;
       wardId: number;
@@ -325,8 +331,7 @@ export class AdmissionsService {
               .map((s) => s.trim())
               .filter(Boolean);
             return {
-              STATUS:
-                statuses.length === 1 ? statuses[0] : { in: statuses },
+              STATUS: statuses.length === 1 ? statuses[0] : { in: statuses },
             };
           })()
         : {}),
@@ -377,7 +382,9 @@ export class AdmissionsService {
     };
   }
 
-  async findById(id: number): Promise<ReturnType<AdmissionsService['toResponse']>> {
+  async findById(
+    id: number,
+  ): Promise<ReturnType<AdmissionsService['toResponse']>> {
     const row = await this.prisma.admissions.findUnique({
       where: { ADMISSION_ID: id },
       include: {
@@ -420,7 +427,9 @@ export class AdmissionsService {
       throw new BadRequestException('Bed does not belong to the selected ward');
     }
     if (bed.STATUS !== 'AVAILABLE') {
-      throw new ConflictException(`Bed is not available (status: ${bed.STATUS})`);
+      throw new ConflictException(
+        `Bed is not available (status: ${bed.STATUS})`,
+      );
     }
 
     const active = await this.prisma.admissions.findFirst({
@@ -564,7 +573,11 @@ export class AdmissionsService {
       where: { ADMISSION_ID: id },
     });
     if (!existing) throw new NotFoundException('Admission not found');
-    if (!ACTIVE_STATUSES.includes(existing.STATUS as (typeof ACTIVE_STATUSES)[number])) {
+    if (
+      !ACTIVE_STATUSES.includes(
+        existing.STATUS as (typeof ACTIVE_STATUSES)[number],
+      )
+    ) {
       throw new ConflictException(
         `Cannot transfer admission in status ${existing.STATUS}`,
       );
@@ -732,8 +745,7 @@ export class AdmissionsService {
           STATUS: 'DISCHARGED',
           DISCHARGED_AT: now,
           DISCHARGED_BY: actorLabel,
-          DISCHARGE_REASON:
-            dto.reason?.trim() || existing.DISCHARGE_REASON,
+          DISCHARGE_REASON: dto.reason?.trim() || existing.DISCHARGE_REASON,
           BED_ID: null,
           UPDATED_BY_ID: actor?.id ?? null,
           UPDATED_BY: actorLabel,

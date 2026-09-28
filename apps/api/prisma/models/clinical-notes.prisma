@@ -63,3 +63,24 @@ model ClinicalNoteVersions {
   @@index([CLINICAL_NOTE_ID])
   @@map("CLINICAL_NOTE_VERSIONS")
 }
+
+/// Legacy Oracle GENERIC_TEMPLATES (HTML clinical note templates)
+model ClinicalNoteTemplates {
+  TEMPLATE_ID        Int       @id @default(autoincrement())
+  LEGACY_TEMPLATE_ID Int?      @unique
+  CODE               String    @unique @db.VarChar(80)
+  NAME               String    @db.VarChar(255)
+  /// CLINICAL NOTE | etc.
+  TEMPLATE_TYPE      String?   @db.VarChar(100)
+  CONTENT_HTML       String?   @db.Text
+  /// Active | Inactive
+  STATUS             String    @default("Active") @db.VarChar(30)
+  CREATED_BY         String?   @db.VarChar(100)
+  CREATED_DATE       DateTime?
+  UPDATED_BY         String?   @db.VarChar(100)
+  UPDATED_DATE       DateTime?
+
+  @@index([STATUS])
+  @@index([TEMPLATE_TYPE])
+  @@map("CLINICAL_NOTE_TEMPLATES")
+}

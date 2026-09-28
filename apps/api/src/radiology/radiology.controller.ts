@@ -56,7 +56,8 @@ export class RadiologyController {
       data: await this.radiology.listConsumerResults({
         status,
         personId: personId ? Number(personId) : undefined,
-        critical: critical === 'true' ? true : critical === 'false' ? false : undefined,
+        critical:
+          critical === 'true' ? true : critical === 'false' ? false : undefined,
         limit: limit ? Number(limit) : undefined,
       }),
     };
@@ -72,7 +73,8 @@ export class RadiologyController {
     const result = await this.radiology.listReports({
       imagingRequestId: imagingRequestId ? Number(imagingRequestId) : undefined,
       status,
-      critical: critical === 'true' ? true : critical === 'false' ? false : undefined,
+      critical:
+        critical === 'true' ? true : critical === 'false' ? false : undefined,
     });
     return { data: result };
   }

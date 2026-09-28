@@ -18,7 +18,11 @@ import { RecordsOpsService } from './records-ops.service';
     BillingModule,
     forwardRef(() => AppointmentsModule),
   ],
-  controllers: [RecordsController, RecordsOpsController, RecordsBookingsController],
+  controllers: [
+    RecordsController,
+    RecordsOpsController,
+    RecordsBookingsController,
+  ],
   providers: [RecordsService, RecordsOpsService],
   exports: [RecordsService, RecordsOpsService],
 })

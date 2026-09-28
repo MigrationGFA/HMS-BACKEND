@@ -38,10 +38,7 @@ export class UsersController {
    * Audit: user:profile-update
    */
   @Patch('me')
-  async updateMe(
-    @Body() dto: UpdateProfileDto,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async updateMe(@Body() dto: UpdateProfileDto, @CurrentUser() user: AuthUser) {
     const data = await this.usersService.updateMe(user.id, dto, user);
     return { data };
   }

@@ -1,4 +1,10 @@
-import { IsEmail, IsOptional, IsString, MinLength, ValidateIf } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 
 /**
  * Staff may sign in with phone (legacy / migrated) or email (seed / IT accounts).

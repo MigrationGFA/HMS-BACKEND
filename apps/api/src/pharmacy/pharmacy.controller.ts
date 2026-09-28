@@ -31,7 +31,9 @@ export class PharmacyController {
    */
   @Get('dashboard')
   @RequirePermissions(PERMISSIONS.PHARMACY_READ)
-  async dashboard(@Query('timezoneOffsetMinutes') timezoneOffsetMinutes?: string) {
+  async dashboard(
+    @Query('timezoneOffsetMinutes') timezoneOffsetMinutes?: string,
+  ) {
     const data = await this.pharmacyService.dashboard({
       timezoneOffsetMinutes: timezoneOffsetMinutes
         ? Number(timezoneOffsetMinutes)

@@ -40,16 +40,19 @@ function actorLabelOf(actor?: AuthUser): string {
 }
 
 function mapPerson(
-  p: {
-    PERSON_ID: number;
-    HOSPITAL_NO: string | null;
-    FIRST_NAME: string | null;
-    LAST_NAME: string | null;
-    MIDDLE_NAME: string | null;
-    SEX: string | null;
-    DATE_OF_BIRTH: Date | null;
-    PATIENT_PHONE_NO: string | null;
-  } | null | undefined,
+  p:
+    | {
+        PERSON_ID: number;
+        HOSPITAL_NO: string | null;
+        FIRST_NAME: string | null;
+        LAST_NAME: string | null;
+        MIDDLE_NAME: string | null;
+        SEX: string | null;
+        DATE_OF_BIRTH: Date | null;
+        PATIENT_PHONE_NO: string | null;
+      }
+    | null
+    | undefined,
 ) {
   if (!p) return null;
   return {
@@ -281,64 +284,69 @@ export class DischargeService {
   async getPaymentSnapshot(personId: number): Promise<PaymentSnapshot> {
     const items: PaymentSnapshot['items'] = [];
 
-    const [admissionBills, labRequests, imagingRequests, prescriptions, pharmacySales] =
-      await Promise.all([
-        this.prisma.admissionBills.findMany({
-          where: { PERSON_ID: personId, PAYMENT_STATUS: 'Unpaid' },
-          select: {
-            ADMISSION_BILL_ID: true,
-            BILL_NO: true,
-            TOTAL_AMOUNT: true,
-            PAYMENT_STATUS: true,
-          },
-          take: 50,
-        }),
-        this.prisma.labRequests.findMany({
-          where: { PERSON_ID: personId, PAYMENT_STATUS: 'Unpaid' },
-          select: {
-            LAB_REQUEST_ID: true,
-            REQUEST_NO: true,
-            TOTAL_AMOUNT: true,
-            PAYMENT_STATUS: true,
-          },
-          take: 50,
-        }),
-        this.prisma.imagingRequests.findMany({
-          where: { PERSON_ID: personId, PAYMENT_STATUS: 'Unpaid' },
-          select: {
-            IMAGING_REQUEST_ID: true,
-            REQUEST_NO: true,
-            TOTAL_AMOUNT: true,
-            PAYMENT_STATUS: true,
-          },
-          take: 50,
-        }),
-        this.prisma.prescriptions.findMany({
-          where: {
-            PERSON_ID: personId,
-            PAYMENT_STATUS: { in: ['Unpaid', 'Pending', 'Emergency'] },
-          },
-          select: {
-            PRESCRIPTION_ID: true,
-            RX_NO: true,
-            PAYMENT_STATUS: true,
-          },
-          take: 50,
-        }),
-        this.prisma.pharmacySales.findMany({
-          where: {
-            PERSON_ID: personId,
-            PAYMENT_STATUS: 'Unpaid',
-          },
-          select: {
-            SALE_ID: true,
-            SALE_NO: true,
-            TOTAL: true,
-            PAYMENT_STATUS: true,
-          },
-          take: 50,
-        }),
-      ]);
+    const [
+      admissionBills,
+      labRequests,
+      imagingRequests,
+      prescriptions,
+      pharmacySales,
+    ] = await Promise.all([
+      this.prisma.admissionBills.findMany({
+        where: { PERSON_ID: personId, PAYMENT_STATUS: 'Unpaid' },
+        select: {
+          ADMISSION_BILL_ID: true,
+          BILL_NO: true,
+          TOTAL_AMOUNT: true,
+          PAYMENT_STATUS: true,
+        },
+        take: 50,
+      }),
+      this.prisma.labRequests.findMany({
+        where: { PERSON_ID: personId, PAYMENT_STATUS: 'Unpaid' },
+        select: {
+          LAB_REQUEST_ID: true,
+          REQUEST_NO: true,
+          TOTAL_AMOUNT: true,
+          PAYMENT_STATUS: true,
+        },
+        take: 50,
+      }),
+      this.prisma.imagingRequests.findMany({
+        where: { PERSON_ID: personId, PAYMENT_STATUS: 'Unpaid' },
+        select: {
+          IMAGING_REQUEST_ID: true,
+          REQUEST_NO: true,
+          TOTAL_AMOUNT: true,
+          PAYMENT_STATUS: true,
+        },
+        take: 50,
+      }),
+      this.prisma.prescriptions.findMany({
+        where: {
+          PERSON_ID: personId,
+          PAYMENT_STATUS: { in: ['Unpaid', 'Pending', 'Emergency'] },
+        },
+        select: {
+          PRESCRIPTION_ID: true,
+          RX_NO: true,
+          PAYMENT_STATUS: true,
+        },
+        take: 50,
+      }),
+      this.prisma.pharmacySales.findMany({
+        where: {
+          PERSON_ID: personId,
+          PAYMENT_STATUS: 'Unpaid',
+        },
+        select: {
+          SALE_ID: true,
+          SALE_NO: true,
+          TOTAL: true,
+          PAYMENT_STATUS: true,
+        },
+        take: 50,
+      }),
+    ]);
 
     for (const b of admissionBills) {
       items.push({
@@ -586,7 +594,8 @@ export class DischargeService {
           DISCHARGE_TYPE: dto.dischargeType?.trim() ?? existing.DISCHARGE_TYPE,
           ADMISSION_DIAGNOSIS:
             dto.admissionDiagnosis?.trim() ?? existing.ADMISSION_DIAGNOSIS,
-          FINAL_DIAGNOSIS: dto.finalDiagnosis?.trim() ?? existing.FINAL_DIAGNOSIS,
+          FINAL_DIAGNOSIS:
+            dto.finalDiagnosis?.trim() ?? existing.FINAL_DIAGNOSIS,
           REASON_FOR_ADMISSION:
             dto.reasonForAdmission?.trim() ?? existing.REASON_FOR_ADMISSION,
           CLINICAL_SUMMARY:
@@ -640,7 +649,10 @@ export class DischargeService {
         `Cannot submit draft in status ${existing.STATUS}`,
       );
     }
-    if (!existing.FINAL_DIAGNOSIS?.trim() && !existing.CLINICAL_SUMMARY?.trim()) {
+    if (
+      !existing.FINAL_DIAGNOSIS?.trim() &&
+      !existing.CLINICAL_SUMMARY?.trim()
+    ) {
       throw new BadRequestException(
         'Final diagnosis or clinical summary is required before submit',
       );
@@ -648,7 +660,10 @@ export class DischargeService {
 
     await this.admissions.orderDischarge(
       existing.ADMISSION_ID,
-      { reason: dto.note?.trim() || existing.FINAL_DIAGNOSIS || 'Discharge submitted' },
+      {
+        reason:
+          dto.note?.trim() || existing.FINAL_DIAGNOSIS || 'Discharge submitted',
+      },
       actor,
     );
 

@@ -80,7 +80,10 @@ export class LabDrugScreenController {
    */
   @Post()
   @RequirePermissions(PERMISSIONS.LAB_CREATE)
-  async create(@Body() dto: CreateDrugScreenDto, @CurrentUser() user: AuthUser) {
+  async create(
+    @Body() dto: CreateDrugScreenDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.specialty.createDrugScreen(dto, user) };
   }
 

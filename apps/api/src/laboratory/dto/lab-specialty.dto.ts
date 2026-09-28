@@ -333,7 +333,9 @@ export class PatchQcRunDto {
   @IsOptional() @IsString() @MaxLength(80) expected?: string;
   @IsOptional() @IsString() @MaxLength(80) observed?: string;
   @IsOptional() @IsIn(['Passed', 'Failed']) result?: string;
-  @IsOptional() @IsIn(['Daily', 'Weekly', 'Monthly', 'Calibration']) freq?: string;
+  @IsOptional()
+  @IsIn(['Daily', 'Weekly', 'Monthly', 'Calibration'])
+  freq?: string;
   @IsOptional() @IsString() runDate?: string;
 }
 

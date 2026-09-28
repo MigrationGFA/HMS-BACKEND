@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { RecordsService } from './records.service';
 
 describe('RecordsService online bookings', () => {
@@ -139,7 +136,10 @@ describe('RecordsService online bookings', () => {
         expect.objectContaining({ personId: 55, action: 'triage' }),
         expect.any(Object),
       );
-      expect(appointments.markBookingCheckedIn).toHaveBeenCalledWith(5, expect.any(Object));
+      expect(appointments.markBookingCheckedIn).toHaveBeenCalledWith(
+        5,
+        expect.any(Object),
+      );
       expect(result.booking.status).toBe('Completed');
     });
   });

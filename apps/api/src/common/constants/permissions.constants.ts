@@ -222,6 +222,14 @@ export const PERMISSIONS = {
   // Audit
   AUDIT_READ: 'audit:read',
 
+  // Phase release registry (Super Admin / IT)
+  PHASE_MODULES_READ: 'phase-modules:read',
+  PHASE_MODULES_UPDATE: 'phase-modules:update',
+
+  // Marketing CMS
+  CMS_READ: 'cms:read',
+  CMS_UPDATE: 'cms:update',
+
   // Identity (staff user lookup — no password/credential access)
   USER_READ: 'user:read',
 
@@ -269,6 +277,97 @@ export const PERMISSIONS = {
   COMMS_READ: 'comms:read',
   COMMS_SEND: 'comms:send',
   COMMS_BROADCAST: 'comms:broadcast',
+
+  // HR / Payroll (non-clinical — Phases A–E)
+  HR_DASHBOARD_READ: 'hr:dashboard:read',
+  HR_EMPLOYEE_CREATE: 'hr:employee:create',
+  HR_EMPLOYEE_READ: 'hr:employee:read',
+  HR_EMPLOYEE_UPDATE: 'hr:employee:update',
+  HR_EMPLOYEE_DELETE: 'hr:employee:delete',
+  HR_ATTENDANCE_CREATE: 'hr:attendance:create',
+  HR_ATTENDANCE_READ: 'hr:attendance:read',
+  HR_ATTENDANCE_UPDATE: 'hr:attendance:update',
+  HR_LEAVE_CREATE: 'hr:leave:create',
+  HR_LEAVE_READ: 'hr:leave:read',
+  HR_LEAVE_UPDATE: 'hr:leave:update',
+  HR_LEAVE_APPROVE: 'hr:leave:approve',
+  HR_APPRAISAL_CREATE: 'hr:appraisal:create',
+  HR_APPRAISAL_READ: 'hr:appraisal:read',
+  HR_APPRAISAL_UPDATE: 'hr:appraisal:update',
+  HR_DISCIPLINARY_CREATE: 'hr:disciplinary:create',
+  HR_DISCIPLINARY_READ: 'hr:disciplinary:read',
+  HR_DISCIPLINARY_UPDATE: 'hr:disciplinary:update',
+  HR_DOCUMENT_CREATE: 'hr:document:create',
+  HR_DOCUMENT_READ: 'hr:document:read',
+  HR_DOCUMENT_DELETE: 'hr:document:delete',
+  HR_PAYROLL_READ: 'hr:payroll:read',
+  HR_PAYROLL_RUN: 'hr:payroll:run',
+  HR_PAYROLL_UPDATE: 'hr:payroll:update',
+
+  // Patient portal (Phase F)
+  PORTAL_DASHBOARD_READ: 'portal:dashboard:read',
+  PORTAL_APPOINTMENT_CREATE: 'portal:appointment:create',
+  PORTAL_APPOINTMENT_READ: 'portal:appointment:read',
+  PORTAL_APPOINTMENT_UPDATE: 'portal:appointment:update',
+  PORTAL_INVOICE_READ: 'portal:invoice:read',
+  PORTAL_RECORD_READ: 'portal:record:read',
+  PORTAL_LAB_READ: 'portal:lab:read',
+  PORTAL_RX_READ: 'portal:prescription:read',
+  PORTAL_PROFILE_READ: 'portal:profile:read',
+  PORTAL_PROFILE_UPDATE: 'portal:profile:update',
+  PORTAL_NOTIFY_READ: 'portal:notification:read',
+
+  // General stores (Phase H)
+  STORES_ITEM_CREATE: 'stores:item:create',
+  STORES_ITEM_READ: 'stores:item:read',
+  STORES_ITEM_UPDATE: 'stores:item:update',
+  STORES_ITEM_DELETE: 'stores:item:delete',
+  STORES_STOCK_READ: 'stores:stock:read',
+  STORES_STOCK_ISSUE: 'stores:stock:issue',
+  STORES_STOCK_RECEIVE: 'stores:stock:receive',
+  STORES_STOCK_ADJUST: 'stores:stock:adjust',
+  STORES_REQUISITION_CREATE: 'stores:requisition:create',
+  STORES_REQUISITION_READ: 'stores:requisition:read',
+  STORES_REQUISITION_APPROVE: 'stores:requisition:approve',
+
+  // Hospital SCM — non-pharmacy (Phase I)
+  SCM_DASHBOARD_READ: 'scm:dashboard:read',
+  SCM_PO_CREATE: 'scm:po:create',
+  SCM_PO_READ: 'scm:po:read',
+  SCM_PO_UPDATE: 'scm:po:update',
+  SCM_PO_APPROVE: 'scm:po:approve',
+  SCM_PO_DELETE: 'scm:po:delete',
+  SCM_GRN_CREATE: 'scm:grn:create',
+  SCM_GRN_READ: 'scm:grn:read',
+  SCM_SUPPLIER_CREATE: 'scm:supplier:create',
+  SCM_SUPPLIER_READ: 'scm:supplier:read',
+  SCM_SUPPLIER_UPDATE: 'scm:supplier:update',
+
+  // Kitchen / catering (Phase J)
+  KITCHEN_MENU_CREATE: 'kitchen:menu:create',
+  KITCHEN_MENU_READ: 'kitchen:menu:read',
+  KITCHEN_MENU_UPDATE: 'kitchen:menu:update',
+  KITCHEN_ORDER_CREATE: 'kitchen:order:create',
+  KITCHEN_ORDER_READ: 'kitchen:order:read',
+  KITCHEN_ORDER_UPDATE: 'kitchen:order:update',
+  KITCHEN_WASTAGE_CREATE: 'kitchen:wastage:create',
+  KITCHEN_WASTAGE_READ: 'kitchen:wastage:read',
+  KITCHEN_DIET_READ: 'kitchen:diet:read',
+
+  // Fleet / transport (Phase K)
+  FLEET_VEHICLE_CREATE: 'fleet:vehicle:create',
+  FLEET_VEHICLE_READ: 'fleet:vehicle:read',
+  FLEET_VEHICLE_UPDATE: 'fleet:vehicle:update',
+  FLEET_VEHICLE_DELETE: 'fleet:vehicle:delete',
+  FLEET_TRIP_CREATE: 'fleet:trip:create',
+  FLEET_TRIP_READ: 'fleet:trip:read',
+  FLEET_TRIP_UPDATE: 'fleet:trip:update',
+  FLEET_TRIP_APPROVE: 'fleet:trip:approve',
+  FLEET_FUEL_CREATE: 'fleet:fuel:create',
+  FLEET_FUEL_READ: 'fleet:fuel:read',
+  FLEET_MAINT_CREATE: 'fleet:maintenance:create',
+  FLEET_MAINT_READ: 'fleet:maintenance:read',
+  FLEET_MAINT_UPDATE: 'fleet:maintenance:update',
 } as const;
 
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -276,14 +375,38 @@ export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 const FULL_ACCESS: PermissionName[] = Object.values(PERMISSIONS);
 
 /**
- * Standard front-desk Records Officer (Health Records / Medical Records
- * front desk) permission set for a typical HMS:
- * - register + search + update patient demographics
- * - open registration cards (payment stays Pending until cashier confirms)
- * - send patients to triage and view the queue
- * - read audit trail of registration activity
- * - look up staff users (identity search) — no role/credential management
+ * HR domain permission bundle (Phases A–E). Not FULL_ACCESS.
  */
+const HR_CORE_PERMISSIONS: PermissionName[] = [
+  PERMISSIONS.HR_DASHBOARD_READ,
+  PERMISSIONS.HR_EMPLOYEE_CREATE,
+  PERMISSIONS.HR_EMPLOYEE_READ,
+  PERMISSIONS.HR_EMPLOYEE_UPDATE,
+  PERMISSIONS.HR_EMPLOYEE_DELETE,
+  PERMISSIONS.HR_ATTENDANCE_CREATE,
+  PERMISSIONS.HR_ATTENDANCE_READ,
+  PERMISSIONS.HR_ATTENDANCE_UPDATE,
+  PERMISSIONS.HR_LEAVE_CREATE,
+  PERMISSIONS.HR_LEAVE_READ,
+  PERMISSIONS.HR_LEAVE_UPDATE,
+  PERMISSIONS.HR_LEAVE_APPROVE,
+  PERMISSIONS.HR_APPRAISAL_CREATE,
+  PERMISSIONS.HR_APPRAISAL_READ,
+  PERMISSIONS.HR_APPRAISAL_UPDATE,
+  PERMISSIONS.HR_DISCIPLINARY_CREATE,
+  PERMISSIONS.HR_DISCIPLINARY_READ,
+  PERMISSIONS.HR_DISCIPLINARY_UPDATE,
+  PERMISSIONS.HR_DOCUMENT_CREATE,
+  PERMISSIONS.HR_DOCUMENT_READ,
+  PERMISSIONS.HR_DOCUMENT_DELETE,
+  PERMISSIONS.HR_PAYROLL_READ,
+  PERMISSIONS.HR_PAYROLL_RUN,
+  PERMISSIONS.HR_PAYROLL_UPDATE,
+  PERMISSIONS.AUDIT_READ,
+  PERMISSIONS.USER_READ,
+  PERMISSIONS.NOTIFICATION_READ,
+];
+
 const SUPPORT_SELF_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.SUPPORT_CREATE,
   PERMISSIONS.SUPPORT_READ,
@@ -295,6 +418,92 @@ const COMMS_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.COMMS_BROADCAST,
 ];
 
+const PORTAL_PATIENT_PERMISSIONS: PermissionName[] = [
+  PERMISSIONS.PORTAL_DASHBOARD_READ,
+  PERMISSIONS.PORTAL_APPOINTMENT_CREATE,
+  PERMISSIONS.PORTAL_APPOINTMENT_READ,
+  PERMISSIONS.PORTAL_APPOINTMENT_UPDATE,
+  PERMISSIONS.PORTAL_INVOICE_READ,
+  PERMISSIONS.PORTAL_RECORD_READ,
+  PERMISSIONS.PORTAL_LAB_READ,
+  PERMISSIONS.PORTAL_RX_READ,
+  PERMISSIONS.PORTAL_PROFILE_READ,
+  PERMISSIONS.PORTAL_PROFILE_UPDATE,
+  PERMISSIONS.PORTAL_NOTIFY_READ,
+  ...SUPPORT_SELF_PERMISSIONS,
+];
+
+const STORES_OFFICER_PERMISSIONS: PermissionName[] = [
+  PERMISSIONS.STORES_ITEM_CREATE,
+  PERMISSIONS.STORES_ITEM_READ,
+  PERMISSIONS.STORES_ITEM_UPDATE,
+  PERMISSIONS.STORES_STOCK_READ,
+  PERMISSIONS.STORES_STOCK_ISSUE,
+  PERMISSIONS.STORES_STOCK_RECEIVE,
+  PERMISSIONS.STORES_REQUISITION_CREATE,
+  PERMISSIONS.STORES_REQUISITION_READ,
+];
+
+const STORES_ADMIN_EXTRA: PermissionName[] = [
+  PERMISSIONS.STORES_ITEM_DELETE,
+  PERMISSIONS.STORES_STOCK_ADJUST,
+  PERMISSIONS.STORES_REQUISITION_APPROVE,
+];
+
+const SCM_OFFICER_PERMISSIONS: PermissionName[] = [
+  PERMISSIONS.SCM_DASHBOARD_READ,
+  PERMISSIONS.SCM_PO_CREATE,
+  PERMISSIONS.SCM_PO_READ,
+  PERMISSIONS.SCM_PO_UPDATE,
+  PERMISSIONS.SCM_GRN_CREATE,
+  PERMISSIONS.SCM_GRN_READ,
+  PERMISSIONS.SCM_SUPPLIER_READ,
+];
+
+const SCM_ADMIN_EXTRA: PermissionName[] = [
+  PERMISSIONS.SCM_PO_APPROVE,
+  PERMISSIONS.SCM_PO_DELETE,
+  PERMISSIONS.SCM_SUPPLIER_CREATE,
+  PERMISSIONS.SCM_SUPPLIER_UPDATE,
+];
+
+const KITCHEN_PERMISSIONS: PermissionName[] = [
+  PERMISSIONS.KITCHEN_MENU_CREATE,
+  PERMISSIONS.KITCHEN_MENU_READ,
+  PERMISSIONS.KITCHEN_MENU_UPDATE,
+  PERMISSIONS.KITCHEN_ORDER_CREATE,
+  PERMISSIONS.KITCHEN_ORDER_READ,
+  PERMISSIONS.KITCHEN_ORDER_UPDATE,
+  PERMISSIONS.KITCHEN_WASTAGE_CREATE,
+  PERMISSIONS.KITCHEN_WASTAGE_READ,
+  PERMISSIONS.KITCHEN_DIET_READ,
+];
+
+const FLEET_OFFICER_PERMISSIONS: PermissionName[] = [
+  PERMISSIONS.FLEET_VEHICLE_CREATE,
+  PERMISSIONS.FLEET_VEHICLE_READ,
+  PERMISSIONS.FLEET_VEHICLE_UPDATE,
+  PERMISSIONS.FLEET_VEHICLE_DELETE,
+  PERMISSIONS.FLEET_TRIP_CREATE,
+  PERMISSIONS.FLEET_TRIP_READ,
+  PERMISSIONS.FLEET_TRIP_UPDATE,
+  PERMISSIONS.FLEET_TRIP_APPROVE,
+  PERMISSIONS.FLEET_FUEL_CREATE,
+  PERMISSIONS.FLEET_FUEL_READ,
+  PERMISSIONS.FLEET_MAINT_CREATE,
+  PERMISSIONS.FLEET_MAINT_READ,
+  PERMISSIONS.FLEET_MAINT_UPDATE,
+];
+
+/** Clinical staff may request trips only — not fleet asset CRUD. */
+const FLEET_TRIP_REQUEST_PERMISSIONS: PermissionName[] = [
+  PERMISSIONS.FLEET_TRIP_CREATE,
+  PERMISSIONS.FLEET_TRIP_READ,
+];
+
+/**
+ * Standard front-desk Records Officer permission set.
+ */
 const RECORDS_PERMISSIONS: PermissionName[] = [
   PERMISSIONS.PATIENT_CREATE,
   PERMISSIONS.PATIENT_READ,
@@ -556,15 +765,25 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
   [ROLES.CMD]: FULL_ACCESS,
   [ROLES.IT]: FULL_ACCESS,
 
-  /** HR queue: list all tickets + update status; may also submit own tickets */
+  /** HR domain + support queue (additive — not FULL_ACCESS) */
   [ROLES.HR]: [
+    ...HR_CORE_PERMISSIONS,
     ...SUPPORT_SELF_PERMISSIONS,
     PERMISSIONS.SUPPORT_UPDATE,
   ],
 
-  [ROLES.RECORDS]: RECORDS_PERMISSIONS,
-  [ROLES.RECORD_OFFICER]: RECORDS_PERMISSIONS,
-  [ROLES.RECORD_ADMIN]: RECORDS_PERMISSIONS,
+  [ROLES.RECORDS]: [
+    ...RECORDS_PERMISSIONS,
+    ...FLEET_TRIP_REQUEST_PERMISSIONS,
+  ],
+  [ROLES.RECORD_OFFICER]: [
+    ...RECORDS_PERMISSIONS,
+    ...FLEET_TRIP_REQUEST_PERMISSIONS,
+  ],
+  [ROLES.RECORD_ADMIN]: [
+    ...RECORDS_PERMISSIONS,
+    ...FLEET_TRIP_REQUEST_PERMISSIONS,
+  ],
   [ROLES.CASHIER]: CASHIER_PERMISSIONS,
   [ROLES.FINANCE]: [
     PERMISSIONS.PATIENT_READ,
@@ -605,10 +824,19 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.CASHIER_SETTINGS_UPDATE,
     PERMISSIONS.OPC_READ,
     PERMISSIONS.OPC_UPDATE,
+    PERMISSIONS.HR_PAYROLL_READ,
+    PERMISSIONS.HR_DASHBOARD_READ,
+    PERMISSIONS.HR_EMPLOYEE_READ,
   ],
 
-  [ROLES.DOCTOR]: CLINICAL_PERMISSIONS,
-  [ROLES.NURSE]: CLINICAL_PERMISSIONS,
+  [ROLES.DOCTOR]: [
+    ...CLINICAL_PERMISSIONS,
+    ...FLEET_TRIP_REQUEST_PERMISSIONS,
+  ],
+  [ROLES.NURSE]: [
+    ...CLINICAL_PERMISSIONS,
+    ...FLEET_TRIP_REQUEST_PERMISSIONS,
+  ],
   [ROLES.PSYCHIATRIC_OPC]: CLINICAL_PERMISSIONS,
   [ROLES.PSYCHOLOGY]: CLINICAL_READ_PERMISSIONS,
   [ROLES.CHILD_ADOLESCENT]: CLINICAL_READ_PERMISSIONS,
@@ -616,7 +844,7 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
   [ROLES.PSYCHOGERIATRICS]: CLINICAL_READ_PERMISSIONS,
   [ROLES.PHYSIOTHERAPY]: CLINICAL_READ_PERMISSIONS,
   [ROLES.SPEECH_THERAPY]: CLINICAL_READ_PERMISSIONS,
-  [ROLES.NUTRITION]: CLINICAL_READ_PERMISSIONS,
+  [ROLES.NUTRITION]: [...CLINICAL_READ_PERMISSIONS, ...KITCHEN_PERMISSIONS],
   [ROLES.SOCIAL_WORK]: CLINICAL_READ_PERMISSIONS,
   [ROLES.ICU]: CLINICAL_PERMISSIONS,
   [ROLES.LAB]: [
@@ -671,10 +899,19 @@ export const ROLE_PERMISSIONS: Partial<Record<RoleName, PermissionName[]>> = {
     PERMISSIONS.AUDIT_READ,
     ...SUPPORT_SELF_PERMISSIONS,
   ],
-  [ROLES.PHARMACIST]: [
-    ...PHARMACY_PERMISSIONS,
-    PERMISSIONS.NOTIFICATION_READ,
+  [ROLES.PHARMACIST]: [...PHARMACY_PERMISSIONS, PERMISSIONS.NOTIFICATION_READ],
+
+  [ROLES.PATIENT]: PORTAL_PATIENT_PERMISSIONS,
+
+  [ROLES.STORES]: [
+    ...STORES_OFFICER_PERMISSIONS,
+    ...STORES_ADMIN_EXTRA,
+    ...SCM_OFFICER_PERMISSIONS,
+    ...SCM_ADMIN_EXTRA,
+    ...SUPPORT_SELF_PERMISSIONS,
   ],
+
+  [ROLES.FLEET]: [...FLEET_OFFICER_PERMISSIONS, ...SUPPORT_SELF_PERMISSIONS],
 };
 
 /**
@@ -778,6 +1015,14 @@ const ROLE_ALIASES: Record<string, RoleName> = {
   STAFF: ROLES.STAFF,
   STUDENT: ROLES.STUDENT,
   PATIENT: ROLES.PATIENT,
+  STORE_KEEPER: ROLES.STORES,
+  STORES_OFFICER: ROLES.STORES,
+  STORE_OFFICER: ROLES.STORES,
+  STORES: ROLES.STORES,
+  FLEET_OFFICER: ROLES.FLEET,
+  TRANSPORT: ROLES.FLEET,
+  TRANSPORT_OFFICER: ROLES.FLEET,
+  FLEET: ROLES.FLEET,
 };
 
 /**

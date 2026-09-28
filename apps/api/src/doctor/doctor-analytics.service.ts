@@ -36,9 +36,7 @@ function ageYears(dob: Date | null | undefined): number | null {
   if (!dob) return null;
   return Math.max(
     0,
-    Math.floor(
-      (Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25),
-    ),
+    Math.floor((Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25)),
   );
 }
 
@@ -75,7 +73,11 @@ export class DoctorAnalyticsService {
       DOCTOR_ID: doctorId,
       STARTED_AT: { gte: from, lte: to },
       ...(clinic
-        ? { triage: { CLINIC: { equals: clinic, mode: 'insensitive' as const } } }
+        ? {
+            triage: {
+              CLINIC: { equals: clinic, mode: 'insensitive' as const },
+            },
+          }
         : {}),
     };
 
@@ -489,9 +491,13 @@ export class DoctorAnalyticsService {
       (d) => d.STATUS === 'Discharged',
     ).length;
     const pendingDrafts = dischargeDrafts.filter((d) =>
-      ['Draft', 'Submitted', 'AwaitingPayment', 'PaymentCleared', 'Returned'].includes(
-        d.STATUS,
-      ),
+      [
+        'Draft',
+        'Submitted',
+        'AwaitingPayment',
+        'PaymentCleared',
+        'Returned',
+      ].includes(d.STATUS),
     ).length;
 
     let losSum = 0;
@@ -501,8 +507,7 @@ export class DoctorAnalyticsService {
       const admitted = d.admission?.ADMITTED_AT;
       if (!admitted) continue;
       const days =
-        (d.FINALIZED_AT.getTime() - admitted.getTime()) /
-        (1000 * 60 * 60 * 24);
+        (d.FINALIZED_AT.getTime() - admitted.getTime()) / (1000 * 60 * 60 * 24);
       if (days >= 0) {
         losSum += days;
         losN += 1;

@@ -55,7 +55,10 @@ export class HmoController {
   @Post('coverage')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.INSURANCE_ELIGIBILITY)
-  async upsertCoverage(@Body() dto: UpsertCoverageDto, @CurrentUser() user: AuthUser) {
+  async upsertCoverage(
+    @Body() dto: UpsertCoverageDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.broker.upsertCoverage(dto, user) };
   }
 
@@ -86,7 +89,10 @@ export class HmoController {
   @Get('eligibility')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.INSURANCE_ELIGIBILITY)
-  async eligibility(@Query() query: EligibilityQueryDto, @CurrentUser() user: AuthUser) {
+  async eligibility(
+    @Query() query: EligibilityQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.broker.verifyEligibility(query, user) };
   }
 
@@ -102,7 +108,10 @@ export class HmoController {
   @Get('benefits')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.INSURANCE_READ)
-  async benefits(@Query() query: BenefitsQueryDto, @CurrentUser() user: AuthUser) {
+  async benefits(
+    @Query() query: BenefitsQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.broker.getBenefits(query, user) };
   }
 
@@ -193,7 +202,10 @@ export class HmoController {
   @Post('claims/:id/poll')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.INSURANCE_CLAIM_READ)
-  async pollClaim(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+  async pollClaim(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.broker.pollClaimStatus(id, user) };
   }
 

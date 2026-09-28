@@ -67,7 +67,15 @@ export class CreateImagingRequestDto {
 export class UpdateImagingRequestDto {
   @IsOptional()
   @IsString()
-  @IsIn(['Sent', 'Accepted', 'Rejected', 'Cancelled', 'Scheduled', 'InProgress', 'Completed'])
+  @IsIn([
+    'Sent',
+    'Accepted',
+    'Rejected',
+    'Cancelled',
+    'Scheduled',
+    'InProgress',
+    'Completed',
+  ])
   status?: string;
 
   @IsOptional()

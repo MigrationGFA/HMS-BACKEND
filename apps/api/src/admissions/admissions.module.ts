@@ -14,7 +14,11 @@ import { AdmissionBillsService } from './admission-bills.service';
     AdmissionRequestsController,
     AdmissionBillsController,
   ],
-  providers: [AdmissionsService, AdmissionRequestsService, AdmissionBillsService],
+  providers: [
+    AdmissionsService,
+    AdmissionRequestsService,
+    AdmissionBillsService,
+  ],
   exports: [AdmissionsService, AdmissionRequestsService, AdmissionBillsService],
 })
 export class AdmissionsModule {}

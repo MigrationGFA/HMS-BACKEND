@@ -77,7 +77,10 @@ export class PharmacyBillingController {
    * Error cases: 400 already paid, 401, 403, 404
    */
   @Post('bills/:type/:id/confirm')
-  @RequirePermissions(PERMISSIONS.PHARMACY_SALE_PAY, PERMISSIONS.PRESCRIPTION_PAY)
+  @RequirePermissions(
+    PERMISSIONS.PHARMACY_SALE_PAY,
+    PERMISSIONS.PRESCRIPTION_PAY,
+  )
   async confirmBill(
     @Param('type') type: string,
     @Param('id', ParseIntPipe) id: number,

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
@@ -43,6 +44,12 @@ import { CashierModule } from './cashier/cashier.module';
 import { FinanceModule } from './finance/finance.module';
 import { InsuranceModule } from './insurance/insurance.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { PatientPortalModule } from './patient-portal/patient-portal.module';
+import { IctModule } from './ict/ict.module';
+import { StoresModule } from './stores/stores.module';
+import { ScmModule } from './scm/scm.module';
+import { KitchenModule } from './kitchen/kitchen.module';
+import { FleetModule } from './fleet/fleet.module';
 
 // Reporting & platform
 import { ReportsModule } from './reports/reports.module';
@@ -60,6 +67,7 @@ import { AdministrationModule } from './administration/administration.module';
 import { HrModule } from './hr/hr.module';
 import { SupportRequestsModule } from './support-requests/support-requests.module';
 import { ClinicalPharmacyModule } from './clinical-pharmacy/clinical-pharmacy.module';
+import { CmsModule } from './cms/cms.module';
 
 @Module({
   imports: [
@@ -108,6 +116,12 @@ import { ClinicalPharmacyModule } from './clinical-pharmacy/clinical-pharmacy.mo
     FinanceModule,
     InsuranceModule,
     InventoryModule,
+    PatientPortalModule,
+    IctModule,
+    StoresModule,
+    ScmModule,
+    KitchenModule,
+    FleetModule,
 
     // Reporting & platform
     ReportsModule,
@@ -115,7 +129,7 @@ import { ClinicalPharmacyModule } from './clinical-pharmacy/clinical-pharmacy.mo
     NotificationsModule,
     FilesModule,
     RealtimeModule,
-    ChatModule,
+    ...(process.env.MONGODB_URI?.trim() ? [ChatModule] : []),
 
     // Governance & administration
     SuperAdminModule,
@@ -124,6 +138,7 @@ import { ClinicalPharmacyModule } from './clinical-pharmacy/clinical-pharmacy.mo
     HrModule,
     SupportRequestsModule,
     ClinicalPharmacyModule,
+    CmsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

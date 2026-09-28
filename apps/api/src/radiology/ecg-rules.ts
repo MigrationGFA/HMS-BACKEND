@@ -28,27 +28,34 @@ export function evaluateEcgFlags(input: EcgRuleInput): EcgRuleResult {
 
   if (hr > 100 || hr < 60) flags.push('rate');
   if (qtc > 470) flags.push('qtc');
-  if (st.includes('elevation') || st.includes('stemi') || st === 'stemi' || input.stElevation) flags.push('st-elevation');
-  if (st.includes('depression') || input.stDepression) flags.push('st-depression');
   if (
-    /\b(af|a\.?\s*fib|atrial\s*fib|flutter|block|svt)\b/i.test(rhythm)
-    || rhythm.includes('fibrillation')
-    || rhythm.includes('flutter')
-    || rhythm.includes('block')
-    || rhythm.includes('svt')
+    st.includes('elevation') ||
+    st.includes('stemi') ||
+    st === 'stemi' ||
+    input.stElevation
+  )
+    flags.push('st-elevation');
+  if (st.includes('depression') || input.stDepression)
+    flags.push('st-depression');
+  if (
+    /\b(af|a\.?\s*fib|atrial\s*fib|flutter|block|svt)\b/i.test(rhythm) ||
+    rhythm.includes('fibrillation') ||
+    rhythm.includes('flutter') ||
+    rhythm.includes('block') ||
+    rhythm.includes('svt')
   ) {
     flags.push('rhythm-abnormal');
   }
 
   const critical =
-    flags.includes('st-elevation')
-    || qtc > 500
-    || hr > 150
-    || hr < 40
-    || /\b(vf|vt|ventricular fib|ventricular tach)\b/.test(rhythm)
-    || rhythm.includes('ventricular fibrillation')
-    || (rhythm.includes('vt') && !rhythm.includes('svt'))
-    || rhythm.includes('vf');
+    flags.includes('st-elevation') ||
+    qtc > 500 ||
+    hr > 150 ||
+    hr < 40 ||
+    /\b(vf|vt|ventricular fib|ventricular tach)\b/.test(rhythm) ||
+    rhythm.includes('ventricular fibrillation') ||
+    (rhythm.includes('vt') && !rhythm.includes('svt')) ||
+    rhythm.includes('vf');
 
   const abnormal = critical || flags.length > 0;
   return { abnormal, critical, flags };

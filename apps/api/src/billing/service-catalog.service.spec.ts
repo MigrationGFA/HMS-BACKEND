@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ServiceCatalogService } from './service-catalog.service';
 
 describe('ServiceCatalogService', () => {
@@ -53,9 +50,12 @@ describe('ServiceCatalogService', () => {
   const actor = {
     id: 9,
     email: 'finance@fnpharo.gov.ng',
+    phone: null,
     firstName: 'Finance',
     lastName: 'Officer',
     roles: ['FINANCE'],
+    mustResetPassword: false,
+    personId: null,
   };
 
   beforeEach(() => {
@@ -204,13 +204,17 @@ describe('ServiceCatalogService', () => {
       };
       prisma.masterServices.update.mockResolvedValue(active);
 
-      const approved = await service.approve(10, {}, {
-        id: 1,
-        email: 'admin@fnpharo.gov.ng',
-        firstName: 'Admin',
-        lastName: 'User',
-        roles: ['ADMIN'],
-      });
+      const approved = await service.approve(
+        10,
+        {},
+        {
+          id: 1,
+          email: 'admin@fnpharo.gov.ng',
+          firstName: 'Admin',
+          lastName: 'User',
+          roles: ['ADMIN'],
+        },
+      );
       expect(approved.status).toBe('ACTIVE');
     });
 
@@ -370,21 +374,43 @@ describe('ServiceCatalogService', () => {
         SERVICE_CODE: 'SVC-REG-FEE',
         STATUS: 'PENDING_PRICING',
       });
-      await expect(service.findActiveByCode('SVC-REG-FEE')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.findActiveByCode('SVC-REG-FEE'),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
   describe('resolveRegistrationCharges', () => {
     it('resolves reg, card, and consult fees from catalog', async () => {
       const services = {
-        'SVC-REG-FEE': { SERVICE_ID: 1, SERVICE_CODE: 'SVC-REG-FEE', STATUS: 'ACTIVE', GENERAL_PRICE: 1500, STAFF_PRICE: 1050 },
-        'SVC-CARD-FEE': { SERVICE_ID: 2, SERVICE_CODE: 'SVC-CARD-FEE', STATUS: 'ACTIVE', GENERAL_PRICE: 500, STAFF_PRICE: 350 },
-        'SVC-REG-CONSULT': { SERVICE_ID: 3, SERVICE_CODE: 'SVC-REG-CONSULT', STATUS: 'ACTIVE', GENERAL_PRICE: 5500, STAFF_PRICE: 3850 },
+        'SVC-REG-FEE': {
+          SERVICE_ID: 1,
+          SERVICE_CODE: 'SVC-REG-FEE',
+          STATUS: 'ACTIVE',
+          GENERAL_PRICE: 1500,
+          STAFF_PRICE: 1050,
+        },
+        'SVC-CARD-FEE': {
+          SERVICE_ID: 2,
+          SERVICE_CODE: 'SVC-CARD-FEE',
+          STATUS: 'ACTIVE',
+          GENERAL_PRICE: 500,
+          STAFF_PRICE: 350,
+        },
+        'SVC-REG-CONSULT': {
+          SERVICE_ID: 3,
+          SERVICE_CODE: 'SVC-REG-CONSULT',
+          STATUS: 'ACTIVE',
+          GENERAL_PRICE: 5500,
+          STAFF_PRICE: 3850,
+        },
       };
       prisma.masterServices.findUnique.mockImplementation(
-        ({ where }: { where: { SERVICE_CODE?: string; SERVICE_ID?: number } }) => {
+        ({
+          where,
+        }: {
+          where: { SERVICE_CODE?: string; SERVICE_ID?: number };
+        }) => {
           if (where.SERVICE_CODE) {
             return Promise.resolve(
               services[where.SERVICE_CODE as keyof typeof services] ?? null,
@@ -392,7 +418,9 @@ describe('ServiceCatalogService', () => {
           }
           if (where.SERVICE_ID != null) {
             return Promise.resolve(
-              Object.values(services).find((s) => s.SERVICE_ID === where.SERVICE_ID) ?? null,
+              Object.values(services).find(
+                (s) => s.SERVICE_ID === where.SERVICE_ID,
+              ) ?? null,
             );
           }
           return Promise.resolve(null);
@@ -407,7 +435,10 @@ describe('ServiceCatalogService', () => {
         total: 7500,
       });
       expect(result.items).toHaveLength(3);
-      expect(result.items[0]).toMatchObject({ code: 'SVC-REG-FEE', source: 'GENERAL' });
+      expect(result.items[0]).toMatchObject({
+        code: 'SVC-REG-FEE',
+        source: 'GENERAL',
+      });
     });
 
     it('404 when a required fee service is missing', async () => {

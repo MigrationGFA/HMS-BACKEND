@@ -418,9 +418,7 @@ export class NursingOpsService {
         DOSE: dto.dose ?? '—',
         ROUTE: dto.route ?? 'PO',
         FREQUENCY: dto.frequency ?? '—',
-        SCHEDULED_TIME: dto.scheduledTime
-          ? new Date(dto.scheduledTime)
-          : now,
+        SCHEDULED_TIME: dto.scheduledTime ? new Date(dto.scheduledTime) : now,
         KIND: 'External',
         STATUS: 'GIVEN',
         SOURCE: dto.source ?? null,
@@ -846,10 +844,7 @@ export class NursingOpsService {
     return this.mapIcuNote(row);
   }
 
-  async listIcuInfusions(params?: {
-    personId?: number;
-    admissionId?: number;
-  }) {
+  async listIcuInfusions(params?: { personId?: number; admissionId?: number }) {
     const where: Prisma.NursingIcuInfusionsWhereInput = {
       ...(params?.personId ? { PERSON_ID: params.personId } : {}),
       ...(params?.admissionId ? { ADMISSION_ID: params.admissionId } : {}),
@@ -1199,13 +1194,15 @@ export class NursingOpsService {
     if (!a) throw new NotFoundException('Admission not found');
   }
 
-  private mapPerson(person?: {
-    PERSON_ID: number;
-    HOSPITAL_NO: string | null;
-    FIRST_NAME: string | null;
-    LAST_NAME: string | null;
-    MIDDLE_NAME: string | null;
-  } | null) {
+  private mapPerson(
+    person?: {
+      PERSON_ID: number;
+      HOSPITAL_NO: string | null;
+      FIRST_NAME: string | null;
+      LAST_NAME: string | null;
+      MIDDLE_NAME: string | null;
+    } | null,
+  ) {
     if (!person) return null;
     return {
       personId: person.PERSON_ID,

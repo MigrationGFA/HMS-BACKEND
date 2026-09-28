@@ -1,0 +1,246 @@
+// HR / Payroll (non-clinical). Soft-deactivate employees; no hard deletes.
+
+model HrEmployees {
+  EMPLOYEE_ID          Int       @id @default(autoincrement())
+  EMPLOYEE_NO          String    @unique @db.VarChar(40)
+  USER_ID              Int?      @unique
+  FIRST_NAME           String    @db.VarChar(100)
+  LAST_NAME            String    @db.VarChar(100)
+  EMAIL                String?   @db.VarChar(255)
+  PHONE                String?   @db.VarChar(50)
+  DEPARTMENT_ID        Int?
+  DEPARTMENT_NAME      String?   @db.VarChar(150)
+  DESIGNATION          String?   @db.VarChar(150)
+  GRADE_LEVEL          String?   @db.VarChar(50)
+  CADRE                String?   @db.VarChar(100)
+  /// Permanent | Contract | Locum | Full-time | NYSC | Resident
+  EMPLOYMENT_TYPE      String    @default("Permanent") @db.VarChar(30)
+  /// Active | OnLeave | Suspended | Exited | Retired | Inactive
+  STATUS               String    @default("Active") @db.VarChar(30)
+  DATE_JOINED          DateTime? @db.Date
+  DATE_OF_BIRTH        DateTime? @db.Date
+  EXPECTED_RETIRE_DATE DateTime? @db.Date
+  DATE_LEFT            DateTime? @db.Date
+  QUALIFICATIONS       String?   @db.Text
+  CERTIFICATIONS       String?   @db.Text
+  LICENSE_NO           String?   @db.VarChar(100)
+  LICENSE_EXPIRY       DateTime? @db.Date
+  NEXT_OF_KIN          String?   @db.VarChar(255)
+  NEXT_OF_KIN_PHONE    String?   @db.VarChar(50)
+  EMERGENCY_CONTACT    String?   @db.VarChar(255)
+  EMERGENCY_PHONE      String?   @db.VarChar(50)
+  EMPLOYMENT_HISTORY   String?   @db.Text
+  BASE_SALARY          Decimal?  @db.Decimal(14, 2)
+  CREATED_BY_ID        Int?
+  CREATED_BY           String?   @db.VarChar(100)
+  CREATED_DATE         DateTime  @default(now())
+  UPDATED_BY_ID        Int?
+  UPDATED_BY           String?   @db.VarChar(100)
+  UPDATED_DATE         DateTime?
+
+  attendance     HrAttendance[]
+  leaveRequests  HrLeaveRequests[]
+  appraisals     HrAppraisals[]
+  disciplinary   HrDisciplinary[]
+  documents      HrDocuments[]
+  payrollLines   HrPayrollLines[]
+
+  @@index([STATUS])
+  @@index([DEPARTMENT_ID])
+  @@index([EMPLOYMENT_TYPE])
+  @@index([DEPARTMENT_NAME])
+  @@map("HR_EMPLOYEES")
+}
+
+model HrLeaveTypes {
+  LEAVE_TYPE_ID Int     @id @default(autoincrement())
+  CODE          String  @unique @db.VarChar(40)
+  NAME          String  @db.VarChar(100)
+  DAYS_PER_YEAR Int     @default(0)
+  IS_ACTIVE     Boolean @default(true)
+
+  leaveRequests HrLeaveRequests[]
+
+  @@map("HR_LEAVE_TYPES")
+}
+
+model HrAttendance {
+  ATTENDANCE_ID Int       @id @default(autoincrement())
+  EMPLOYEE_ID   Int
+  WORK_DATE     DateTime  @db.Date
+  CHECK_IN      DateTime?
+  CHECK_OUT     DateTime?
+  /// Present | Late | Absent | EarlyLeave | OnLeave
+  STATUS        String    @default("Present") @db.VarChar(30)
+  SHIFT         String?   @db.VarChar(40)
+  NOTES         String?   @db.Text
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  employee HrEmployees @relation(fields: [EMPLOYEE_ID], references: [EMPLOYEE_ID])
+
+  @@unique([EMPLOYEE_ID, WORK_DATE])
+  @@index([WORK_DATE])
+  @@index([STATUS])
+  @@map("HR_ATTENDANCE")
+}
+
+model HrLeaveRequests {
+  LEAVE_ID       Int       @id @default(autoincrement())
+  EMPLOYEE_ID    Int
+  LEAVE_TYPE_ID  Int?
+  /// Annual | Sick | Maternity | Casual | Study | Other
+  LEAVE_TYPE     String    @db.VarChar(40)
+  START_DATE     DateTime  @db.Date
+  END_DATE       DateTime  @db.Date
+  DAYS           Decimal   @db.Decimal(6, 1)
+  REASON         String?   @db.Text
+  /// Pending | Approved | Rejected | Cancelled
+  STATUS         String    @default("Pending") @db.VarChar(30)
+  APPROVED_BY_ID Int?
+  APPROVED_BY    String?   @db.VarChar(100)
+  APPROVED_AT    DateTime?
+  DECISION_NOTE  String?   @db.Text
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime  @default(now())
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+
+  employee  HrEmployees   @relation(fields: [EMPLOYEE_ID], references: [EMPLOYEE_ID])
+  leaveType HrLeaveTypes? @relation(fields: [LEAVE_TYPE_ID], references: [LEAVE_TYPE_ID])
+
+  @@index([EMPLOYEE_ID])
+  @@index([STATUS])
+  @@index([START_DATE, END_DATE])
+  @@map("HR_LEAVE_REQUESTS")
+}
+
+model HrAppraisals {
+  APPRAISAL_ID       Int       @id @default(autoincrement())
+  EMPLOYEE_ID        Int
+  PERIOD_LABEL       String    @db.VarChar(40)
+  ATTENDANCE_SCORE   Int       @default(0)
+  PRODUCTIVITY_SCORE Int       @default(0)
+  EFFICIENCY_SCORE   Int       @default(0)
+  COMPLIANCE_SCORE   Int       @default(0)
+  PERFORMANCE_SCORE  Int       @default(0)
+  /// High | Average | Needs Attention
+  BAND               String?   @db.VarChar(30)
+  COMMENTS           String?   @db.Text
+  /// Draft | Final
+  STATUS             String    @default("Draft") @db.VarChar(20)
+  REVIEWER_ID        Int?
+  REVIEWER_NAME      String?   @db.VarChar(150)
+  CREATED_BY_ID      Int?
+  CREATED_BY         String?   @db.VarChar(100)
+  CREATED_DATE       DateTime  @default(now())
+  UPDATED_BY_ID      Int?
+  UPDATED_BY         String?   @db.VarChar(100)
+  UPDATED_DATE       DateTime?
+
+  employee HrEmployees @relation(fields: [EMPLOYEE_ID], references: [EMPLOYEE_ID])
+
+  @@index([EMPLOYEE_ID])
+  @@index([PERIOD_LABEL])
+  @@map("HR_APPRAISALS")
+}
+
+model HrDisciplinary {
+  CASE_ID       Int       @id @default(autoincrement())
+  EMPLOYEE_ID   Int
+  TITLE         String    @db.VarChar(200)
+  DESCRIPTION   String?   @db.Text
+  /// Open | UnderReview | Closed
+  STATUS        String    @default("Open") @db.VarChar(30)
+  SEVERITY      String?   @db.VarChar(30)
+  OUTCOME       String?   @db.Text
+  OPENED_DATE   DateTime  @default(now())
+  CLOSED_DATE   DateTime?
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  employee HrEmployees @relation(fields: [EMPLOYEE_ID], references: [EMPLOYEE_ID])
+
+  @@index([EMPLOYEE_ID])
+  @@index([STATUS])
+  @@map("HR_DISCIPLINARY")
+}
+
+model HrDocuments {
+  DOCUMENT_ID   Int       @id @default(autoincrement())
+  EMPLOYEE_ID   Int
+  TITLE         String    @db.VarChar(200)
+  DOC_TYPE      String?   @db.VarChar(80)
+  FILE_URL      String?   @db.VarChar(500)
+  STORAGE_KEY   String?   @db.VarChar(255)
+  /// Active | Deleted
+  STATUS        String    @default("Active") @db.VarChar(20)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  employee HrEmployees @relation(fields: [EMPLOYEE_ID], references: [EMPLOYEE_ID])
+
+  @@index([EMPLOYEE_ID])
+  @@index([STATUS])
+  @@map("HR_DOCUMENTS")
+}
+
+model HrPayrollRuns {
+  RUN_ID        Int       @id @default(autoincrement())
+  PERIOD_YEAR   Int
+  PERIOD_MONTH  Int
+  /// Draft | Locked
+  STATUS        String    @default("Draft") @db.VarChar(20)
+  TOTAL_GROSS   Decimal   @default(0) @db.Decimal(16, 2)
+  TOTAL_NET     Decimal   @default(0) @db.Decimal(16, 2)
+  LOCKED_AT     DateTime?
+  LOCKED_BY_ID  Int?
+  LOCKED_BY     String?   @db.VarChar(100)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  lines HrPayrollLines[]
+
+  @@unique([PERIOD_YEAR, PERIOD_MONTH])
+  @@index([STATUS])
+  @@map("HR_PAYROLL_RUNS")
+}
+
+model HrPayrollLines {
+  LINE_ID      Int      @id @default(autoincrement())
+  RUN_ID       Int
+  EMPLOYEE_ID  Int
+  BASIC        Decimal  @default(0) @db.Decimal(14, 2)
+  ALLOWANCES   Decimal  @default(0) @db.Decimal(14, 2)
+  DEDUCTIONS   Decimal  @default(0) @db.Decimal(14, 2)
+  PAYE         Decimal  @default(0) @db.Decimal(14, 2)
+  PENSION      Decimal  @default(0) @db.Decimal(14, 2)
+  NET_PAY      Decimal  @default(0) @db.Decimal(14, 2)
+  /// Pending | Paid
+  STATUS       String   @default("Pending") @db.VarChar(20)
+
+  run      HrPayrollRuns @relation(fields: [RUN_ID], references: [RUN_ID])
+  employee HrEmployees   @relation(fields: [EMPLOYEE_ID], references: [EMPLOYEE_ID])
+
+  @@unique([RUN_ID, EMPLOYEE_ID])
+  @@index([EMPLOYEE_ID])
+  @@map("HR_PAYROLL_LINES")
+}

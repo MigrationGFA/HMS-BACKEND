@@ -142,13 +142,15 @@ describe('PharmacyService', () => {
           URGENCY: 'Routine',
           PRESCRIBED_BY: 'Dr X',
           SENT_AT: new Date(),
-          items: [
-            { DRUG_NAME: 'Paracetamol', QUANTITY: 10, QTY_DISPENSED: 0 },
-          ],
+          items: [{ DRUG_NAME: 'Paracetamol', QUANTITY: 10, QTY_DISPENSED: 0 }],
         },
       ]);
 
-      const result = await service.inpatient({ status: 'awaiting', page: 1, limit: 20 });
+      const result = await service.inpatient({
+        status: 'awaiting',
+        page: 1,
+        limit: 20,
+      });
       expect(result.summary.admitted).toBe(1);
       expect(result.items).toHaveLength(1);
       expect(result.items[0].queueStatus).toBe('Awaiting Pharmacy');
@@ -202,7 +204,10 @@ describe('PharmacyService', () => {
         .mockResolvedValueOnce(0)
         .mockResolvedValueOnce(0);
 
-      const result = await service.auditTrail({ category: 'dispense', page: 1 });
+      const result = await service.auditTrail({
+        category: 'dispense',
+        page: 1,
+      });
       expect(result.items).toHaveLength(1);
       expect(result.items[0].module).toBe('Dispensing');
       expect(result.items[0].patient).toContain('Ada');

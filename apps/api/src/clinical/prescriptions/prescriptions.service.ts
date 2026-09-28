@@ -324,7 +324,11 @@ export class PrescriptionsService {
         : {}),
       ...(paymentStatus
         ? paymentStatus.includes(',')
-          ? { PAYMENT_STATUS: { in: paymentStatus.split(',').map((s) => s.trim()) } }
+          ? {
+              PAYMENT_STATUS: {
+                in: paymentStatus.split(',').map((s) => s.trim()),
+              },
+            }
           : { PAYMENT_STATUS: paymentStatus }
         : {}),
       ...(params?.personId ? { PERSON_ID: params.personId } : {}),
@@ -469,14 +473,19 @@ export class PrescriptionsService {
       include: ITEM_INCLUDE,
     });
     if (!existing) throw new NotFoundException('Prescription not found');
-    if (existing.PAYMENT_STATUS === 'Paid' || existing.PAYMENT_STATUS === 'Waived') {
+    if (
+      existing.PAYMENT_STATUS === 'Paid' ||
+      existing.PAYMENT_STATUS === 'Waived'
+    ) {
       throw new BadRequestException(
         'Prescription is already paid/waived — use normal dispense',
       );
     }
     const receivedBy = dto.receivedBy?.trim();
     if (!receivedBy) {
-      throw new BadRequestException('Receiver staff name is required for emergency dispense');
+      throw new BadRequestException(
+        'Receiver staff name is required for emergency dispense',
+      );
     }
 
     const label = actorLabel(actor);
@@ -512,7 +521,12 @@ export class PrescriptionsService {
       },
     });
 
-    return this.executeDispense(prepared, dto, actor, 'pharmacy:emergency-dispense');
+    return this.executeDispense(
+      prepared,
+      dto,
+      actor,
+      'pharmacy:emergency-dispense',
+    );
   }
 
   /** Cashier confirms payment for unpaid or emergency-dispensed prescriptions. */
@@ -527,7 +541,9 @@ export class PrescriptionsService {
     });
     if (!existing) throw new NotFoundException('Prescription not found');
     if (existing.STATUS === 'Cancelled' || existing.STATUS === 'Rejected') {
-      throw new BadRequestException('Cannot pay a cancelled/rejected prescription');
+      throw new BadRequestException(
+        'Cannot pay a cancelled/rejected prescription',
+      );
     }
     if (existing.PAYMENT_STATUS === 'Paid') {
       throw new BadRequestException('Prescription is already paid');
@@ -600,13 +616,13 @@ export class PrescriptionsService {
     );
 
     const lines = existing.items
-      .filter((i) => i.LINE_STATUS === 'Active' && i.SOURCE === 'Internal Pharmacy')
+      .filter(
+        (i) => i.LINE_STATUS === 'Active' && i.SOURCE === 'Internal Pharmacy',
+      )
       .map((i) => {
         const remaining = i.QUANTITY - i.QTY_DISPENSED;
         const qty =
-          requested.size > 0
-            ? (requested.get(i.ITEM_ID) ?? 0)
-            : remaining;
+          requested.size > 0 ? (requested.get(i.ITEM_ID) ?? 0) : remaining;
         return { row: i, qty, remaining };
       })
       .filter((l) => l.qty > 0);
@@ -704,7 +720,8 @@ export class PrescriptionsService {
         where: { PRESCRIPTION_ID: id },
       });
       const internal = refreshed.filter(
-        (i) => i.SOURCE === 'Internal Pharmacy' && i.LINE_STATUS !== 'Cancelled',
+        (i) =>
+          i.SOURCE === 'Internal Pharmacy' && i.LINE_STATUS !== 'Cancelled',
       );
       const allDone =
         internal.length > 0 &&
@@ -942,15 +959,15 @@ export class PrescriptionsService {
       include: ITEM_INCLUDE,
     });
     if (!existing) throw new NotFoundException('Prescription not found');
-    if (!['Sent', 'Dispensed', 'Partially Dispensed'].includes(existing.STATUS)) {
+    if (
+      !['Sent', 'Dispensed', 'Partially Dispensed'].includes(existing.STATUS)
+    ) {
       throw new BadRequestException(
         'Only Sent or Dispensed prescriptions can be refilled',
       );
     }
     const activeItems = existing.items.filter(
-      (i) =>
-        i.LINE_STATUS !== 'Cancelled' &&
-        i.SOURCE === 'Internal Pharmacy',
+      (i) => i.LINE_STATUS !== 'Cancelled' && i.SOURCE === 'Internal Pharmacy',
     );
     if (activeItems.length === 0) {
       throw new BadRequestException('No refillable items on this prescription');
@@ -959,7 +976,7 @@ export class PrescriptionsService {
       {
         personId: existing.PERSON_ID,
         send: true,
-        urgency: existing.URGENCY as 'Routine' | 'Urgent' | 'Stat',
+        urgency: existing.URGENCY,
         diagnosis: existing.DIAGNOSIS ?? undefined,
         allergiesNote: existing.ALLERGIES_NOTE ?? undefined,
         clinic: existing.CLINIC ?? undefined,
@@ -1068,7 +1085,7 @@ export class PrescriptionsService {
           items: {
             create: [
               {
-                DRUG_ID: drugId!,
+                DRUG_ID: drugId,
                 DRUG_NAME: drugName,
                 STRENGTH: strength,
                 FORM: form,

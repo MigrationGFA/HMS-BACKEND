@@ -338,7 +338,9 @@ export class WalkInSalesService {
               {
                 person: {
                   OR: [
-                    { HOSPITAL_NO: { contains: params.q, mode: 'insensitive' } },
+                    {
+                      HOSPITAL_NO: { contains: params.q, mode: 'insensitive' },
+                    },
                     { FIRST_NAME: { contains: params.q, mode: 'insensitive' } },
                     { LAST_NAME: { contains: params.q, mode: 'insensitive' } },
                     {
@@ -539,8 +541,7 @@ export class WalkInSalesService {
           where: { ITEM_ID: line.row.ITEM_ID },
           data: {
             QTY_DISPENSED: newQty,
-            LINE_STATUS:
-              newQty >= line.row.QUANTITY ? 'Dispensed' : 'Active',
+            LINE_STATUS: newQty >= line.row.QUANTITY ? 'Dispensed' : 'Active',
           },
         });
       }
@@ -549,8 +550,7 @@ export class WalkInSalesService {
         where: { SALE_ID: id },
       });
       const allDone = refreshed.every(
-        (i) =>
-          i.LINE_STATUS === 'Cancelled' || i.QTY_DISPENSED >= i.QUANTITY,
+        (i) => i.LINE_STATUS === 'Cancelled' || i.QTY_DISPENSED >= i.QUANTITY,
       );
 
       await tx.pharmacySales.update({

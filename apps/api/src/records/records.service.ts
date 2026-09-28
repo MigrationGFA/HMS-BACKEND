@@ -324,7 +324,12 @@ export class RecordsService {
         this.prisma.patientTransfers.count({
           where: {
             STATUS: {
-              in: ['AwaitingBed', 'BedReserved', 'ReceivingAccepted', 'InTransit'],
+              in: [
+                'AwaitingBed',
+                'BedReserved',
+                'ReceivingAccepted',
+                'InTransit',
+              ],
             },
           },
         }),
@@ -756,9 +761,7 @@ export class RecordsService {
     // Resolve hospital no / patient name for PERSON_ID references
     const personIds = [
       ...new Set(
-        rows
-          .map((r) => r.PERSON_ID)
-          .filter((id): id is number => id != null),
+        rows.map((r) => r.PERSON_ID).filter((id): id is number => id != null),
       ),
     ];
     const persons =
@@ -831,7 +834,10 @@ export class RecordsService {
     ] = await Promise.all([
       this.prisma.audits.count({ where: today }),
       this.prisma.audits.count({
-        where: { ...today, AUDIT_TYPE: { contains: 'create', mode: 'insensitive' } },
+        where: {
+          ...today,
+          AUDIT_TYPE: { contains: 'create', mode: 'insensitive' },
+        },
       }),
       this.prisma.audits.count({
         where: {
@@ -920,9 +926,7 @@ export class RecordsService {
     const typeFilter =
       params?.type && params.type !== 'all' ? params.type : undefined;
     const routingFilter =
-      params?.routing && params.routing !== 'all'
-        ? params.routing
-        : undefined;
+      params?.routing && params.routing !== 'all' ? params.routing : undefined;
 
     const triageRows = await this.prisma.triage.findMany({
       where: {
@@ -1034,12 +1038,14 @@ export class RecordsService {
     }
 
     const summary = {
-      total: items.length + (await this.prisma.triage.count({
-        where: {
-          ARRIVAL_AT: { gte: startOfDay, lt: endOfDay },
-          STATUS: 'Cancelled',
-        },
-      })),
+      total:
+        items.length +
+        (await this.prisma.triage.count({
+          where: {
+            ARRIVAL_AT: { gte: startOfDay, lt: endOfDay },
+            STATUS: 'Cancelled',
+          },
+        })),
       walkIn: items.filter((r) => r.type === 'Walk-In').length,
       appointment: items.filter((r) => r.type === 'Appointment').length,
       referral: items.filter((r) => r.type === 'Referral').length,
@@ -1085,7 +1091,9 @@ export class RecordsService {
     let triageId = dto.triageId;
     let triage =
       triageId != null
-        ? await this.prisma.triage.findUnique({ where: { TRIAGE_ID: triageId } })
+        ? await this.prisma.triage.findUnique({
+            where: { TRIAGE_ID: triageId },
+          })
         : await this.prisma.triage.findFirst({
             where: {
               PERSON_ID: dto.personId,
@@ -1111,8 +1119,7 @@ export class RecordsService {
             clinic: dto.clinic ?? undefined,
             status: 'Waiting',
             priority: dto.action === 'emergency' ? 'Emergency' : 'Routine',
-            patientType:
-              dto.action === 'emergency' ? 'Emergency' : undefined,
+            patientType: dto.action === 'emergency' ? 'Emergency' : undefined,
           },
           actor,
         );
@@ -1190,7 +1197,7 @@ export class RecordsService {
     });
 
     const refreshed = await this.prisma.triage.findUnique({
-      where: { TRIAGE_ID: triageId! },
+      where: { TRIAGE_ID: triageId },
       include: {
         person: {
           include: {
@@ -1223,7 +1230,9 @@ export class RecordsService {
       );
     }
 
-    const resume = await this.resumeRegistration({ personId: booking.personId });
+    const resume = await this.resumeRegistration({
+      personId: booking.personId,
+    });
     const label = actor
       ? [actor.firstName, actor.lastName].filter(Boolean).join(' ') ||
         actor.email
@@ -1340,10 +1349,13 @@ export class RecordsService {
     }
   }
 
-  private mapArrivalType(person: {
-    REG_TYPE?: string | null;
-    PATIENT_TYPE?: string | null;
-  }, triage?: { PRIORITY?: string | null; PATIENT_TYPE?: string | null }): string {
+  private mapArrivalType(
+    person: {
+      REG_TYPE?: string | null;
+      PATIENT_TYPE?: string | null;
+    },
+    triage?: { PRIORITY?: string | null; PATIENT_TYPE?: string | null },
+  ): string {
     if (
       triage?.PRIORITY === 'Emergency' ||
       /emergency/i.test(triage?.PATIENT_TYPE ?? '') ||
@@ -1358,19 +1370,25 @@ export class RecordsService {
     return 'Walk-In';
   }
 
-  private mapVisit(person: {
-    PATIENT_TYPE?: string | null;
-  }, triage?: { PATIENT_TYPE?: string | null }): string {
+  private mapVisit(
+    person: {
+      PATIENT_TYPE?: string | null;
+    },
+    triage?: { PATIENT_TYPE?: string | null },
+  ): string {
     const t = triage?.PATIENT_TYPE || person.PATIENT_TYPE || '';
     if (/emergency/i.test(t)) return 'Emergency';
     if (/return/i.test(t) || /follow/i.test(t)) return 'Follow-up';
     return 'New';
   }
 
-  private mapPayment(person: {
-    NHIS_NO?: string | null;
-    HMO_ID?: number | null;
-  }, card?: { PAYMENT_STATUS?: string | null } | null): string {
+  private mapPayment(
+    person: {
+      NHIS_NO?: string | null;
+      HMO_ID?: number | null;
+    },
+    card?: { PAYMENT_STATUS?: string | null } | null,
+  ): string {
     if (person.NHIS_NO) return 'NHIA';
     if (person.HMO_ID != null) return 'HMO';
     if (card?.PAYMENT_STATUS === 'Pending') return 'Pending';
@@ -1512,9 +1530,7 @@ export class RecordsService {
 
     const regType = row.REG_TYPE || '';
     const source =
-      /online/i.test(regType) || /book/i.test(regType)
-        ? 'Online'
-        : 'Walk-in';
+      /online/i.test(regType) || /book/i.test(regType) ? 'Online' : 'Walk-in';
 
     return {
       id: String(row.PERSON_ID),

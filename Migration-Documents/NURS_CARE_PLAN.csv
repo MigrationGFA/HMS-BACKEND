@@ -1,0 +1,588 @@
+NURS_CARE_PLAN_ID,PERSON_ID,DATE_TIME,S_NO,NURS_DIAGNOSIS,OBJECTIVES,NURS_ACTION,EVALUATION,NURSES_INITIALS,SCIENTIFIC_RATIONALE,REMARK,CREATED_BY
+4271,75151,,,,,,,,,,
+4311,76311,11-NOV-21 12.00.00.000000 AM,3452,nil,treatment given,nil,nil,E F,,,
+4331,76791,12-JAN-22 12.00.00.000000 AM,1,"Fluid volume deficit, less than body requirement",After 8hrs of nursing intervention the client will be able to able to maintain fluid volume at a functional level.,"-assess patient vital signs.
+-Ensure adequate fluid intake
+-Ensure ivf is maintained as prescribed
+ ","-Patient  fluids balanced returned to normal 
+-Vital sings stable
+-intake and out put adequately monitored and stable, as per lab result",,,,
+4372,75791,17-JAN-22 12.00.00.000000 AM,,none,none,none,none,,,,
+4491,,,,,,,,,,,
+4291,75831,25-AUG-21 12.00.00.000000 AM,12,pains in abdomen,relityuiik,tyuiiooo,fghkjkjkjyf,esfuhyijuojo,,,
+4412,76873,23-JAN-22 12.00.00.000000 AM,234,AS,AS,AS,AS,AS,AGHJH,AS,
+4511,78813,,,,,,,,,,
+4538,79183,,,,,,,,,,
+4534,79177,,,,,,,,,,
+4551,79176,23-JAN-23 12.00.00.000000 AM,,,,,,,,,
+4552,79194,23-JAN-23 12.00.00.000000 AM,,,,,,,,,
+4553,79192,03-JAN-23 12.00.00.000000 AM,,,,,,,,,
+4554,79177,23-JAN-23 12.00.00.000000 AM,,,,,,,,,
+4555,79192,,,,,,,,,,
+4556,79177,23-JAN-23 12.00.00.000000 AM,145678,INSOMNIA RELATRED TO MENTAL STATE,,,,,,,
+4557,79204,23-JAN-23 12.00.00.000000 AM,1234,,,,,,,satisfactory ,
+4558,79198,,4,insomnia,,,,,,,
+4559,79199,,,,,,,,,,
+4574,79231,12-JAN-23 12.00.00.000000 AM,,,,,,,,,
+4576,79176,,,,,,,,,,
+4577,79183,,,,,,,,,,
+4580,79192,26-JAN-23 12.00.00.000000 AM,1,wandering,,,,,,,
+4582,79186,26-JAN-23 12.00.00.000000 AM,7777,sleep deprivation,to sleep well,put underf good vetilatin,goal met,wf,to calm the brain,,
+4592,79192,,,,,,,,,,
+4651,79472,26-FEB-23 12.00.00.000000 AM,1,Fever,Main  check,Tapid Spong,test,Nur. Esther,test,Ok,
+4678,79551,26-FEB-23 06.18.00.000000 PM,,12334v,vdssdv,vsvsd,sdvs,,vdsvds,ok,353
+4691,79913,,,,,,,,,,4111
+4451,75891,15-FEB-22 12.00.00.000000 AM,,none,none,none,none,zaid,none,none,
+4531,79173,23-JAN-23 12.00.00.000000 AM,,,,,,,,,
+4532,79177,,,,,,,,,,
+4533,79177,,,,,,,,,,
+4535,79176,,,,,,,,,,
+4536,79177,,,,,,,,,,
+4537,79177,,,,,,,,,,
+4571,79194,,,,,,,,,,
+4572,79175,,,,,,,,,,
+4575,79192,,,,,,,,,,
+4579,79194,,,,,,,,,,
+4581,79192,,,insomnia,,,,,,,
+4594,75891,,,,,,,,,,
+4251,74691,09-MAY-21 12.00.00.000000 AM,,"nm,.",,,,mj,,,
+4332,76791,13-JAN-22 12.00.00.000000 AM,1,fever,to bring nursing down temperature to 37 c within 30 minutes nursing care,tepid  sponge and administer right medication anti pyretic,patient temp drop down to 36 c,,,,
+4351,75951,14-JAN-22 12.00.00.000000 AM,1,Malaria,A,A,A,a,,,
+4573,79173,,,,,,,,,,
+4578,79173,26-JAN-23 12.00.00.000000 AM,79173,anxiety,,,,,,,
+4591,79176,,,,,,,,,,
+4593,79176,,,,,,,,,,
+4611,79176,,,,,,,,,,
+4612,79192,,,,,,,,,,
+4613,79192,,,,,,,,,,
+4614,79183,,,,,,,,,,
+4615,79173,,,,,,,,,,
+4633,79551,21-FEB-23 12.00.00.000000 AM,1,pain related to surgical site incision evidenced by patient verbalization,patient will verbalize less pain within 40-50mins of nursing intervention,"-reassure patient
+-asses pain scale
+-give prescribed analgesic
+-place patient in a comfortable position
+",still ongoing,np,"-to gain trust
+-to know level of pain
+-to relieve pain
+-to help maintain comfort
+",done,
+4391,76871,18-JAN-22 12.00.00.000000 AM,,none,none,none,none,none,,,
+4539,79203,,,,,,,,,,
+4540,79176,,,,,,,,,,
+4541,79187,29-JAN-23 12.00.00.000000 AM,,nbsbsksabsa,,,,,,,
+4542,79199,,,,,,,,,,
+4543,79177,23-JAN-23 12.00.00.000000 AM,7777,,,,,,,,
+4544,79193,,,,,,,,,,
+4545,79183,23-JAN-23 12.00.00.000000 AM,1,self care deficit related related to refusal to take her bath evidenced by dirty appearance,patient will willingly care for her self within 3 days of nursing action,create rapport,,,,,
+4583,79183,,,,,,,,,,
+4677,79551,26-FEB-23 06.10.00.000000 PM,1,fsfs,afaf,afasf,afsfa,afasfs,afsf,afsf,353
+4772,660,,,hyperthermia related to parasiteamia as evidenced by temperature of 38.5,temperature will reduce by 1 within 40mins of nursing intervention,"1. obtain baseline data
+2. reassure patient
+3. expose to room air
+4. tepid sponge
+5. administer prescribed analgesic e.g ibuprofen 5ml bd",Mutmoyinah's fever subsided to 37.3 after an hour of nursing intervention,,,,5014
+4791,1367,06-NOV-23 11.41.00.000000 AM,,altered body comfort related to pain evidenced by pain rating score of ,patient will report a pain score of 3 or less out of 10 within 45minutes of nursing intervention,"assess level of pain using a pain rating scale
+position patient in a position comfortable for the patient
+give diversional therapy such as reading a book or watching a movie
+administer prescribed analgesics",,,,,5014
+4794,1563,07-NOV-23 03.50.00.000000 PM,,Hyperthermia related to parasitemia as evidenced by temperature of  38C,Patient temperature will be between the range of 37.2 to 36.2C within 1hour of nursing intervention,"-Assess level of hyperthermia
+-Remove excess clothings
+-Open nearby windows
+-Put on nearby fans
+-Administer prescribed antipyretics",Patient temperature reduced to 36.4C within 45minutes of nursing intervention,,"-To serve as baseline data
+-To promote heat loss
+-To promote heat loss
+-To promote heat loss
+-To stimulate the heat regulating centre
+",Goal achieved,4625
+4831,2130,18-NOV-23 08.13.00.000000 AM,,Acute Pain,Pain will subside within 30 minute of nursing intervention ,"-Access the level of pain
+-Reassure patient 
+-Encourage patient to assure comfortable position 
+-Give prescribed analagesic 
+-Re-evaluate paitient ",Patient verbalize relief of pain at 20 minute of nursing and medical intervention ,,,Goal achieved,4629
+4872,2856,04-DEC-23 03.10.00.000000 PM,,hyperthermia related to parasiteamia evidenced by temperature of 38.1C,Patient body temperature will reduce with 1c within 1 hour of nursing intervention,"1. monitored vital signs especially the temperature
+2. expose to fresh air
+3. hourly temperature chart opened
+4.opened nearby windows and doors",Patient body temperature reduced with 1c within 1hour of ,,,,4574
+4893,55,14-DEC-23 07.50.00.000000 PM,,Anxiety related to unknown outcome of pregnancy,patient will verbalise relief of anxiety after 69 minutes of nursing intervention,"admit patient
+create nurse-patient relationship
+explain the procedure to the patient
+allow the patient to ask questions and provide answers to the questions asked.",patient was relieved of anxiety after 20 minutes of nursing intervention,,,,4595
+4934,3945,22-DEC-23 03.20.00.000000 PM,,hyperthermia related to parasitemia as evidenced by temperature of 38.5C,patient temperature will reduce to 37.2-36.2C within 2hours of nursing intervention,"Assess patient temperature
+Remove excess clothings
+Open nearby windows 
+Give tepid bath
+Give prescribed antipyretics",,,"Serves as baseline data
+To promote heat loss
+To promote heat loss
+To promote heat loss
+Antipyretics act on the heat regulating centre",,4625
+5012,5207,20-JAN-24 08.03.00.000000 AM,,Hyperthermia (40c),Patient temp will subside by 6c with 40min of nursing intervention ,"-Assess patient 
+-Assess the degree of hotness and coldness
+-Tepid bath patient 
+-Expose to room air 
+-Give prescribed antipyretic 
+",Patient temp subsided to 37c at 8pm,,,,4629
+5032,5219,22-JAN-24 08.56.00.000000 PM,,Powerlessness related to weak ego evidenced by inability to quit substance use.,Patient will be able to cope well without the use of substance within 1 week of nursing intervention.,"Assess the level of substance use.
+identify various substance abused by patient.
+Teach patient how to cope with cravings.
+Apply all nursing intervention.",,,"Serves as baseline data.
+To have a good understanding of the effect of the substances.
+It assists patient to develop skills on how to quit substance use.
+For continuity of care.",,4543
+5033,104,22-JAN-24 11.35.00.000000 PM,,anxiety related to unknown outcome of delivery,patient will be less anxious within 45minutes of nursing intervention,"reassure patient, assess level of anxiety, create good interpersonal relationship, allow patient to ask question, explain procedure to the patient.",goal achieved,,,satisfactory,4512
+5052,236,02-FEB-24 10.30.00.000000 AM,,Anxiety related to unknown outcome of labour evidence by patient asking too many questions ,patient will verbalise less anxiety within 30minutes of nursing intervention,"1. Make patient comfortable in bed in the best position that is comfortable to her. 
+2. Explain the process of labour to her 
+3. Answer every questions that patient ask and explain in simple language. 
+",,,,,4961
+5072,5885,05-FEB-24 07.30.00.000000 PM,,disturbed thought process related to mental dysfunction evidenced by restlessness.,Mr Salami will rest well and conserve his energy within 2 days of nursing intervention.,"-Assess patient
+-Encourage patient to relax on his bed.
+-educate patient on the need to rest.",,,"-For baseline data
+-To conserve his energy
+-To enlighten him about him about his condition.",,4594
+5073,5906,05-FEB-24 09.00.00.000000 PM,,Acute Pain,Patient wil verbalize relieve of pain within 40min of nursing intervention. ,"-Assess patient
+-Assess the level of a pain
+-Reassure patient
+-Encourage patient to assume comfortable position
+-Give precribed analgesic 
+-Re-evaluate patient ",Patient verbalize relieve of pain at 10:20pm ,,All nursing actiions are to help patient relieve pain ,,4629
+5092,5999,08-FEB-24 03.10.00.000000 PM,,Unstable blood pressure,Patient blood pressure will be within normal range after 12hours of hospitalization,"1. admit the patient and check the blood pressure
+2.Reassure the patient
+3.  Encourage the patient to maintain bed rest
+4. Check the blood pressure 2hrly
+5. Ensure the administration of IV labetalol 
+6 monitor the patient the patient closely",,,,,4625
+5112,1497,12-FEB-24 09.12.00.000000 AM,,Hyperthamia,patient temp wil subside within 40min,"-assess patient 
+-assess the degree of hotness and coldness 
+-expose patient to room air 
+-tepid sponge prn",patient temp sudside to 37c at 9,,"-To reduce patient temp 
+",satisfactory,4629
+5132,6339,15-FEB-24 11.01.00.000000 PM,,hyperthermia related to disease process evidence by thermometer reading of 38.5,tempearture will reduce by 2 degree celcious within 1 hour of nursing intervention ,"expose patient to room air 
+put on fan
+tepid sponge patient 
+give prescibed antipyrectic drugs",patient temperature reduced to 36.9 after 45minutes of nursing action,,,,4961
+5154,6489,20-FEB-24 12.20.00.000000 PM,,imbalanced nutrition less than body requirement related to inadequate consumption of nutritional requirements evidenced by substance abuse,patient will gain knowlege on adequate nutritional requirements thjroughout period of hospitalization ,"assess patients vital signs
+place patient in a comfortable position
+educate patient on the importance of adequate nutrition
+counsel patient on nutritional requirements 
+reassure patient
+document all nursing actions",,,"for baseline data
+for comfortability of patient
+improves patients knowledge on required nuritional requirement
+allys patients fear
+for contuinity of care",,4950
+5155,2604,22-FEB-24 07.58.00.000000 AM,,disturbed sensory perception.,Patient will maintain a safety environment and reduction in alterations in how she perceives sensory cues throughout a period of hospitalization.,"Ensure safety environment.
+Remove injured materials  from patient environment.
+Allow patient to maintain comfortable position.
+Monitor vital signs.
+Give prescribed psychotic medications",,,To provide safety and prevent suicidal attempt.,,4585
+4711,75,11-OCT-23 04.07.00.000000 PM,,hyperthermia related to disease process evidence by temperature reading of 39.0,patients temperature will reduce by 1-2 degree celsuis within 30-45 mins of nursing intervention,"assess patients temperature
+expose patient 
+tepid sponge 
+administer prescribed antipyretics e.g IM paracetamol
+reassess body temperature",patients temperature yet to reduce by 1-2 degree celsius as at reporting time.,,,,4950
+4734,218,16-OCT-23 09.53.00.000000 PM,,Acute pain related to inflammatory process evidenced by verbalization,patient verbalized relieve of pain evidenced by pain of score 2/10 -3/10 within 30-40mins of nursing intervention.,"- assess level of pain
+- place patient in a comfortable position
+- elevate right limb on pillow
+- give prescibed analgesic",patient verbalised relieve of pain within 35mins of nursing intervention.,,"- as base line data
+- to minimise movement to reduce pain.",,4611
+4795,1586,,,hyperthermia,patient temperature will reduce by 1.5degree with 30mins of nursing intervention,"exposed to fresh air, 
+give tepid bath, 
+open nearby window
+give prescribed anti pyretic",,,,,4961
+4812,1965,14-NOV-23 08.37.00.000000 PM,,Acute pain related to aching of the temples evidenced by patient pain score of 4/10.,patient wil verbalise relief of pain with acceptable pain control at a level of 4- 10 using pain scale within 30-45 minutes of nursing intervention.,"- check vital signs
+- encourage patient to rest.
+- diversional therapy
+- maintain adequate hydration
+- give prescribed analgesics.",patient verablised relief of pain  within 30 minutes of nursing intervention.,,"- It serves as baseline data.
+-relaxation help reduce stress
+- it serve as a means to divert mind from pain",,4650
+4851,2318,21-NOV-23 02.22.00.000000 PM,,Acute pain related to evidenced by verbalisation.,Patient will verbalise relief of pain 30 _ 45 mins after nursing intervention.,"- check vital signs
+- assess pain on pain scale
+- diversional therapy
+-give pres",,,,,4650
+5076,5959,06-FEB-24 03.40.00.000000 PM,,Acute pain,Patient will verbalised less pain within 45 minutes of nursing intervention,"1.Reassure patient
+2.admit in a comfortable position
+3.give prescribed analgesic
+4. monitored pain threshold",,,,,4542
+4853,2551,24-NOV-23 02.53.00.000000 PM,,"Ineffective Breathing Pattern
+Hyperthermia (39c)",Patient breathing will improved within 30min of nursing intervention ,"-Assess patient breathing 
+-Place patient in cardiac position 
+-Remove or loose tight clothing 
+-Give oxgyen at prescribed rate ",Patient breathing improved at 20min of nursing and medical intervention ,,To improve patient breathing ,,4629
+5074,5538,06-FEB-24 07.34.00.000000 AM,,decrease cardiac output to meet metabolic demand of the body related to increase systemic vascular demand evidence by increase in temperature reading 170/120mmhg.,patient bp will be reduced within 30 minutres  of nursing intervention ,"Take and record bp as baseline date
+Place patient in a comfortable position 
+Ensure bed rest for patient 
+Reassure patient
+ 
+Give prescribed antihypetensives  ",,,,,4961
+5136,6344,16-FEB-24 04.04.00.000000 PM,,Ineffective breathing pattern ,Patient breathing will be normalize with 40min of nursing intervention ,"-Assess patient 
+-Assess patient breathing 
+-Place patient in standard flowers position 
+-Remove or loose tight clothing
+-Reassure patient 
+-Give prescribed bronchiodilator 
+-Re-evaluate patient",,,TO AID AND IMPROVE PATIENT BREATHING ,,4629
+5175,6683,24-FEB-24 01.44.00.000000 PM,,Risk for deficient fluid volume,Patient fluid volume will be within the normal level during the period of hospitalization,"Asses the patient fluid level,Encourage patient to take adequate fluid,administer prescribed iv fluid.",,,,,4633
+5192,6746,27-FEB-24 01.38.00.000000 AM,,Risk for deficient fluid volume  related  to disease condition evidenced by passage of  loose watery stool of  8 episodes.,patient will maintain normal pattern of bowel functioning during the period of hospitalization," Assess the general condition and monitor vital signs  ,Encourage oral fluid intake ,monitor intake and output ,emphasized on importance of  food,personal hygiene and handwashing                        ",,,"For baseline data ,Fluid replacement ,To know the hydration status of patient ,To prevent spread of infection.",,4651
+5193,6762,27-FEB-24 02.16.00.000000 PM,,Impaired body comfort.,patient will verbalize relief of pain within 45minutes of nursing intervention.,Assess  level of pain.Put patient in a comfortable position Monitor vital signs.Give prescribed analgesics. ,Patient verbalize relief of pain after 30 minutes of nursing intervention.,,It serve as baseline data.To make her comfortable on bed.To relief of pain.,,5482
+5200,6751,28-FEB-24 10.25.00.000000 PM,,disturbed sensory perception related to neurochemical imbalance evidenced by responding ton hallucinations,patient will stop responding to hallucination within his period of hospitalization,"create nurse patient relationship
+Give psychotherapy
+monitor and observe how often the hallucinatory commands and encourage  patient
+Administer prescribed antipsychotic drugs
+",,,"Its create trust
+To gain insight and refuse hallucinatory
+To monitor the patterns of hallucination
+to lessen the effect of hallucination",NoII KUSANU,4658
+5212,543,08-MAR-24 06.20.00.000000 AM,,Deficient fluid volume related to GIT disturbance evidenced by vomiting and stooling,Patient will regain loss fluid within 24hours of nursing intervention ,"Monitor patient weight
+encourage liberal fluid intake
+monitor intake and output strictly
+give prescribed i.v fluids
+Give prescribed anticholinergic",Patient regained loss fluid within 24 hours of nursing intervention,,,Achieved goal,4542
+5213,6913,06-MAR-24 06.50.00.000000 AM,,acute pain pain score 9/10,patient will verbalize less pain within 3-4hours of nursing intervention,1-access level of pain  2- reassure patient  3-give prescribed analgesic   4-place in a comfortable position,patient verbalizes less pain after 3hours of nursing intervention,,,Achieved goal,4542
+5214,1339,08-MAR-24 08.00.00.000000 PM,,Acute pain,Patient will verbalize relief of pain after 60 minutes of nursing intervention ,"admit patient
+access the level of pain
+allow the patient to lie in comfortable position and remove tight clothing
+administer the prescribed analgesic i.e im pentazocine 30 mg stat",patient was relieved of pain after 45 minutes of nursing intervention evidenced by sleeping,,,,4595
+5232,7225,10-MAR-24 06.31.00.000000 AM,,acute pain related to pressure on nerve endings evidence by pain score of 7/10,patient will verbalize less pain with pain score of 4/10 within 45minutes to 1 hour of nursing intervention ,"assess level of pain using numerical rating scale
+place patient in comfortable position
+administer prescribed antacid and analgesics
+reassure patient
+document all nursing actions",,,"serves as baseline data
+promotes comfort of the patient
+reduce gastric acid secretion and pressure on nerve endings
+allays patients fear
+for contuinity of care
+",,5275
+5233,4393,11-MAR-24 06.05.00.000000 PM,,risk for fall related to seizures,patient will not fall throughout period of hospitalization,"assess patients vital signs 
+place patient on low bed
+place patient in comfortable position
+administer prescribed muscle relaxant
+reassue patient
+document all nursing care",,,"for baseline data
+helps to prevent fall
+aids comfortability of patient
+helps to relax the muscles 
+allays patient fear
+for contuinity of care",,4950
+4732,91,16-OCT-23 07.02.00.000000 PM,,"POWERLESSNESS RELATED TO WEAK EGO, EVIDENCED BY INABILITY TO QUIT PSYCHOACTIVE SUBSTANCES.",PATIENT WILL REDUCE THE URGE AND QUIT THE USE OF PSYCHOACTIVE SUBSTANCES WITHIN 48-72HOURS.,"1.NURSE PATIENT IN A COMFORTBLE BED.
+2.VITAL SIGNS.
+3.PSYCHOEDUCATION.
+4.OPEN  AND UPDATE ESCAPEE AND HOMICIDAL CHARTS
+5.SERVE NUTRITIOUS MEALS
+6.ADMINISTER PRESCRIBED MEDICATIONS/ANTIPSYCHOTICS/TRANQUILLIZER.
+7.GIVE DIVERSIONAL THERAPY
+8.MONITOR HIM CLOSELY",PATIENT REDUCE THE URGE OF PSYCHOACTIVE SUBSTANCES AT 48 HOURS.,,"1.PROMOTE COMFORT.
+2.BASELINE TREATMENT.
+3.IMPROVE MENTAL STATE.
+4.CONTINUITY OF CARE.
+5.IMPROVE HEALTH STATUS.
+6. IMPROVE BRAIN NEUROTRANSMITTERS.
+7. REDUCE THE CRAVING.
+8.PREVENT ABSCONDENCE",ONGOING,4956
+4733,229,16-OCT-23 07.06.00.000000 PM,,Ineffective breathing pattern related to hyperactivity ofthe respiratory tract evidenced respiratory rate of 44c/m,patient will be able to breath easily  within 30- 45 mins of hospitalisation.,"- Assess the patient's breathing pattern
+- Place patient in cardiac position
+- Nebulise patient with 5mg of salbutamol.
+- Reassure patient and parent.",patient breath easily within 35mins of  nursing intervention.,,"- to serve as base line data
+- to ease respiration",,4611
+4792,1563,07-NOV-23 02.53.00.000000 PM,,hyperthermia related to bacteremia evidenced by temperature of 38c,patient body temperature will reduce within with 1c within 45 minutes of nursing intervention ,"monitored vital signs hourly
+exposed patient to fresh air
+remove extral clothing
+give prescribed analgesic",patient body temperature reduced with 1 c within one hour of nursing intervention,,,,4542
+4793,1563,07-NOV-23 03.42.00.000000 PM,,Deficient fluid volume related to hypermotility of the GIT as evidenced by stooling,Patient will maintain adequate fluid volume throughout the period of hospitalization,"-Assess level of fluid volume
+-Reassure patient and relations
+-Take liberal fluid as tolerated
+-Teach and ensure proper hand,food and personal hygiene
+-Administer prescribed iv fluid",,,,,4625
+4798,1796,10-NOV-23 06.51.00.000000 PM,,Risk for unstable blood pressure,Patient's blood pressure will be stabilised during the course of hospitalisation,"1. Check patient's blood pressure
+2. Encourage patient to maintain bed rest
+3. Check blood pressure 2hrly
+4. Administer the prescribed antihypertensive i.e tab amlodipine",,,,,5014
+4813,2006,15-NOV-23 01.38.00.000000 AM,,fatigue related to exhaustion as evidenced by patient verbalization,patient will verbalize less fatigue after 1-2 hours of nursing intervention,"assess patient energy level,assist patient in carrying out activity of daily living,allow patient to assume a comfortable position,encourage patient to eat.",patient gained her energy back after 1 hour of nursing intervention,,helps patient to gain her energy back.,,4953
+4871,2749,28-NOV-23 03.01.00.000000 PM,,anxiety related to the incidence and unknown outcome of health condition evidence patient asking questions ,patient will  show less anxiety with 45mins to 1 hour of nursing care,"1. assess patient level of anxiety
+2. Answer patient questions 
+3. Reassure patient to allay fear
+4. Document all nursing care",,,,,4961
+4873,2856,04-DEC-23 03.17.00.000000 PM,,Risk for unstable blood pressure,patient blood pressure will reduce within 2 hours of nsg intervention,"1. monitored vital signs esp blood pressure
+2. two hourly blood pressure chart opened
+3.dietary modification ,reduction in salt intake and oil intake
+4.use of antihypertensive must be emphasized",,,,,4574
+4892,1617,12-DEC-23 09.10.00.000000 AM,,Acute Pain,Patient will experience relief of pain after 30-45mins of nursing intervention,"Make patient comfortable in bed
+Assess level of pain
+Diversional therapy given
+Deep breathing exercise encouraged
+Sacral massage done",Patient verbalise relief from pain after 30mins of nursing intervention,,l ,,4933
+4912,3585,16-DEC-23 03.20.00.000000 PM,,Deficient fluid volume related to GIT disturbance evidenced by stooling and vomiting,patient will regained loss fluid within 24 hours of nursing intervention,"reassured patient
+monitored patient weight
+encourage liberal fluid intake
+give prescribed i.v fluid
+give prescribed anti emetic",,,,,4542
+4932,3787,21-DEC-23 01.21.00.000000 AM,,Hyperemia related to inflammatory response evidenced by temp reading of 37.5oC,Patient temperature will be reduced by 1oC within 30minutes - 1 hour of nursing intervention.,"-check vital signs 
+-expose patient to room air 
+-give prescribed analgesic",,,"-it serves as baseline data
+- heat loss by radiation
+-it regulate the heat regulatory centre",,4650
+4933,3877,,,HYPERTHEMIA RELATED TO  INFECTION PROCESS EVIDENCED BY TEMPERATURE OF  38.3,PATIENT TEMPERATURE WILL REDUCE BY  1 WITHIN AN HOUR OF NURSING INTERVENTIO.,"- ASSESS PATIENT TEMPERATURE.
+-EXPOSE PATIENT TO ROOM AIR
+-ENCOURAGE LIBRAL FLUID IN TAKE",,,"SERVE AS BASE LINE DATA
+REDUCE BODY TEMPERATURE.",,4611
+5133,6342,15-FEB-24 01.53.00.000000 AM,,risk for deficient fluid volume less than body requirement related to infec tion process evidence by patient stooling and vomiting of about 4 episodes each,patient would main adequate fluid volume throught the period of admission,"weight patient and check the skin turgour
+encourage and give copious fluid 
+give ensure intavenous fluid regimen",,,,,4961
+5134,6345,16-FEB-24 01.22.00.000000 PM,,Self care deficit,Patient will be able to care for herself within 9hrs of hospitalization,"Assess patient self care level ,assist patient to care for herself,assist patient to mobilize .Reassure patient and encouraged her to mobilize            ",,,,,4633
+5152,6469,19-FEB-24 03.00.00.000000 PM,,deficient fluid volume related to hypoglycemia evidenced by malaise,patient will show less signs of dehydration within 1-2 hours of nursing care,"assess patients vital signs
+place patient in a comfortable position
+administer prescribed IVF
+reassure patient
+document all nursing actions",patient showed less signs of dehydration after 1 hour 30minutes of nursing care.,,"for baseline data
+aids comfortability of the patient
+helps to replace lost fluid and electrolytes
+allays patients fear
+for contuinity of care",,4950
+5153,6411,19-FEB-24 10.00.00.000000 AM,,unstable blood glucose related to non-compliance to treatment regimen evidence by RBS reading of 340mg/dl,patients blood glucose will be within normal range throughout period of hospitalization,"assess patients vital signs 
+monitor patients blood glucose
+administer prescribed medications and IV fluid 
+reassure patient
+document aall nursing care",,,"for baseline date
+helps to plan individualised care
+helps to stabilize blood glucose
+allays patients fear
+for continuity of care",,4950
+5172,3585,22-FEB-24 01.39.00.000000 PM,,risk for deficient fluid volume,"patient will maintain normal body fluid and electrolyte throughout the period of hospitalisation, ","assess patient patients skin tugor, 
+encourage on prescribed ORS.
+administer prescribed iv fluids.",patients maintained normal body fliud throughout the shift.,,,satisfactory,4601
+4712,138,13-OCT-23 04.08.00.000000 AM,,Hyperthermia,Patient body temperature will reduced with 1celsus within 45 minutes of nursing intervention,"-Monitored the vital signs 2Hourly
+-Expose to fresh air
+-Switch on the nearby fan
+-Tepid sponged prn
+-give prescribed antipyretic
+-",Patient body temperature reduced with 1celsus within 45minutes of nursing intervention,,,Goal achieved,4542
+4751,218,20-OCT-23 11.20.00.000000 PM,,Impaired skin integrity,Patient wound will healed up within 48 hours of nursing intervention,"dress the wound aseptically
+encourage intake of fruit and vegetables
+increase intake of protein
+",wound is granulating gradually,,,,4542
+4771,656,25-OCT-23 08.45.00.000000 PM,,Pain,Patient will verbalize relief of pain with 30mins of nursing intervention,"assess the level of pain
+allow patient maintain a comfortable position
+creat divertional therapy
+administer prescibed anagesic",Patient verbalize relief of pain within 25mins of nursing intervention.,,"base line data
+to relieve pain",,4611
+4796,1632,09-NOV-23 01.28.00.000000 PM,,deficient fluiud volume related to dehydration evidenced by sunken eyes and emaciation,Patient will regain loss fluid within 24 hours of nursing interventio n,"-Monitor patient weight
+-Monitor intake and output chart strictly
+-Encourage liberal oral fluid
+-Give prescribed intravenous fluid",patient still on care,,,,4542
+4797,1632,09-NOV-23 01.36.00.000000 PM,,Imbalance body nutrition less than body requirement related to  malignancy evidence by weight loss,Patient  will maintain weight in desire goal range,"-assess  reason for imbalance nutrition
+-Weight pt routinely
+-assess oral hygiene
+-assess the need for assistance devices to aid feeding
+-Complete a thorough nutritional screening
+-|Provide nutritional supplement as appriopriate
+-",Patient will progressively gain weight,,,,4542
+4811,1923,,,ineffective airway clearance related to upper aiorway obstruction,patient will be able to breath at 16-24c/m within 4 hours of nursing intervention,"Assess respiratory rate
+position patient in a left lateral position
+sunction PRN
+prevent hypoxia
+",Patient is able to breath at 24 c/m within 4 hours of nursing intervention,,,,4650
+4952,3980,26-DEC-23 09.40.00.000000 PM,,Acute pain related to progression of peptic ulcer disease,patient will verbalize less pain within 30-45 minutes of nursing care,"Assess patients level of pain using pain rating score
+monitor patients vital signs
+administer prescribed analgesics
+Reassure patient
+document all nursing care.",patient verbalised less pain after 45mins of nursing intervention,,"for baseline data
+for planning individualised care
+blocks pain pathway
+allays patient fear
+document all nursing actions",,4949
+4972,4657,10-JAN-24 09.00.00.000000 PM,,Powerlessness related to weak ego evidenced by inability to quit substance use,Patient will have insight into his drug use habit and quit after treatment regimen in the hospital and at home,"- Create nurse\ patient rapport 
+- Psycho-educate patient on detrimental effect of psychoactive substance on his mental state
+- Monitor patient behaviour
+- Monitor patient sleep pattern
+- Engage patient in diversional therapy
+- Watch out for withdrawal symptoms
+- Engage patient in insight oriented therapy
+- Administer prescribed neuroleptic",,,"- To allay patient fear
+- To enlighten patient about his illness
+- To detect any abnormality early
+- To ensure he gets enough sleep
+",,4636
+5075,5920,06-FEB-24 11.17.00.000000 AM,,deficient fluid volume,patient's body fliud will be normalised throughout the period of hospitalization.,"assess level of dehydration
+administer prescribed fluid at prescribed rate.
+monition level of fluid hydration 
+reassure patient and relatives",patient still under the course of prescribed fluid and rehydrated.,,,fair state of health,4601
+5093,6058,,,Hyperthemia related to bacteriamia evidenced by temperature of 38,patient temperature will redure by 1 degree celcius within an hour  of  hospitalisation,"- Assess patient temperature
+- Expose patient to room air 
+-Encourage the intake of libral fluid
+- Administer prescried anti pyretic
+- Administer prescried IVF",Patient  temperature subsided to 37.4 within an hour of hospitalisation.,,"- to serve as baseline data
+- To reduce patient tempeature",satisfactory,4625
+5113,6176,13-FEB-24 02.14.00.000000 AM,,activity intolerance related to disease progression evidence by generalised body weakness,patient will be able to carry out activities of daily living throughout period of hospitalisation,"assess patients vital signs
+place patient in comfortable position
+assist patient to carry out activities of daily living
+allow patient to participate in carrying out activities of daily living
+reassure patient 
+ document all nursing care given",,,"for baseline data
+aids comfortability of patient
+it helps to conserve patients energy
+allays patients fear",,4950
+5135,6367,16-FEB-24 01.37.00.000000 PM,,Fatigue ,Patient will regain her strenght within 4hrs of hospitalization,"Assess patient weakness level,position her in a comfortable position,encourage patient to eat,administer prescribed iv fluid.",,,,,4633
+5173,6594,22-FEB-24 06.41.00.000000 PM,,ACUTE pain,patient will  verbalize relieve of pain within 30minutes of nursing intervention,"Assess level of pain.
+monitor vital signs closely
+Give diversional therapy.
+Give prescribe analgesics",,,,,4517
+5174,6679,23-FEB-24 09.07.00.000000 PM,,Fluid volume Deficit,Patient's body fluids will be replaced within 2-4hours of Nursing intervention.,"-Reassure patient and make her comfortable on bed.Check V/S and document. Ensure liberal fluid intake, especially ORS. Set tray for prescribed intravenous fluid. Give IVF as prescribed, Monitor intake and output chart.",Patient's body fluid was replaced after 3 hours of  Nursing intervention,,"It makes patient more relaxed and coopreative. To replace lost body fluids and electrolytes, To know any deviation from normal.",Adegboyega,4638
+5176,6688,24-FEB-24 10.50.00.000000 PM,,risk for deficient fluid volume related to disease progression,patient will show no signs of dehydration throughout period of hospitalization,"assess patients vital signs 
+monitor patient for signs of dehydration
+administer prescribed IV fluids
+reassure patient
+document all nursing care",,,"for baseline data
+helps to plan individualised care
+helps to replace lost fluid and electrolytes
+allays patients fear
+for continuity of care",,4950
+5194,6760,27-FEB-24 02.41.00.000000 PM,,Acute pain,Patient will verbalize relief of pain within 45 minutes of nursing intervention.,Assess level of pain.Put patient in a comfortable position.monitor vital signs.Encourage liberal fluid intake.Give prescribed analgesics.,Patient verbalize relief  of within 30 minutes of nursing intervention.,,To relief pain,,5482
+5196,706,25-FEB-24 11.26.00.000000 PM,,ACUTE PAIN,PATIENT WILL VERBALISE RELIEF FROM PAINS AFTER 30-45MINS OF NURSING INTERVENTION,"MAKE PATIENT COMFORTABLE IN BED 
+ASSESS LEVEL OF PAIN
+GIVE DIVERSIONAL THERAPY
+DEEP BREATING EXERCISE ENCOURAGED
+GIVE PRESCRIBED ANALGESIC",PATIENT VERBALISED RELIEF AFTER 40MINS OF NURSING INTERVENTION,,,,4933
+5197,6804,28-FEB-24 05.33.00.000000 AM,,fatigue,client will identify risk factors and individual actions affecting fatigue.,assessing risk factors of fatigue and activity tolerance levels,client will identify the cause of fatigue ,,,,4601
+5198,6822,,,,,,,,,,5337
+5293,7774,22-MAR-24 07.19.00.000000 PM,,Ineffective peripheral tisssue perfussion related to decreased cardiac output evidenced by palor,patient will attain and maintain adequate peripheral tissue perfusion within 24hrs of nursing intervention,"1. assess level of palor
+2. reposition patient to facilitate better circulation
+3. monitor vital signs closely especially pulse
+4. transfuse with prescribed amount of blood",,,,,5014
+5236,7371,12-MAR-24 06.30.00.000000 PM,,unstable blood pressure related to insomia as evidence by patient inability to sleep,Patient blood pressure will be within normal range after 1-2hrs of nursing intervention.,"Assess patient level of insomia,admit in a comfortable hospital bed,reassure patient,restrict visitor and encourage to sleep.",,,,,4633
+5237,7371,12-MAR-24 06.17.00.000000 PM,,Activity intolerance related to generalised body weakness as evidenced by patient verbalisation of body weakness.  ,patient will participate in  necessary/desired activiies within ,"admit patient to the ward 
+make patient comfortable in bed
+give psychological and physical care. 
+assist patient in perfoming activities of daily living when necessary
+educate patient on compliance to treatment regimen",,,,,4953
+5235,4393,11-MAR-24 10.00.00.000000 PM,,Risk for Unstable blood glucose level,patient blood glucose will be within normal range throughout the period of hospitalisation,1. Assess glucose level 2. give prescribed ivf regimen 3. maintaineed 4hourly rbs check,,,To prevent hyper or hypoglyceamia,,4950
+5313,7746,25-MAR-24 01.20.00.000000 PM,,impaired body comfort,patient will verbalize relief within 6 to 8 hours of nursing intervention,"reassure patient, allow patient to ask question. encourage liberal fluid intake, allow patient to assume a comfortable position, explain cause of illness, give prescribed iv fluid eg 0.9%N/SALINE fast",,,,,4512
+5352,2012,31-MAR-24 10.00.00.000000 AM,,Anxiety related to the unknown outcome or Labour,Patient's fear and anxiety will be allayed within 30 -45 minutes of Nursing intervention,"-Reassure patient, Admit patient on a comfortable bed. Check vital signs and document. Explain physiology of labour to patient and provide answers to questions being asked.",Patients fear and anxiety were allayed after 30miutes of Nursing intervention as evidenced by patient"s verbalization,,"-It. makes patient comfortable and relaxed,It serves as baseline data and continous monitoring. It makes patient more knowledgeable",Adegboyega,4638
+5353,7096,,,Hyperthermia related to parasitamia infestation as evidence by  temperature of 37.5,patient temperature will be reduced by 2oc within 30 -45 minute of nursing intervention,"exposed to room air
+give prescribed antipyretic
+give pescribed ivf
+monitor vitals of patient",patient temperature reduced to 36.5 within 25minutes of nursing intervention,,,fair state of health,5755
+5412,8239,08-APR-24 03.42.00.000000 PM,,Ineffective breathing pattern related to inflammation of bronchi evidenced by difficulty in  breathing.,patient breathing pattern will be normalised within 24 - 36 hours of nursing intervention.,"check vital signs
+elevate head of bed
+give prescribed INO2
+reassure parents",,,"serve as baseline data
+relief pressure on the lungs
+",,5501
+5414,2130,09-APR-24 10.00.00.000000 AM,,acute pain,patient will verbalise relief of pain after 60minutes of nursing intervention,"admit patient and assess the level of pain
+allow the patient to lie in comfortable position
+reassure the patient and allow the patient to lie in comfortable position
+administer the prescribed analgesics ie syrup morphin 10mg",patient verbalised relief of pain after 60 minutes of nursing intervention,,,,4595
+5239,6871,14-MAR-24 09.33.00.000000 PM,,Powerlessness related to weak ego evidenced by inability to quit substance use,"Patient will gain insight into his drug use and verbalize  willingness to go for rehabilitation within 2 weeks of hospitalization
+
+","psycho-educated patient on the negative side effect of psycho-active substance use
+",,,to enlighten mr. Segun on how substance use on the negative effect of substance use both on his mental and physical health,,4608
+5253,497,17-MAR-24 07.51.00.000000 AM,,Acute pain related to inflammatory process evidenced by verbalization,Patient will verbalize less pain within 20-45minutes of nursing intervention,"1. Assess patient pain level on the pain rating scale
+2. place patient in a comfortable position
+3. give diversional therapy
+4. give prescribed analgesics",,,,,5014
+5394,8232,07-APR-24 09.30.00.000000 PM,,Anxiety related to the outcome of the snake bite as evidenced patient verbalization.,patient Anxiety level will reduce to normal within the hospitalization,"(1) assess sign and symptoms of Anxiety
+(2) observe vital signs.
+(3)position patient
+(4)reassure patient
+(5)document all findings",,,"(1) To know the level of Anxiety.
+(2) baseline data
+(3) To create comfort
+(4)help to reduce Anxiety
+(5) for continuity of care.",,5275
+5238,7390,13-MAR-24 09.35.00.000000 PM,,Acute pain,patient will verbalize less pain within 40-60minutes of nursing intervention,"assess the level of pain,     reassure patient,    made patient comfortable on bed, give prescribed analgesia as prescribed",patient verbalized less pain after 45 minutes of nursing intervention,,"to know the level of pains, to alley fear,   to relief pain and to reduce pains",Goal achieved,4953
+5254,7510,,,"Ineffective breathing pattern, related to bronchospasm, evidenced by wheezing respiration.",Patient will maintain patent airway 15min after hospitalisation.,"1. Assess breathing pattern.
+2 .Place in cardiac position.
+3. Remove thight clothing.
+4. Administer prescribed brochodilator [Nebules 5mg]",Patient maintained patent airway 30minutes after intervention.,,"1. It serve as baseline dada.
+2. To aid lung expansion.
+3. To aid effective breathing.
+4.It help to decrease  airway resistance.",,5755
+5315,1003,26-MAR-24 03.16.00.000000 PM,,anxiety related to unknown outcome of surgery,patient will be less anxious within 30-45minutes,"assess patients  vital signs 
+assess patients level of anxiety
+explain and counsel patient on the procedure
+reassure patient",patient was less anxious after 45minutes of nursing care,,"for baseline data
+to plan individualised care
+increases patients knowlege of the procedure
+allays patient fear",,4950
+5332,7777,28-MAR-24 12.00.00.000000 AM,,Anxiety related to unknown prognosis evidenced by patient asking frequent question.,Patient anxienty will be allayed throughout period of hospitalization.,"* check vital signs
+* Monitor pulse 1 hourly
+* Answer patients questions tactfully.
+*Give prescribed anxiolytics.",,,,,4650
+5354,7096,,,acute pain,patient will verbalise less pain within 30minutes of nursing intervention,"assess the level of pain
+assist patient to assume a comfortable position
+give prescribe analgesic
+reassure patient",patient verbalise relief of pain after  25 minutes of nursing intervention,,,fair state of health,4643
+5372,2603,02-APR-24 10.00.00.000000 PM,,Acute pain,Patient will verbalise relief of pain after 60minutes of nursing intervention,"admit patient and assess the level of pain
+allow the patient to lie in comfortable position and remove tight clothing
+reassure patient and offer diversional therapy
+administer the prescribed analgesic i.e im pentazocine 30mg stat ",patient verbalise relief of pain after 45minutes of nursing intervention,,,,4595
+5392,2372,04-APR-24 07.44.00.000000 AM,,Risk for unstable blood pressure,Patient  b/p will  be within normal  normal range within the period of hospitalisation,"Assess level of blood pressure
+allow pt to assume a comfortable position
+Monitor patient blood pressure 2hrly
+Administered prescribed anti hypertensive",,,,,4580
+5272,7598,19-MAR-24 03.05.00.000000 PM,,Fluid volume deficit,"Patient fluid volume will be restored within 72hrs.
+
+","Assess level of dehydration
+Monitor intake and output
+give ORS
+educate on personal hygiene and regular handwashing
+Administer iv fluid
+",,,,,4512
+5292,7774,22-MAR-24 07.16.00.000000 PM,,ineffective breathing pattern,Child will breathe at normal respiratory rate within 30 to 45 minutes of nursing intervention,"1. assess patient's respiratory rate
+2. plsce patient in a semi fowler's position
+3. maintain patent airway
+4.  observe oxygen saturation level
+5. give oxygen therapy if  prescribed",,,,,5014
+5314,6548,,,Impaired immobility related to neuromuscular weakness  evidenced by inability to walk. ,patient will maintain increase strength and function of affected body part during the period of hospitalisation. ,"admit patient into the ward
+access extent of impairment 
+position would be change two hourly. 
+active and passive exercise of the affected part.  ",,,,,4961
+5373,8089,03-APR-24 04.30.00.000000 PM,,"ACUTE PAIN,UNSTABLE BLOOD PRESSURE",PATIENT WILL VERBALIZE PAIN RELIEF WITHIN 30MIN OF NURSING INTERVENTION,"ASSESS THE LEVEL OF PAIN,PUT PATIENT IN  A COMFORTABLE POSITION,GIVE DIVERSIONAL THERAPY,GIVE PRESCRIBED ANALGESICS",PATIENT VERBALIZE RELIEF OF PAIN WITHIN 30MIN OF NURSING INTERVENTION,,,,4585
+5312,1997,25-MAR-24 12.57.00.000000 PM,,Anxiety related to unknown outcome of  labour,patient will be allayed within 30mins of nursing intervention,#NAME?,patient was less anxious after 25mins of nursing intervention,,,,4580
+5413,8145,08-APR-24 09.20.00.000000 AM,,"Self care deficit related to disease condition as evidenced by weakness, drowziness.",patient will do his daily activities within the period of hospitalization,"(1) check vital signs
+(2). position patient
+(3)assess sign and symptom
+(4)  document all finding.
+(5) give copious fluid",,,"(!) baseline data
+(2) promote comfort
+
+",,5275
+5432,8369,,,risk for unstable bloob pressure ,patient bloob pressure woulb be monitored throughout the period of hospitalization,"assess the level of blood pressure 
+monitor blood pressure hourly
+give prescribed antihypertensive medication
+reassure patient",,,,fair state of health,4643
+5234,7310,,,Anxiety,Patient will ask fewer question throughout the period of hospitalisation,"-assess patient
+- answer her questions one after the other
+- reassure patient",,,to allay fear,,4611
+5252,497,16-MAR-24 02.06.00.000000 PM,,acute pain,patient verbalize relief of pain within two hours of nursing intervention,"reassure patient, assess level of pain, explain cause of illness, encourage liberal fluid intake, give prescribed antibiotics eg iv Cipr0floxacin 200mg",,,,,5755
+5273,7650,20-MAR-24 10.30.00.000000 AM,,Acute Pain (P/S 4/10),Patient will verbalise relief after 30-45mins of nursing intervention,"Make comfortable on bed
+Assess level of pain
+Give diversional therapy
+Liberal fluid intake encouraged
+Prescribed IM Paracetamol 600mg stat given",Patient verbalised relief after 30mins of intervention,,,,4933
+5374,8089,03-APR-24 04.36.00.000000 PM,,UNSTABLE BLOOD PRESSURE,PATIENT BLOOD PRESSURE WILL BE WITHIN NORMAL RANGE THROUGHTOUT THE PERIOD OF HOSPITALIZATION,"MONITOR VITAL SIGNS,ENSURE BED REST,RESTRICT VISITOR AND GIVE PRESCRIBED ANTIHYPERTENSIVE",,,,,4585
+5393,7848,06-APR-24 06.27.00.000000 AM,,risk for  unstable blood pressure(80/50 mmhg),Patient B/P  will  icrease by 20/10 within  1hr of nursing intervention ,"Assess level of blood pressure
+Elevate  the patient foot
+Give prescribed ivf
+Closely monitor the b/p",Patient B/P increased  to 100/60mmhg  within 1hr of nursing intervetion,,,satisfactory,4580
+5395,7884,08-APR-24 07.02.00.000000 AM,,anxiety related to pregnancy,patient anxious state will be reduced during the period of admission,"monitor vital signs ,encourage relaxation techniques such as deep breathing ,educate on importance of sleep,administered prescribed anti-anxiety drug such as tab lexotan 1.5mg.reassured patient  ",,,,,5275
+5415,8321,10-APR-24 09.28.00.000000 PM,,Powerlessness related to weak ego  evidenced by inability to quit substance use,patient will maintain soberity within  three weeks of nursing intervention,"- Create nurse/patient interpersonal relationship
+- Discuss rehabilitation plans with patient
+- Encourage patient to ventilate his mind regarding his present situation
+- Assist patient develop positive coping strategies
+- encourage patient to take prescribed medication
+- Document all nursing care rendered",,,,,5337
+5492,35102,25-FEB-26 09.44.00.000000 PM,,IMPAIRED SKIN INTEGRITY RELATED TO SURGICAL INCISION EVIDENCED BY WOUND SITE,PATIENT WOUND SITE WILL BE CLEAN AND DRY THROUGHOUT HOSPITALIZATION,"ASSESS THE LEVEL OF INCISION 
+ENCOURAGE PERSONAL HYGIENE
+ENCOURAGE HIGH PROTEIN DIET, VIT C, 
+GIVE PRESCRIBED ANTIBIOTICS",,,,,4953
+5533,36248,,,ACUTE PAIN(ABDOMEN) RELATED TO GASTRIC FLUX EVIDENCED BY PATIENTS VERBALIZATION,PATIENT WILL VERBALIZE RELIEF OF PAIN WITHIN 15MINS OF NURSING INTERVENTION.,"1. ASSESS PATIENTS VITALS SIGNS
+
+2. ENCOURAGE PATIENT TO MAINTAIN A PRONE LYING POSITION.
+
+3. PROVIDE DIVERSIONAL THERAPY LIKE TURNING ON THE TELIVISION.
+
+4. SUMMON THE CALL DOCTOR FOR PATIENT REVIEW AND PRESCRIPTION OF NECESSARY MEDICATION.",PATIENT VERBALIZED RELIEF OF PAIN AFTER 20MINS OF NURSING INTERVENTION.,,,PATIENT IS CALM AND RESTFUL,5615
+5472,34438,,,fluid volume deficit,patient will be able to tolerate water intake within the period of hospitalization,"reassure patient, encourage liberal fluid intake, give prescribed ivf e.g Ringers lactate",,,"it  helps to rehydrate patient
+it helps to increase blood volume
+",,4961

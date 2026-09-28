@@ -137,7 +137,9 @@ export class DoctorOverviewService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (
-        /(does not exist|Unknown column|column .* does not exist)/i.test(message)
+        /(does not exist|Unknown column|column .* does not exist)/i.test(
+          message,
+        )
       ) {
         return 0;
       }
@@ -321,7 +323,9 @@ export class DoctorOverviewService {
       const age = ageYears(person.DATE_OF_BIRTH);
       const displayName = personName(person);
       const label =
-        age != null ? `${displayName} (${sex}, ${age})` : `${displayName} (${sex})`;
+        age != null
+          ? `${displayName} (${sex}, ${age})`
+          : `${displayName} (${sex})`;
       const { status, statusTone } = queueStatusTone({
         priority: t.PRIORITY,
         vitalsPending,

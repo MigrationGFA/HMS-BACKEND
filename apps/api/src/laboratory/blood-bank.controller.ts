@@ -86,7 +86,10 @@ export class BloodBankController {
    */
   @Post('donors')
   @RequirePermissions(PERMISSIONS.BLOOD_BANK_CREATE)
-  async createDonor(@Body() dto: CreateBloodDonorDto, @CurrentUser() user: AuthUser) {
+  async createDonor(
+    @Body() dto: CreateBloodDonorDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.bloodBank.createDonor(dto, user) };
   }
 
@@ -200,7 +203,10 @@ export class BloodBankController {
    */
   @Post('units')
   @RequirePermissions(PERMISSIONS.BLOOD_BANK_CREATE)
-  async createUnit(@Body() dto: CreateBloodUnitDto, @CurrentUser() user: AuthUser) {
+  async createUnit(
+    @Body() dto: CreateBloodUnitDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.bloodBank.createUnit(dto, user) };
   }
 
@@ -255,7 +261,10 @@ export class BloodBankController {
    */
   @Post('requests')
   @RequirePermissions(PERMISSIONS.BLOOD_BANK_CREATE)
-  async createRequest(@Body() dto: CreateBloodRequestDto, @CurrentUser() user: AuthUser) {
+  async createRequest(
+    @Body() dto: CreateBloodRequestDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.bloodBank.createRequest(dto, user) };
   }
 
@@ -279,7 +288,10 @@ export class BloodBankController {
    */
   @Patch('requests/:id/start-crossmatch')
   @RequirePermissions(PERMISSIONS.BLOOD_BANK_UPDATE)
-  async startCrossmatch(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+  async startCrossmatch(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.bloodBank.startCrossmatch(id, user) };
   }
 
@@ -343,7 +355,10 @@ export class BloodBankController {
    */
   @Patch('requests/:id/complete')
   @RequirePermissions(PERMISSIONS.BLOOD_BANK_UPDATE)
-  async complete(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+  async complete(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.bloodBank.completeRequest(id, user) };
   }
 
@@ -355,7 +370,10 @@ export class BloodBankController {
    */
   @Get('crossmatches')
   @RequirePermissions(PERMISSIONS.BLOOD_BANK_READ)
-  async listCrossmatches(@Query('page') page?: string, @Query('limit') limit?: string) {
+  async listCrossmatches(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     return {
       data: await this.bloodBank.listCrossmatches({
         page: page ? Number(page) : 1,

@@ -128,15 +128,25 @@ export class CardsService {
     const term = params?.q?.trim();
 
     const where: Prisma.PatientCardsWhereInput = {
-      ...(params?.paymentStatus ? { PAYMENT_STATUS: params.paymentStatus } : {}),
+      ...(params?.paymentStatus
+        ? { PAYMENT_STATUS: params.paymentStatus }
+        : {}),
       ...(params?.personId != null ? { PERSON_ID: params.personId } : {}),
       ...(term
         ? {
             OR: [
               { CARD_NO: { contains: term, mode: 'insensitive' } },
-              { person: { HOSPITAL_NO: { contains: term, mode: 'insensitive' } } },
-              { person: { FIRST_NAME: { contains: term, mode: 'insensitive' } } },
-              { person: { LAST_NAME: { contains: term, mode: 'insensitive' } } },
+              {
+                person: {
+                  HOSPITAL_NO: { contains: term, mode: 'insensitive' },
+                },
+              },
+              {
+                person: { FIRST_NAME: { contains: term, mode: 'insensitive' } },
+              },
+              {
+                person: { LAST_NAME: { contains: term, mode: 'insensitive' } },
+              },
               { person: { PATIENT_PHONE_NO: { contains: term } } },
             ],
           }

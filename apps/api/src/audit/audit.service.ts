@@ -110,29 +110,35 @@ export class AuditService {
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
     const today = { CREATE_DATE: { gte: startOfDay, lt: endOfDay } };
 
-    const [total, todayCount, emergencyOverrides, noteEdits, prescriptionChanges, flagged] =
-      await Promise.all([
-        this.prisma.audits.count(),
-        this.prisma.audits.count({ where: today }),
-        this.prisma.audits.count({
-          where: { AUDIT_TYPE: { startsWith: 'emergency:' } },
-        }),
-        this.prisma.audits.count({
-          where: { AUDIT_TYPE: { startsWith: 'clinical-note:' } },
-        }),
-        this.prisma.audits.count({
-          where: { AUDIT_TYPE: { startsWith: 'prescription:' } },
-        }),
-        this.prisma.audits.count({
-          where: {
-            OR: [
-              { STATUS: { equals: 'Flagged' } },
-              { STATUS: { equals: 'Suspicious' } },
-              { STATUS: { contains: 'fail', mode: 'insensitive' } },
-            ],
-          },
-        }),
-      ]);
+    const [
+      total,
+      todayCount,
+      emergencyOverrides,
+      noteEdits,
+      prescriptionChanges,
+      flagged,
+    ] = await Promise.all([
+      this.prisma.audits.count(),
+      this.prisma.audits.count({ where: today }),
+      this.prisma.audits.count({
+        where: { AUDIT_TYPE: { startsWith: 'emergency:' } },
+      }),
+      this.prisma.audits.count({
+        where: { AUDIT_TYPE: { startsWith: 'clinical-note:' } },
+      }),
+      this.prisma.audits.count({
+        where: { AUDIT_TYPE: { startsWith: 'prescription:' } },
+      }),
+      this.prisma.audits.count({
+        where: {
+          OR: [
+            { STATUS: { equals: 'Flagged' } },
+            { STATUS: { equals: 'Suspicious' } },
+            { STATUS: { contains: 'fail', mode: 'insensitive' } },
+          ],
+        },
+      }),
+    ]);
 
     return {
       asOf: now.toISOString(),

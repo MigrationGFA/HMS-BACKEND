@@ -96,9 +96,20 @@ function weekdayLabel(d: Date, offsetMin: number): string {
 }
 
 function monthLabel(d: Date): string {
-  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][
-    d.getMonth()
-  ];
+  return [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ][d.getMonth()];
 }
 
 function personName(p: {
@@ -354,10 +365,7 @@ export class PharmacyService {
     for (const sale of paidSalesWeek) {
       if (!sale.PAID_AT) continue;
       const key = dayKey(sale.PAID_AT, offsetMin);
-      salesByDay.set(
-        key,
-        (salesByDay.get(key) ?? 0) + Number(sale.TOTAL),
-      );
+      salesByDay.set(key, (salesByDay.get(key) ?? 0) + Number(sale.TOTAL));
     }
     const salesTrend = this.buildDaySeries(7, offsetMin, (key) =>
       Math.round(salesByDay.get(key) ?? 0),
@@ -580,12 +588,16 @@ export class PharmacyService {
       pendingItems: number;
       prescribedBy: string | null;
       sentAt: string | null;
-      queueStatus: 'Awaiting Pharmacy' | 'Awaiting Payment' | 'Dispensed' | 'No Prescription';
+      queueStatus:
+        | 'Awaiting Pharmacy'
+        | 'Awaiting Payment'
+        | 'Dispensed'
+        | 'No Prescription';
     };
 
     const rows: Row[] = [];
     for (const adm of admissions) {
-      const rxList = adm.personId ? byPerson.get(adm.personId) ?? [] : [];
+      const rxList = adm.personId ? (byPerson.get(adm.personId) ?? []) : [];
       const openRx = rxList.filter((r) =>
         ['Sent', 'Partially Dispensed'].includes(r.STATUS),
       );
@@ -680,10 +692,12 @@ export class PharmacyService {
       asOf: new Date().toISOString(),
       summary: {
         admitted: admissions.length,
-        awaitingPharmacy: rows.filter((r) => r.queueStatus === 'Awaiting Pharmacy')
-          .length,
-        awaitingPayment: rows.filter((r) => r.queueStatus === 'Awaiting Payment')
-          .length,
+        awaitingPharmacy: rows.filter(
+          (r) => r.queueStatus === 'Awaiting Pharmacy',
+        ).length,
+        awaitingPayment: rows.filter(
+          (r) => r.queueStatus === 'Awaiting Payment',
+        ).length,
         dispensed: rows.filter((r) => r.queueStatus === 'Dispensed').length,
         noPrescription: rows.filter((r) => r.queueStatus === 'No Prescription')
           .length,
@@ -704,7 +718,7 @@ export class PharmacyService {
     page?: number;
     limit?: number;
   }) {
-    const bucket = (params?.bucket ?? 'all') as string;
+    const bucket = params?.bucket ?? 'all';
     if (!EXPIRY_BUCKETS.includes(bucket as PharmacyExpiryBucket)) {
       throw new BadRequestException(
         `bucket must be one of: ${EXPIRY_BUCKETS.join(', ')}`,
@@ -760,7 +774,9 @@ export class PharmacyService {
       throw new BadRequestException('Batch is already quarantined');
     }
     if (batch.QTY_AVAILABLE <= 0) {
-      throw new BadRequestException('Batch has no available stock to quarantine');
+      throw new BadRequestException(
+        'Batch has no available stock to quarantine',
+      );
     }
 
     const updated = await this.prisma.drugBatches.update({
@@ -811,9 +827,7 @@ export class PharmacyService {
     timezoneOffsetMinutes?: number;
   }) {
     const offsetMin = params?.timezoneOffsetMinutes ?? 60;
-    const from = params?.from
-      ? new Date(params.from)
-      : startOfDay(daysAgo(30));
+    const from = params?.from ? new Date(params.from) : startOfDay(daysAgo(30));
     const to = params?.to ? new Date(params.to) : endOfDay(new Date());
     const weekStart = startOfDay(daysAgo(6));
     const now = new Date();
@@ -941,10 +955,7 @@ export class PharmacyService {
     for (const sale of paidSaleRows) {
       if (!sale.PAID_AT) continue;
       const key = dayKey(sale.PAID_AT, offsetMin);
-      salesByDay.set(
-        key,
-        (salesByDay.get(key) ?? 0) + Number(sale.TOTAL),
-      );
+      salesByDay.set(key, (salesByDay.get(key) ?? 0) + Number(sale.TOTAL));
     }
     const revenueTrend = this.buildDaySeries(7, offsetMin, (key) =>
       Math.round(salesByDay.get(key) ?? 0),
@@ -1041,7 +1052,11 @@ export class PharmacyService {
         inventoryHealth: [
           { name: 'Available', value: inventory.available, color: '#22c55e' },
           { name: 'Low', value: inventory.lowStock, color: '#f59e0b' },
-          { name: 'Out of Stock', value: inventory.outOfStock, color: '#ef4444' },
+          {
+            name: 'Out of Stock',
+            value: inventory.outOfStock,
+            color: '#ef4444',
+          },
           { name: 'Expired', value: inventory.expired, color: '#be123c' },
           {
             name: 'Expiring Soon',
@@ -1190,10 +1205,18 @@ export class PharmacyService {
           ? [
               {
                 OR: [
-                  { CREATED_BY: { contains: term, mode: 'insensitive' as const } },
+                  {
+                    CREATED_BY: {
+                      contains: term,
+                      mode: 'insensitive' as const,
+                    },
+                  },
                   { ITEM: { contains: term, mode: 'insensitive' as const } },
                   {
-                    AUDIT_TYPE: { contains: term, mode: 'insensitive' as const },
+                    AUDIT_TYPE: {
+                      contains: term,
+                      mode: 'insensitive' as const,
+                    },
                   },
                   { ENTITY: { contains: term, mode: 'insensitive' as const } },
                   { ENTITY_ID: { contains: term } },
@@ -1225,9 +1248,7 @@ export class PharmacyService {
 
     const personIds = [
       ...new Set(
-        rows
-          .map((r) => r.PERSON_ID)
-          .filter((id): id is number => id != null),
+        rows.map((r) => r.PERSON_ID).filter((id): id is number => id != null),
       ),
     ];
     const persons =
@@ -1286,78 +1307,84 @@ export class PharmacyService {
     const today = { CREATE_DATE: { gte: startOfToday, lt: endOfToday } };
     const base = pharmacyAuditWhere();
 
-    const [totalToday, dispenses, emergencies, stockEvents, returns, overrides] =
-      await Promise.all([
-        this.prisma.audits.count({ where: { AND: [base, today] } }),
-        this.prisma.audits.count({
-          where: {
-            AND: [
-              base,
-              today,
-              {
-                OR: [
-                  { AUDIT_TYPE: { contains: 'dispense', mode: 'insensitive' } },
-                ],
+    const [
+      totalToday,
+      dispenses,
+      emergencies,
+      stockEvents,
+      returns,
+      overrides,
+    ] = await Promise.all([
+      this.prisma.audits.count({ where: { AND: [base, today] } }),
+      this.prisma.audits.count({
+        where: {
+          AND: [
+            base,
+            today,
+            {
+              OR: [
+                { AUDIT_TYPE: { contains: 'dispense', mode: 'insensitive' } },
+              ],
+            },
+          ],
+        },
+      }),
+      this.prisma.audits.count({
+        where: {
+          AND: [
+            base,
+            {
+              AUDIT_TYPE: {
+                contains: 'emergency',
+                mode: 'insensitive',
               },
-            ],
-          },
-        }),
-        this.prisma.audits.count({
-          where: {
-            AND: [
-              base,
-              {
-                AUDIT_TYPE: {
-                  contains: 'emergency',
-                  mode: 'insensitive',
-                },
-              },
-            ],
-          },
-        }),
-        this.prisma.audits.count({
-          where: {
-            AND: [
-              base,
-              today,
-              {
-                OR: [
-                  { AUDIT_TYPE: { startsWith: 'stock:', mode: 'insensitive' } },
-                  { AUDIT_TYPE: { contains: 'stock', mode: 'insensitive' } },
-                ],
-              },
-            ],
-          },
-        }),
-        this.prisma.audits.count({
-          where: {
-            AND: [
-              base,
-              today,
-              { AUDIT_TYPE: { contains: 'return', mode: 'insensitive' } },
-            ],
-          },
-        }),
-        this.prisma.audits.count({
-          where: {
-            AND: [
-              base,
-              {
-                OR: [
-                  {
-                    AUDIT_TYPE: {
-                      contains: 'emergency',
-                      mode: 'insensitive',
-                    },
+            },
+          ],
+        },
+      }),
+      this.prisma.audits.count({
+        where: {
+          AND: [
+            base,
+            today,
+            {
+              OR: [
+                { AUDIT_TYPE: { startsWith: 'stock:', mode: 'insensitive' } },
+                { AUDIT_TYPE: { contains: 'stock', mode: 'insensitive' } },
+              ],
+            },
+          ],
+        },
+      }),
+      this.prisma.audits.count({
+        where: {
+          AND: [
+            base,
+            today,
+            { AUDIT_TYPE: { contains: 'return', mode: 'insensitive' } },
+          ],
+        },
+      }),
+      this.prisma.audits.count({
+        where: {
+          AND: [
+            base,
+            {
+              OR: [
+                {
+                  AUDIT_TYPE: {
+                    contains: 'emergency',
+                    mode: 'insensitive',
                   },
-                  { STATUS: { equals: 'Flagged' } },
-                  { STATUS: { equals: 'Suspicious' } },
-                ],
-              },
-            ],
-          },
-        }),
-      ]);
+                },
+                { STATUS: { equals: 'Flagged' } },
+                { STATUS: { equals: 'Suspicious' } },
+              ],
+            },
+          ],
+        },
+      }),
+    ]);
 
     return {
       asOf: now.toISOString(),
@@ -1424,7 +1451,12 @@ export class PharmacyService {
   ) {
     const now = Date.now();
     const buckets = [
-      { name: `< ${criticalDays} days`, value: 0, color: '#ef4444', maxDays: criticalDays },
+      {
+        name: `< ${criticalDays} days`,
+        value: 0,
+        color: '#ef4444',
+        maxDays: criticalDays,
+      },
       {
         name: `${criticalDays}–${warningDays} days`,
         value: 0,
@@ -1437,12 +1469,21 @@ export class PharmacyService {
         color: '#facc15',
         maxDays: soonDays,
       },
-      { name: `> ${soonDays} days`, value: 0, color: '#22c55e', maxDays: Infinity },
+      {
+        name: `> ${soonDays} days`,
+        value: 0,
+        color: '#22c55e',
+        maxDays: Infinity,
+      },
     ];
 
     for (const d of drugs) {
       for (const b of d.batches) {
-        if (b.STATUS !== 'Available' || b.QTY_AVAILABLE <= 0 || !b.EXPIRY_DATE) {
+        if (
+          b.STATUS !== 'Available' ||
+          b.QTY_AVAILABLE <= 0 ||
+          !b.EXPIRY_DATE
+        ) {
           continue;
         }
         const daysLeft =
@@ -1530,7 +1571,9 @@ export class PharmacyService {
     }
   }
 
-  private async listWards(): Promise<Array<{ wardId: number; wardName: string }>> {
+  private async listWards(): Promise<
+    Array<{ wardId: number; wardName: string }>
+  > {
     try {
       return await this.prisma.$queryRaw<
         Array<{ wardId: number; wardName: string }>
@@ -1617,9 +1660,7 @@ export class PharmacyService {
     switch (category) {
       case 'dispense':
         return {
-          OR: [
-            { AUDIT_TYPE: { contains: 'dispense', mode: 'insensitive' } },
-          ],
+          OR: [{ AUDIT_TYPE: { contains: 'dispense', mode: 'insensitive' } }],
         };
       case 'payment':
         return {
@@ -1714,7 +1755,10 @@ export class PharmacyService {
       }),
       this.prisma.prescriptions.count({ where }),
       this.prisma.prescriptions.count({
-        where: { ...where, STATUS: { in: ['Dispensed', 'Partially Dispensed'] } },
+        where: {
+          ...where,
+          STATUS: { in: ['Dispensed', 'Partially Dispensed'] },
+        },
       }),
       this.prisma.prescriptions.count({
         where: { ...where, STATUS: { in: ['Sent', 'Partially Dispensed'] } },
@@ -1744,7 +1788,8 @@ export class PharmacyService {
         paymentStatus: r.PAYMENT_STATUS,
         itemCount: r.items.length,
         prescribedBy: r.PRESCRIBED_BY,
-        sentAt: r.SENT_AT?.toISOString() ?? r.CREATED_DATE?.toISOString() ?? null,
+        sentAt:
+          r.SENT_AT?.toISOString() ?? r.CREATED_DATE?.toISOString() ?? null,
       })),
       meta: { page, limit, total },
     };

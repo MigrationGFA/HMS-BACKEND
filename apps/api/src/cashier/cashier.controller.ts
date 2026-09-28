@@ -75,10 +75,7 @@ export class CashierController {
    */
   @Get('patients/search')
   @RequirePermissions(PERMISSIONS.CASHIER_RECEIPT_READ)
-  async searchPatients(
-    @Query('q') q?: string,
-    @Query('limit') limit?: string,
-  ) {
+  async searchPatients(@Query('q') q?: string, @Query('limit') limit?: string) {
     const data = await this.cashierService.searchPatients(
       q,
       limit ? Number(limit) : 20,

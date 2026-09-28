@@ -8,17 +8,16 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/types/auth-user.type';
-import {
-  permissionsForRoles,
-  PERMISSIONS,
-} from '../common/constants';
+import { permissionsForRoles, PERMISSIONS } from '../common/constants';
 import {
   CreateSupportRequestDto,
   UpdateSupportRequestDto,
 } from './dto/support-request.dto';
 
 function actorLabel(user: AuthUser): string {
-  return [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+  );
 }
 
 function roleLabel(user: AuthUser): string {
@@ -192,7 +191,9 @@ export class SupportRequestsService {
     });
     if (!row) throw new NotFoundException('Support request not found');
     if (row.USER_ID !== user.id && !this.canManageAll(user)) {
-      throw new ForbiddenException('You can only view your own support requests');
+      throw new ForbiddenException(
+        'You can only view your own support requests',
+      );
     }
     return this.mapRow(row);
   }
@@ -205,14 +206,12 @@ export class SupportRequestsService {
 
     const label = actorLabel(user);
     const now = new Date();
-    const isResolving =
-      dto.status === 'Resolved' || dto.status === 'Closed';
+    const isResolving = dto.status === 'Resolved' || dto.status === 'Closed';
 
-    if (
-      existing.STATUS === 'Closed' &&
-      dto.status !== 'Closed'
-    ) {
-      throw new BadRequestException('Closed support requests cannot be reopened via this endpoint');
+    if (existing.STATUS === 'Closed' && dto.status !== 'Closed') {
+      throw new BadRequestException(
+        'Closed support requests cannot be reopened via this endpoint',
+      );
     }
 
     const row = await this.prisma.supportRequests.update({

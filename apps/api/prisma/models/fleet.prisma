@@ -1,0 +1,167 @@
+// Transport / ambulance fleet (Phase K). ADR D7: clinical staff (doctor/
+// nurse/records) may create trip requests only — never vehicle/driver/fuel/
+// maintenance CRUD. Soft delete via STATUS — never hard-delete.
+
+model FleetVehicles {
+  VEHICLE_ID          Int       @id @default(autoincrement())
+  REG_NO              String    @unique @db.VarChar(40)
+  /// Ambulance | Bus | Car | Truck | Other
+  TYPE                String    @db.VarChar(30)
+  MODEL               String?   @db.VarChar(100)
+  /// Available | OnTrip | Repair | Inactive (soft delete)
+  STATUS              String    @default("Available") @db.VarChar(30)
+  INSURANCE_EXPIRY    DateTime? @db.Date
+  REGISTRATION_EXPIRY DateTime? @db.Date
+  NOTES               String?   @db.Text
+  CREATED_BY_ID       Int?
+  CREATED_BY          String?   @db.VarChar(100)
+  CREATED_DATE        DateTime  @default(now())
+  UPDATED_BY_ID       Int?
+  UPDATED_BY          String?   @db.VarChar(100)
+  UPDATED_DATE        DateTime?
+
+  trips       FleetTrips[]
+  fuelLogs    FleetFuelLogs[]
+  maintenance FleetMaintenance[]
+
+  @@index([STATUS])
+  @@index([TYPE])
+  @@map("FLEET_VEHICLES")
+}
+
+model FleetDrivers {
+  DRIVER_ID     Int       @id @default(autoincrement())
+  NAME          String    @db.VarChar(150)
+  PHONE         String?   @db.VarChar(50)
+  LICENSE_NO    String?   @db.VarChar(100)
+  LICENSE_EXPIRY DateTime? @db.Date
+  /// Active | Inactive (soft delete)
+  STATUS        String    @default("Active") @db.VarChar(30)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  trips FleetTrips[]
+
+  @@index([STATUS])
+  @@map("FLEET_DRIVERS")
+}
+
+/// Requests for a trip — clinical staff may create/read only (ADR D7).
+model FleetTripRequests {
+  REQUEST_ID       Int       @id @default(autoincrement())
+  REQUEST_NO       String    @unique @db.VarChar(50)
+  PERSON_ID        Int?
+  REQUESTED_BY_ID  Int?
+  REQUESTED_BY     String?   @db.VarChar(150)
+  DEPARTMENT       String?   @db.VarChar(150)
+  PURPOSE          String    @db.Text
+  PICKUP_LOCATION  String?   @db.VarChar(255)
+  DESTINATION      String    @db.VarChar(255)
+  REQUESTED_DATE   DateTime  @default(now())
+  /// Routine | Urgent | Emergency
+  PRIORITY         String    @default("Routine") @db.VarChar(30)
+  /// Pending | Approved | Rejected | Completed | Cancelled
+  STATUS           String    @default("Pending") @db.VarChar(30)
+  DECISION_NOTE    String?   @db.Text
+  APPROVED_BY_ID   Int?
+  APPROVED_BY      String?   @db.VarChar(150)
+  APPROVED_AT      DateTime?
+  CREATED_BY_ID    Int?
+  CREATED_BY       String?   @db.VarChar(100)
+  CREATED_DATE     DateTime  @default(now())
+  UPDATED_BY_ID    Int?
+  UPDATED_BY       String?   @db.VarChar(100)
+  UPDATED_DATE     DateTime?
+
+  person Persons?     @relation(fields: [PERSON_ID], references: [PERSON_ID])
+  trips  FleetTrips[]
+
+  @@index([STATUS])
+  @@index([PERSON_ID])
+  @@index([CREATED_DATE])
+  @@map("FLEET_TRIP_REQUESTS")
+}
+
+model FleetTrips {
+  TRIP_ID        Int       @id @default(autoincrement())
+  TRIP_NO        String    @unique @db.VarChar(50)
+  REQUEST_ID     Int?
+  VEHICLE_ID     Int
+  DRIVER_ID      Int
+  PURPOSE        String    @db.Text
+  FROM_LOCATION  String?   @db.VarChar(255)
+  TO_LOCATION    String    @db.VarChar(255)
+  START_AT       DateTime?
+  END_AT         DateTime?
+  MILEAGE_START  Int?
+  MILEAGE_END    Int?
+  /// Scheduled | Ongoing | Completed | Cancelled
+  STATUS         String    @default("Scheduled") @db.VarChar(30)
+  NOTES          String?   @db.Text
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime  @default(now())
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+
+  request  FleetTripRequests? @relation(fields: [REQUEST_ID], references: [REQUEST_ID])
+  vehicle  FleetVehicles      @relation(fields: [VEHICLE_ID], references: [VEHICLE_ID])
+  driver   FleetDrivers       @relation(fields: [DRIVER_ID], references: [DRIVER_ID])
+  fuelLogs FleetFuelLogs[]
+
+  @@index([VEHICLE_ID])
+  @@index([DRIVER_ID])
+  @@index([REQUEST_ID])
+  @@index([STATUS])
+  @@map("FLEET_TRIPS")
+}
+
+model FleetFuelLogs {
+  FUEL_ID       Int       @id @default(autoincrement())
+  VEHICLE_ID    Int
+  TRIP_ID       Int?
+  LITERS        Decimal   @db.Decimal(10, 2)
+  COST          Decimal   @db.Decimal(14, 2)
+  FILLED_AT     DateTime  @default(now())
+  RECORDED_BY_ID Int?
+  RECORDED_BY   String?   @db.VarChar(150)
+  NOTES         String?   @db.Text
+  CREATED_DATE  DateTime  @default(now())
+
+  vehicle FleetVehicles @relation(fields: [VEHICLE_ID], references: [VEHICLE_ID])
+  trip    FleetTrips?   @relation(fields: [TRIP_ID], references: [TRIP_ID])
+
+  @@index([VEHICLE_ID])
+  @@index([FILLED_AT])
+  @@map("FLEET_FUEL_LOGS")
+}
+
+model FleetMaintenance {
+  MAINT_ID        Int       @id @default(autoincrement())
+  VEHICLE_ID      Int
+  /// Service | Repair | Inspection
+  TYPE            String    @db.VarChar(30)
+  DESCRIPTION     String?   @db.Text
+  COST            Decimal?  @db.Decimal(14, 2)
+  /// Open | Completed
+  STATUS          String    @default("Open") @db.VarChar(20)
+  SCHEDULED_DATE  DateTime? @db.Date
+  COMPLETED_DATE  DateTime? @db.Date
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime  @default(now())
+  UPDATED_BY_ID   Int?
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+
+  vehicle FleetVehicles @relation(fields: [VEHICLE_ID], references: [VEHICLE_ID])
+
+  @@index([VEHICLE_ID])
+  @@index([STATUS])
+  @@map("FLEET_MAINTENANCE")
+}

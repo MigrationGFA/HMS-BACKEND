@@ -13,6 +13,11 @@ import { OperationalReportsService } from './operational-reports.service';
     FinancialReportsService,
     OperationalReportsService,
   ],
-  exports: [ReportsService, ClinicalReportsService, FinancialReportsService, OperationalReportsService],
+  exports: [
+    ReportsService,
+    ClinicalReportsService,
+    FinancialReportsService,
+    OperationalReportsService,
+  ],
 })
 export class ReportsModule {}

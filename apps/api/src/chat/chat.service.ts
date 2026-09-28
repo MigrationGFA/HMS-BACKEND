@@ -95,7 +95,8 @@ export class ChatService {
       }
     }
     if (group && group in GROUP_TO_CHAT_MODULE) {
-      const mapped = GROUP_TO_CHAT_MODULE[group as keyof typeof GROUP_TO_CHAT_MODULE];
+      const mapped =
+        GROUP_TO_CHAT_MODULE[group as keyof typeof GROUP_TO_CHAT_MODULE];
       if (mapped) scope.add(mapped);
     }
     if (!scope.size) scope.add('doctor');
@@ -131,8 +132,9 @@ export class ChatService {
       createdById: doc.createdById ?? null,
       createdBy: doc.createdBy ?? null,
       createdAt:
-        (doc as ConversationDocument & { createdAt?: Date }).createdAt?.toISOString() ??
-        null,
+        (
+          doc as ConversationDocument & { createdAt?: Date }
+        ).createdAt?.toISOString() ?? null,
     };
   }
 
@@ -149,8 +151,9 @@ export class ChatService {
       readBy: doc.readBy ?? [],
       edited: doc.edited,
       createdAt:
-        (doc as MessageDocument & { createdAt?: Date }).createdAt?.toISOString() ??
-        null,
+        (
+          doc as MessageDocument & { createdAt?: Date }
+        ).createdAt?.toISOString() ?? null,
     };
   }
 
@@ -254,10 +257,14 @@ export class ChatService {
         readBy: [user.id],
       });
       const mappedMsg = this.mapMessage(firstMessage);
-      this.emitter?.emitToUsersPer(participants, 'chat:message', (recipientId) => ({
-        conversation: this.mapConversation(created, recipientId),
-        message: mappedMsg,
-      }));
+      this.emitter?.emitToUsersPer(
+        participants,
+        'chat:message',
+        (recipientId) => ({
+          conversation: this.mapConversation(created, recipientId),
+          message: mappedMsg,
+        }),
+      );
     }
 
     this.emitConversationEvent(
@@ -351,7 +358,7 @@ export class ChatService {
       } else {
         const prev =
           conv.unreadBy instanceof Map
-            ? conv.unreadBy.get(String(pid)) ?? 0
+            ? (conv.unreadBy.get(String(pid)) ?? 0)
             : ((conv.unreadBy as unknown as Record<string, number>)?.[
                 String(pid)
               ] ?? 0);
@@ -501,8 +508,9 @@ export class ChatService {
       sentByUserId: broadcast.sentByUserId,
       conversationId: broadcast.conversationId,
       sentAt:
-        (broadcast as BroadcastDocument & { createdAt?: Date }).createdAt?.toISOString() ??
-        new Date().toISOString(),
+        (
+          broadcast as BroadcastDocument & { createdAt?: Date }
+        ).createdAt?.toISOString() ?? new Date().toISOString(),
     };
 
     this.emitter?.emitToModules(modules, 'chat:broadcast', payload);
@@ -545,8 +553,9 @@ export class ChatService {
         sentByUserId: b.sentByUserId,
         conversationId: b.conversationId ?? null,
         sentAt:
-          (b as BroadcastDocument & { createdAt?: Date }).createdAt?.toISOString() ??
-          null,
+          (
+            b as BroadcastDocument & { createdAt?: Date }
+          ).createdAt?.toISOString() ?? null,
       })),
       meta: { page, limit, total },
     };
@@ -605,7 +614,9 @@ export class ChatService {
     });
 
     if (params?.module && isChatModule(params.module)) {
-      items = items.filter((i) => i.modules.includes(params.module as ChatModuleId));
+      items = items.filter((i) =>
+        i.modules.includes(params.module as ChatModuleId),
+      );
     }
 
     return { items, meta: { page, limit, total: items.length || total } };

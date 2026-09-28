@@ -15,10 +15,7 @@ import { PERMISSIONS } from '../common/constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/types/auth-user.type';
 import { NursingService } from './nursing.service';
-import {
-  RecordQueueVitalsDto,
-  SendToDoctorDto,
-} from './dto/patient-queue.dto';
+import { RecordQueueVitalsDto, SendToDoctorDto } from './dto/patient-queue.dto';
 
 @Controller('nursing')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

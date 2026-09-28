@@ -68,6 +68,7 @@ model ImagingRequests {
   items   ImagingRequestItems[]
   reports RadiologyReports[]
   imagingReports ImagingReports[]
+  studyFiles ImagingStudyFiles[]
 
   @@index([PERSON_ID])
   @@index([ENCOUNTER_ID])
@@ -204,4 +205,29 @@ model RadFormInstances {
   @@index([PERSON_ID])
   @@index([FORM_TYPE])
   @@map("RAD_FORM_INSTANCES")
+}
+
+/// Uploaded study images / PDF / DICOM wrappers stored via StorageService (Azure Blob or local).
+model ImagingStudyFiles {
+  FILE_ID            Int       @id @default(autoincrement())
+  IMAGING_REQUEST_ID Int
+  STUDY_UID          String?   @db.VarChar(120)
+  /// preview | dicom | pdf | other
+  KIND               String    @default("preview") @db.VarChar(40)
+  ORIGINAL_NAME      String    @db.VarChar(255)
+  CONTENT_TYPE       String    @db.VarChar(120)
+  SIZE_BYTES         Int       @default(0)
+  /// local | azure
+  STORAGE_PROVIDER   String    @db.VarChar(20)
+  BLOB_PATH          String    @db.VarChar(500)
+  UPLOADED_BY_ID     Int?
+  UPLOADED_BY        String?   @db.VarChar(120)
+  CREATED_DATE       DateTime  @default(now())
+
+  request ImagingRequests @relation(fields: [IMAGING_REQUEST_ID], references: [IMAGING_REQUEST_ID], onDelete: Cascade)
+
+  @@index([IMAGING_REQUEST_ID])
+  @@index([STUDY_UID])
+  @@index([KIND])
+  @@map("IMAGING_STUDY_FILES")
 }

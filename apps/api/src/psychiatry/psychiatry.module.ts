@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
+import { BillingModule } from '../billing/billing.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PsychiatricOpcController } from './psychiatric-opc.controller';
 import { PsychologyController } from './psychology.controller';
@@ -9,7 +10,7 @@ import { PsychogeriatricsController } from './psychogeriatrics.controller';
 import { PsychiatryService } from './psychiatry.service';
 
 @Module({
-  imports: [PrismaModule, AuditModule],
+  imports: [PrismaModule, AuditModule, BillingModule],
   controllers: [
     PsychiatricOpcController,
     PsychologyController,

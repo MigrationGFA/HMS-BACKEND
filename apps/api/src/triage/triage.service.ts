@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -98,7 +95,11 @@ export class TriageService {
       userId: actor?.id,
       createdBy: actorLabel,
       item: `Triage ${row.QUEUE_NO} created`,
-      newValue: { triageId: row.TRIAGE_ID, queueNo: row.QUEUE_NO, personId: row.PERSON_ID },
+      newValue: {
+        triageId: row.TRIAGE_ID,
+        queueNo: row.QUEUE_NO,
+        personId: row.PERSON_ID,
+      },
     });
 
     return this.toResponse(row);
@@ -111,9 +112,13 @@ export class TriageService {
     if (!existing) throw new NotFoundException('Triage record not found');
 
     const weight =
-      dto.weightKg !== undefined ? dto.weightKg : existing.WEIGHT_KG?.toNumber();
+      dto.weightKg !== undefined
+        ? dto.weightKg
+        : existing.WEIGHT_KG?.toNumber();
     const height =
-      dto.heightCm !== undefined ? dto.heightCm : existing.HEIGHT_CM?.toNumber();
+      dto.heightCm !== undefined
+        ? dto.heightCm
+        : existing.HEIGHT_CM?.toNumber();
     const bmi = calcBmi(weight ?? undefined, height ?? undefined);
     const actorLabel =
       actor?.email ||
@@ -123,13 +128,17 @@ export class TriageService {
     const row = await this.prisma.triage.update({
       where: { TRIAGE_ID: triageId },
       data: {
-        ...(dto.clinic !== undefined ? { CLINIC: dto.clinic.trim() || null } : {}),
+        ...(dto.clinic !== undefined
+          ? { CLINIC: dto.clinic.trim() || null }
+          : {}),
         ...(dto.status !== undefined ? { STATUS: dto.status } : {}),
         ...(dto.priority !== undefined ? { PRIORITY: dto.priority } : {}),
         ...(dto.priorityReason !== undefined
           ? { PRIORITY_REASON: dto.priorityReason.trim() || null }
           : {}),
-        ...(dto.patientType !== undefined ? { PATIENT_TYPE: dto.patientType } : {}),
+        ...(dto.patientType !== undefined
+          ? { PATIENT_TYPE: dto.patientType }
+          : {}),
         ...(dto.weightKg !== undefined ? { WEIGHT_KG: dec(dto.weightKg) } : {}),
         ...(dto.heightCm !== undefined ? { HEIGHT_CM: dec(dto.heightCm) } : {}),
         BMI: dec(bmi),
@@ -207,9 +216,17 @@ export class TriageService {
         ? {
             OR: [
               { QUEUE_NO: { contains: term, mode: 'insensitive' } },
-              { person: { HOSPITAL_NO: { contains: term, mode: 'insensitive' } } },
-              { person: { FIRST_NAME: { contains: term, mode: 'insensitive' } } },
-              { person: { LAST_NAME: { contains: term, mode: 'insensitive' } } },
+              {
+                person: {
+                  HOSPITAL_NO: { contains: term, mode: 'insensitive' },
+                },
+              },
+              {
+                person: { FIRST_NAME: { contains: term, mode: 'insensitive' } },
+              },
+              {
+                person: { LAST_NAME: { contains: term, mode: 'insensitive' } },
+              },
               { person: { PATIENT_PHONE_NO: { contains: term } } },
             ],
           }
@@ -333,7 +350,8 @@ export class TriageService {
       ? Math.max(
           0,
           Math.floor(
-            (Date.now() - p.DATE_OF_BIRTH.getTime()) / (1000 * 60 * 60 * 24 * 365.25),
+            (Date.now() - p.DATE_OF_BIRTH.getTime()) /
+              (1000 * 60 * 60 * 24 * 365.25),
           ),
         )
       : null;

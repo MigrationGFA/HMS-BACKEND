@@ -66,7 +66,9 @@ function actorLabel(actor?: AuthUser): string {
   return name || actor.email;
 }
 
-function toBatchResponse(b: DrugWithRelations['batches'][number]): DrugBatchResponse {
+function toBatchResponse(
+  b: DrugWithRelations['batches'][number],
+): DrugBatchResponse {
   return {
     batchId: b.BATCH_ID,
     batchNo: b.BATCH_NO,
@@ -98,7 +100,8 @@ export function toDrugResponse(
   const stock = holdingBatches.reduce((s, b) => s + b.QTY_AVAILABLE, 0);
   const earliest = holdingBatches[0] ?? null;
   const expired =
-    earliest?.EXPIRY_DATE != null && earliest.EXPIRY_DATE.getTime() < now.getTime();
+    earliest?.EXPIRY_DATE != null &&
+    earliest.EXPIRY_DATE.getTime() < now.getTime();
 
   const stockStatus = expired
     ? 'Expired'
@@ -131,7 +134,11 @@ export function toDrugResponse(
     ...(opts?.includeBatches
       ? {
           batches: [...row.batches]
-            .sort((a, b) => (b.CREATED_DATE?.getTime() ?? 0) - (a.CREATED_DATE?.getTime() ?? 0))
+            .sort(
+              (a, b) =>
+                (b.CREATED_DATE?.getTime() ?? 0) -
+                (a.CREATED_DATE?.getTime() ?? 0),
+            )
             .map(toBatchResponse),
         }
       : {}),
@@ -151,7 +158,8 @@ export class DrugsService {
       const s = await this.pharmacySettings.getOrCreate();
       return {
         expiringSoon: s.expiringSoonDays || FALLBACK_EXPIRING_SOON_DAYS,
-        recentlyReceived: s.recentlyReceivedDays || FALLBACK_RECENTLY_RECEIVED_DAYS,
+        recentlyReceived:
+          s.recentlyReceivedDays || FALLBACK_RECENTLY_RECEIVED_DAYS,
         defaultReorder: s.defaultReorderLevel,
       };
     } catch {
@@ -173,7 +181,9 @@ export class DrugsService {
 
     const thresholds = await this.thresholdDays();
     const reorder =
-      dto.reorderLevel !== undefined ? dto.reorderLevel : thresholds.defaultReorder;
+      dto.reorderLevel !== undefined
+        ? dto.reorderLevel
+        : thresholds.defaultReorder;
 
     const created = await this.prisma.drugs.create({
       data: {
@@ -220,7 +230,8 @@ export class DrugsService {
   }) {
     const page = Math.max(params?.page ?? 1, 1);
     const limit = Math.min(Math.max(params?.limit ?? 50, 1), 200);
-    const status = params?.status && params.status !== 'all' ? params.status : 'Active';
+    const status =
+      params?.status && params.status !== 'all' ? params.status : 'Active';
 
     const where: Prisma.DrugsWhereInput = {
       STATUS: status,
@@ -280,7 +291,11 @@ export class DrugsService {
     return toDrugResponse(row, { includeBatches: true });
   }
 
-  async update(id: number, dto: UpdateDrugDto, actor?: AuthUser): Promise<DrugResponse> {
+  async update(
+    id: number,
+    dto: UpdateDrugDto,
+    actor?: AuthUser,
+  ): Promise<DrugResponse> {
     const existing = await this.prisma.drugs.findUnique({
       where: { DRUG_ID: id },
       include: { supplier: true, batches: true },
@@ -298,18 +313,24 @@ export class DrugsService {
       where: { DRUG_ID: id },
       data: {
         ...(dto.name !== undefined ? { NAME: dto.name.trim() } : {}),
-        ...(dto.genericName !== undefined ? { GENERIC_NAME: dto.genericName } : {}),
+        ...(dto.genericName !== undefined
+          ? { GENERIC_NAME: dto.genericName }
+          : {}),
         ...(dto.category !== undefined ? { CATEGORY: dto.category } : {}),
         ...(dto.form !== undefined ? { FORM: dto.form } : {}),
         ...(dto.strength !== undefined ? { STRENGTH: dto.strength } : {}),
         ...(dto.unit !== undefined ? { UNIT: dto.unit } : {}),
         ...(dto.unitPrice !== undefined ? { UNIT_PRICE: dto.unitPrice } : {}),
-        ...(dto.reorderLevel !== undefined ? { REORDER_LEVEL: dto.reorderLevel } : {}),
+        ...(dto.reorderLevel !== undefined
+          ? { REORDER_LEVEL: dto.reorderLevel }
+          : {}),
         ...(dto.shelf !== undefined ? { SHELF: dto.shelf } : {}),
         ...(dto.controlled !== undefined
           ? { CONTROLLED_FLAG: dto.controlled ? 'Y' : 'N' }
           : {}),
-        ...(dto.supplierId !== undefined ? { SUPPLIER_ID: dto.supplierId } : {}),
+        ...(dto.supplierId !== undefined
+          ? { SUPPLIER_ID: dto.supplierId }
+          : {}),
         ...(dto.status !== undefined ? { STATUS: dto.status } : {}),
         UPDATED_BY_ID: actor?.id ?? null,
         UPDATED_BY: actorLabel(actor),
@@ -374,7 +395,10 @@ export class DrugsService {
    * Manual stock adjustment. Positive quantities add to the most recent
    * available batch; negative quantities deduct oldest-expiry-first (FEFO).
    */
-  async adjustStock(dto: AdjustStockDto, actor?: AuthUser): Promise<DrugResponse> {
+  async adjustStock(
+    dto: AdjustStockDto,
+    actor?: AuthUser,
+  ): Promise<DrugResponse> {
     const drug = await this.prisma.drugs.findUnique({
       where: { DRUG_ID: dto.drugId },
       include: { supplier: true, batches: true },
@@ -388,7 +412,9 @@ export class DrugsService {
         const target = [...drug.batches]
           .filter((b) => b.STATUS === 'Available')
           .sort(
-            (a, b) => (b.CREATED_DATE?.getTime() ?? 0) - (a.CREATED_DATE?.getTime() ?? 0),
+            (a, b) =>
+              (b.CREATED_DATE?.getTime() ?? 0) -
+              (a.CREATED_DATE?.getTime() ?? 0),
           )[0];
         if (!target) {
           throw new BadRequestException(

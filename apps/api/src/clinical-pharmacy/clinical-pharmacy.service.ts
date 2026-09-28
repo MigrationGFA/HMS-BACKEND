@@ -19,7 +19,9 @@ import {
 } from './dto/clinical-pharmacy.dto';
 
 function actorLabel(user: AuthUser): string {
-  return [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+  );
 }
 
 function norm(s: string | null | undefined): string {
@@ -230,7 +232,8 @@ export class ClinicalPharmacyService {
         seen.add(item.DRUG_ID);
         meds.push({
           drugId: item.DRUG_ID,
-          drugName: item.DRUG_NAME || item.drug?.NAME || `Drug #${item.DRUG_ID}`,
+          drugName:
+            item.DRUG_NAME || item.drug?.NAME || `Drug #${item.DRUG_ID}`,
           controlled: (item.drug?.CONTROLLED_FLAG ?? 'N').toUpperCase() === 'Y',
           prescriptionId: p.PRESCRIPTION_ID,
           doctorUserId: p.PRESCRIBED_BY_ID,
@@ -260,7 +263,11 @@ export class ClinicalPharmacyService {
 
   private evaluate(
     meds: MedLine[],
-    allergies: { SUBSTANCE: string; SEVERITY: string; REACTION: string | null }[],
+    allergies: {
+      SUBSTANCE: string;
+      SEVERITY: string;
+      REACTION: string | null;
+    }[],
     rules: {
       CODE: string;
       DRUG_A_ID: number | null;
@@ -283,7 +290,10 @@ export class ClinicalPharmacyService {
       if (rule.ALERT_TYPE === 'AllergyClass') {
         const substance = rule.DRUG_A_NAME ?? '';
         for (const allergy of allergies) {
-          if (!nameMatch(allergy.SUBSTANCE, substance) && !nameMatch(substance, allergy.SUBSTANCE)) {
+          if (
+            !nameMatch(allergy.SUBSTANCE, substance) &&
+            !nameMatch(substance, allergy.SUBSTANCE)
+          ) {
             continue;
           }
           for (const med of meds) {
@@ -298,7 +308,10 @@ export class ClinicalPharmacyService {
             ) {
               push({
                 alertType: 'Allergy',
-                severity: rule.SEVERITY === 'Mild' ? allergy.SEVERITY || rule.SEVERITY : rule.SEVERITY,
+                severity:
+                  rule.SEVERITY === 'Mild'
+                    ? allergy.SEVERITY || rule.SEVERITY
+                    : rule.SEVERITY,
                 drugA: med.drugName,
                 drugB: `Allergy: ${allergy.SUBSTANCE}`,
                 message: rule.MESSAGE,
@@ -318,7 +331,13 @@ export class ClinicalPharmacyService {
             (rule.DRUG_A_NAME && nameMatch(med.drugName, rule.DRUG_A_NAME)) ||
             (rule.DRUG_A_ID != null && med.drugId === rule.DRUG_A_ID);
           if (med.controlled || nameHit) {
-            if (!nameHit && !rule.DRUG_A_NAME && !rule.DRUG_A_ID && !med.controlled) continue;
+            if (
+              !nameHit &&
+              !rule.DRUG_A_NAME &&
+              !rule.DRUG_A_ID &&
+              !med.controlled
+            )
+              continue;
             if (!med.controlled && !nameHit) continue;
             push({
               alertType: 'Controlled',
@@ -400,7 +419,8 @@ export class ClinicalPharmacyService {
           severity: 'Severe',
           drugA: med.drugName,
           drugB: null,
-          message: 'Controlled substance — document witness / override before dispense.',
+          message:
+            'Controlled substance — document witness / override before dispense.',
           ruleCode: null,
           prescriptionId: med.prescriptionId,
           doctorUserId: med.doctorUserId,
@@ -411,16 +431,14 @@ export class ClinicalPharmacyService {
     return findings;
   }
 
-  async listAlerts(
-    params: {
-      status?: string;
-      severity?: string;
-      type?: string;
-      q?: string;
-      page?: number;
-      limit?: number;
-    },
-  ) {
+  async listAlerts(params: {
+    status?: string;
+    severity?: string;
+    type?: string;
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) {
     const page = Math.max(params.page ?? 1, 1);
     const limit = Math.min(Math.max(params.limit ?? 50, 1), 200);
     const q = params.q?.trim();
@@ -483,7 +501,9 @@ export class ClinicalPharmacyService {
     const personIds = [...new Set(rows.map((r) => r.PERSON_ID))];
     const rxIds = [
       ...new Set(
-        rows.map((r) => r.PRESCRIPTION_ID).filter((id): id is number => id != null),
+        rows
+          .map((r) => r.PRESCRIPTION_ID)
+          .filter((id): id is number => id != null),
       ),
     ];
     const [persons, prescriptions] = await Promise.all([
@@ -506,7 +526,9 @@ export class ClinicalPharmacyService {
         : Promise.resolve([]),
     ]);
     const personMap = new Map(persons.map((p) => [p.PERSON_ID, p]));
-    const rxMap = new Map(prescriptions.map((p) => [p.PRESCRIPTION_ID, p.RX_NO]));
+    const rxMap = new Map(
+      prescriptions.map((p) => [p.PRESCRIPTION_ID, p.RX_NO]),
+    );
 
     // Sort severity Severe first (DB asc puts Mild first if alpha — reorder in memory)
     const severityRank: Record<string, number> = {

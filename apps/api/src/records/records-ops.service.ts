@@ -18,7 +18,9 @@ import {
 } from './dto/records-ops.dto';
 
 function actorLabel(user: AuthUser): string {
-  return [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+  );
 }
 
 function personName(p: {
@@ -351,9 +353,7 @@ export class RecordsOpsService {
       Missing: ['Returned'],
     };
     if (!(allowed[cur] ?? []).includes(next) && next !== cur) {
-      throw new BadRequestException(
-        `Cannot transition from ${cur} to ${next}`,
-      );
+      throw new BadRequestException(`Cannot transition from ${cur} to ${next}`);
     }
 
     const label = actorLabel(user);
@@ -680,12 +680,12 @@ export class RecordsOpsService {
           : {}),
         ...(dto.dueReviewAt !== undefined
           ? {
-              DUE_REVIEW_AT: dto.dueReviewAt
-                ? new Date(dto.dueReviewAt)
-                : null,
+              DUE_REVIEW_AT: dto.dueReviewAt ? new Date(dto.dueReviewAt) : null,
             }
           : {}),
-        ...(dto.notes !== undefined ? { NOTES: dto.notes?.trim() ?? null } : {}),
+        ...(dto.notes !== undefined
+          ? { NOTES: dto.notes?.trim() ?? null }
+          : {}),
         UPDATED_BY_ID: user.id,
         UPDATED_BY: label,
         UPDATED_DATE: new Date(),
@@ -731,7 +731,10 @@ export class RecordsOpsService {
       personId: existing.PERSON_ID,
       userId: user.id,
       createdBy: label,
-      newValue: { reason: dto.reason ?? null, accessLevel: existing.ACCESS_LEVEL },
+      newValue: {
+        reason: dto.reason ?? null,
+        accessLevel: existing.ACCESS_LEVEL,
+      },
     });
     return {
       ok: true,
@@ -831,7 +834,9 @@ export class RecordsOpsService {
       throw new BadRequestException('Invalid date range');
     }
     if (from > to) {
-      throw new BadRequestException('Start date must be before or equal to end date');
+      throw new BadRequestException(
+        'Start date must be before or equal to end date',
+      );
     }
     const toEnd = new Date(to.getTime() + 24 * 60 * 60 * 1000);
     const label = actorLabel(user);
@@ -874,11 +879,10 @@ export class RecordsOpsService {
       }),
     ]);
 
-    const days =
-      Math.max(
-        1,
-        Math.round((to.getTime() - from.getTime()) / 86400000) + 1,
-      );
+    const days = Math.max(
+      1,
+      Math.round((to.getTime() - from.getTime()) / 86400000) + 1,
+    );
     const metrics = {
       totalRecords: totalPersons,
       new: newCards,
@@ -910,7 +914,7 @@ export class RecordsOpsService {
         FROM_DATE: from,
         TO_DATE: to,
         DEPARTMENT: dto.department?.trim() || null,
-        METRICS_JSON: metrics as Prisma.InputJsonValue,
+        METRICS_JSON: metrics,
         GENERATED_BY: label,
         GENERATED_BY_ID: user.id,
         CREATED_DATE: new Date(),
@@ -939,10 +943,7 @@ export class RecordsOpsService {
     };
   }
 
-  async analytics(params: {
-    range?: string;
-    timezoneOffsetMinutes?: number;
-  }) {
+  async analytics(params: { range?: string; timezoneOffsetMinutes?: number }) {
     const offsetMin = params.timezoneOffsetMinutes ?? 60;
     const range = params.range ?? 'month';
     const { from, to } = rangeBounds(range, offsetMin);

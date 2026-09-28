@@ -98,7 +98,10 @@ export class LabMicrobiologyController {
    */
   @Post(':id/validate')
   @RequirePermissions(PERMISSIONS.LAB_VALIDATE)
-  async validate(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+  async validate(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.extended.validateMicrobiology(id, user) };
   }
 }

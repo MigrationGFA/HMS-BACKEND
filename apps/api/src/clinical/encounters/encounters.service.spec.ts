@@ -3,7 +3,9 @@ import { EncountersService } from './encounters.service';
 
 describe('EncountersService payment gate helpers', () => {
   it('maps queue paymentCleared false when card Pending', () => {
-    const service = Object.create(EncountersService.prototype) as EncountersService;
+    const service = Object.create(
+      EncountersService.prototype,
+    ) as EncountersService;
     const item = (
       service as unknown as {
         toQueueItem: (
@@ -58,7 +60,9 @@ describe('EncountersService payment gate helpers', () => {
   });
 
   it('allows start when card Paid and includes vitals', () => {
-    const service = Object.create(EncountersService.prototype) as EncountersService;
+    const service = Object.create(
+      EncountersService.prototype,
+    ) as EncountersService;
     const item = (
       service as unknown as {
         toQueueItem: (
@@ -119,13 +123,18 @@ describe('EncountersService payment gate helpers', () => {
 
 describe('EncountersService note mapping', () => {
   it('maps expanded clinical note fields on encounter response', () => {
-    const service = Object.create(EncountersService.prototype) as EncountersService;
+    const service = Object.create(
+      EncountersService.prototype,
+    ) as EncountersService;
     const res = (
       service as unknown as {
         toEncounterResponse: (
           e: unknown,
           lastVisit: string | null,
-        ) => { note: Record<string, string>; patient: { vitals: { status: string } } };
+        ) => {
+          note: Record<string, string>;
+          patient: { vitals: { status: string } };
+        };
       }
     ).toEncounterResponse(
       {

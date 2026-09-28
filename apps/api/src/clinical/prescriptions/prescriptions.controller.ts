@@ -186,7 +186,12 @@ export class PrescriptionsController {
     @Body() dto: StopPrescriptionItemDto,
     @CurrentUser() user: AuthUser,
   ) {
-    const data = await this.prescriptionsService.stopItem(id, itemId, dto, user);
+    const data = await this.prescriptionsService.stopItem(
+      id,
+      itemId,
+      dto,
+      user,
+    );
     return { data };
   }
 

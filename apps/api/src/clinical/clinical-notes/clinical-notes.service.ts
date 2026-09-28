@@ -245,7 +245,9 @@ function ageYears(dob: Date | null | undefined): number | null {
   return age;
 }
 
-function asFieldMap(value: Prisma.JsonValue | null | undefined): Record<string, string> {
+function asFieldMap(
+  value: Prisma.JsonValue | null | undefined,
+): Record<string, string> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
@@ -289,6 +291,35 @@ export class ClinicalNotesService {
       items: NOTE_TEMPLATES.map((t) => ({
         ...t,
         fieldCount: t.fields.length,
+      })),
+    };
+  }
+
+  async listLegacyHtmlTemplates(params?: { q?: string; status?: string }) {
+    const where: Prisma.ClinicalNoteTemplatesWhereInput = {};
+    if (params?.status?.trim()) where.STATUS = params.status.trim();
+    if (params?.q?.trim()) {
+      const q = params.q.trim();
+      where.OR = [
+        { NAME: { contains: q, mode: 'insensitive' } },
+        { CODE: { contains: q, mode: 'insensitive' } },
+        { TEMPLATE_TYPE: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    const rows = await this.prisma.clinicalNoteTemplates.findMany({
+      where,
+      orderBy: { NAME: 'asc' },
+      take: 200,
+    });
+    return {
+      items: rows.map((r) => ({
+        templateId: r.TEMPLATE_ID,
+        legacyTemplateId: r.LEGACY_TEMPLATE_ID,
+        code: r.CODE,
+        name: r.NAME,
+        templateType: r.TEMPLATE_TYPE,
+        contentHtml: r.CONTENT_HTML,
+        status: r.STATUS,
       })),
     };
   }
@@ -417,7 +448,8 @@ export class ClinicalNotesService {
       where: { CLINICAL_NOTE_ID: id },
       include: { person: true, author: true },
     });
-    if (!row || row.VOIDED_AT) throw new NotFoundException('Clinical note not found');
+    if (!row || row.VOIDED_AT)
+      throw new NotFoundException('Clinical note not found');
     return this.toDetail(row);
   }
 
@@ -433,7 +465,9 @@ export class ClinicalNotesService {
       });
       if (!enc) throw new NotFoundException('Encounter not found');
       if (enc.PERSON_ID !== dto.personId) {
-        throw new BadRequestException('Encounter does not belong to this patient');
+        throw new BadRequestException(
+          'Encounter does not belong to this patient',
+        );
       }
     }
 
@@ -736,7 +770,11 @@ export class ClinicalNotesService {
         `Only notes awaiting review can be approved (current: ${existing.STATUS})`,
       );
     }
-    return this.sign(id, { attestation: 'Approved by consultant review' }, actor);
+    return this.sign(
+      id,
+      { attestation: 'Approved by consultant review' },
+      actor,
+    );
   }
 
   async returnForCorrection(
@@ -815,7 +853,9 @@ export class ClinicalNotesService {
       throw new NotFoundException('Clinical note not found');
     }
     if (existing.STATUS === 'Signed') {
-      throw new BadRequestException('Signed notes cannot be voided — use an addendum');
+      throw new BadRequestException(
+        'Signed notes cannot be voided — use an addendum',
+      );
     }
     if (!EDITABLE_STATUSES.has(existing.STATUS)) {
       throw new BadRequestException(
@@ -890,7 +930,9 @@ export class ClinicalNotesService {
     LAST_NAME?: string | null;
     EMAIL_ADDRESS?: string | null;
   }) {
-    const name = [author.FIRST_NAME, author.LAST_NAME].filter(Boolean).join(' ');
+    const name = [author.FIRST_NAME, author.LAST_NAME]
+      .filter(Boolean)
+      .join(' ');
     return name || author.EMAIL_ADDRESS || 'Unknown';
   }
 

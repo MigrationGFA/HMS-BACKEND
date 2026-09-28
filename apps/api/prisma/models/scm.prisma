@@ -1,0 +1,126 @@
+// Hospital Procurement & SCM umbrella (Phase I) — non-pharmacy.
+// ADR D4/D9: SCM_SUPPLIERS is intentionally separate from pharmacy SUPPLIERS
+// (zero pharmacy breakage). GRNs post stock into STORE_BATCHES + STORE_MOVEMENTS
+// (never DRUG_BATCHES). Soft delete via STATUS flags — never hard-delete.
+
+model ScmSuppliers {
+  SUPPLIER_ID    Int       @id @default(autoincrement())
+  NAME           String    @db.VarChar(255)
+  CONTACT_PERSON String?   @db.VarChar(255)
+  PHONE          String?   @db.VarChar(50)
+  EMAIL          String?   @db.VarChar(255)
+  ADDRESS        String?   @db.VarChar(500)
+  NOTES          String?   @db.Text
+  /// Active | Inactive (soft delete)
+  STATUS         String    @default("Active") @db.VarChar(30)
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime  @default(now())
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+
+  purchaseOrders ScmPurchaseOrders[]
+
+  @@index([NAME])
+  @@index([STATUS])
+  @@map("SCM_SUPPLIERS")
+}
+
+model ScmPurchaseOrders {
+  PO_ID           Int       @id @default(autoincrement())
+  PO_NO           String    @unique @db.VarChar(50)
+  SUPPLIER_ID     Int
+  TOTAL           Decimal   @default(0) @db.Decimal(14, 2)
+  /// Pending | Approved | Rejected
+  APPROVAL_STATUS String    @default("Pending") @db.VarChar(30)
+  /// Draft | PendingApproval | Approved | PartiallyReceived | Completed | Cancelled
+  STATUS          String    @default("PendingApproval") @db.VarChar(30)
+  EXPECTED_DATE   DateTime?
+  NOTES           String?   @db.Text
+  APPROVED_BY_ID  Int?
+  APPROVED_BY     String?   @db.VarChar(150)
+  APPROVED_AT     DateTime?
+  CREATED_BY_ID   Int?
+  CREATED_BY      String?   @db.VarChar(100)
+  CREATED_DATE    DateTime  @default(now())
+  UPDATED_BY_ID   Int?
+  UPDATED_BY      String?   @db.VarChar(100)
+  UPDATED_DATE    DateTime?
+
+  supplier ScmSuppliers @relation(fields: [SUPPLIER_ID], references: [SUPPLIER_ID])
+  lines    ScmPoLines[]
+  grns     ScmGrns[]
+
+  @@index([SUPPLIER_ID])
+  @@index([STATUS])
+  @@index([APPROVAL_STATUS])
+  @@index([CREATED_DATE])
+  @@map("SCM_PURCHASE_ORDERS")
+}
+
+model ScmPoLines {
+  LINE_ID      Int     @id @default(autoincrement())
+  PO_ID        Int
+  ITEM_ID      Int
+  QTY          Int
+  UNIT_COST    Decimal @default(0) @db.Decimal(14, 2)
+  QTY_RECEIVED Int     @default(0)
+
+  purchaseOrder ScmPurchaseOrders @relation(fields: [PO_ID], references: [PO_ID])
+  item          StoreItems        @relation(fields: [ITEM_ID], references: [ITEM_ID])
+  grnLines      ScmGrnLines[]
+
+  @@index([PO_ID])
+  @@index([ITEM_ID])
+  @@map("SCM_PO_LINES")
+}
+
+/// Goods Received Note header — PO optional to support direct/emergency receipts.
+model ScmGrns {
+  GRN_ID        Int       @id @default(autoincrement())
+  GRN_NO        String    @unique @db.VarChar(50)
+  PO_ID         Int?
+  LOCATION_ID   Int
+  RECEIVED_BY_ID Int?
+  RECEIVED_BY   String?   @db.VarChar(150)
+  RECEIVED_DATE DateTime  @default(now())
+  NOTES         String?   @db.Text
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+
+  purchaseOrder ScmPurchaseOrders? @relation(fields: [PO_ID], references: [PO_ID])
+  location      StoreLocations     @relation(fields: [LOCATION_ID], references: [LOCATION_ID])
+  lines         ScmGrnLines[]
+
+  @@index([PO_ID])
+  @@index([LOCATION_ID])
+  @@index([RECEIVED_DATE])
+  @@map("SCM_GRNS")
+}
+
+model ScmGrnLines {
+  LINE_ID       Int       @id @default(autoincrement())
+  GRN_ID        Int
+  ITEM_ID       Int
+  PO_LINE_ID    Int?
+  BATCH_NO      String    @db.VarChar(100)
+  EXPIRY_DATE   DateTime?
+  QTY_RECEIVED  Int       @default(0)
+  QTY_DAMAGED   Int       @default(0)
+  QTY_ACCEPTED  Int       @default(0)
+  UNIT_COST     Decimal?  @db.Decimal(14, 2)
+  /// Set once the accepted qty creates a STORE_BATCHES row.
+  BATCH_ID      Int?
+
+  grn      ScmGrns      @relation(fields: [GRN_ID], references: [GRN_ID])
+  item     StoreItems   @relation(fields: [ITEM_ID], references: [ITEM_ID])
+  poLine   ScmPoLines?  @relation(fields: [PO_LINE_ID], references: [LINE_ID])
+  batch    StoreBatches? @relation(fields: [BATCH_ID], references: [BATCH_ID])
+
+  @@index([GRN_ID])
+  @@index([ITEM_ID])
+  @@index([PO_LINE_ID])
+  @@map("SCM_GRN_LINES")
+}

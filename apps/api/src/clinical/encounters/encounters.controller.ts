@@ -245,10 +245,7 @@ export class EncountersController {
    */
   @Post('start')
   @RequirePermissions(PERMISSIONS.ENCOUNTER_CREATE)
-  async start(
-    @Body() dto: StartEncounterDto,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async start(@Body() dto: StartEncounterDto, @CurrentUser() user: AuthUser) {
     const result = await this.encountersService.start(dto, user);
     return { data: result };
   }

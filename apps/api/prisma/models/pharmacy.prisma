@@ -65,6 +65,8 @@ model Drugs {
   STATUS          String    @default("Active") @db.VarChar(50)
   /// Primary/preferred supplier
   SUPPLIER_ID     Int?
+  /// Legacy Oracle ITEMS.ITEM_ID (pharmacy slice only)
+  LEGACY_ITEM_ID  Int?      @unique
   CREATED_BY_ID   Int?
   CREATED_BY      String?   @db.VarChar(100)
   CREATED_DATE    DateTime?

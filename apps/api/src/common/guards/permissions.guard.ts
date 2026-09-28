@@ -28,9 +28,7 @@ export class PermissionsGuard implements CanActivate {
     );
     if (!required || required.length === 0) return true;
 
-    const request = context
-      .switchToHttp()
-      .getRequest<{ user?: AuthUser }>();
+    const request = context.switchToHttp().getRequest<{ user?: AuthUser }>();
     const user = request.user;
     if (!user) {
       throw new ForbiddenException('Missing authenticated user');

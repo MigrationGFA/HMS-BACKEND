@@ -143,7 +143,10 @@ export class DoctorResearchController {
    */
   @Post('trials')
   @RequirePermissions(PERMISSIONS.DOCTOR_RESEARCH_WRITE)
-  async createTrial(@Body() dto: CreateTrialDto, @CurrentUser() user: AuthUser) {
+  async createTrial(
+    @Body() dto: CreateTrialDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return { data: await this.research.createTrial(dto, user) };
   }
 

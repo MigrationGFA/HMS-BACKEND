@@ -260,10 +260,7 @@ export class NursingOpsController {
 
   @Post('shifts/start')
   @RequirePermissions(PERMISSIONS.NURSING_SHIFT_CREATE)
-  async startShift(
-    @Body() dto: CreateShiftDto,
-    @CurrentUser() user: AuthUser,
-  ) {
+  async startShift(@Body() dto: CreateShiftDto, @CurrentUser() user: AuthUser) {
     const row = await this.ops.startShift(dto, user);
     return { data: row };
   }
