@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsIn,
   IsInt,
@@ -48,7 +49,8 @@ export const HR_LEAVE_TYPES = [
 ] as const;
 
 export const HR_LEAVE_STATUSES = [
-  'Pending',
+  'PendingHod',
+  'PendingHr',
   'Approved',
   'Rejected',
   'Cancelled',
@@ -506,6 +508,14 @@ export class DecideLeaveDto {
   decisionNote?: string;
 }
 
+/** HR override of PendingHod — note is mandatory. */
+export class OverrideLeaveDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  decisionNote!: string;
+}
+
 export class ListLeaveQueryDto {
   @IsOptional()
   @Type(() => Number)
@@ -766,6 +776,63 @@ export class UpdatePayrollLineDto {
   @IsString()
   @IsIn(['Pending', 'Paid'])
   status?: 'Pending' | 'Paid';
+}
+
+// ---------------------------------------------------------------------------
+// HR Self-Service Phase 1 — department heads, leave types, public holidays
+// ---------------------------------------------------------------------------
+
+export class UpsertDepartmentHeadDto {
+  @Type(() => Number)
+  @IsInt()
+  departmentId!: number;
+
+  @Type(() => Number)
+  @IsInt()
+  headEmployeeId!: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  deputyEmployeeId?: number | null;
+}
+
+export class UpdateLeaveTypeDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  name?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  daysPerYear?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class CreatePublicHolidayDto {
+  @IsDateString()
+  date!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(150)
+  name!: string;
+}
+
+export class ListPublicHolidaysQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number;
 }
 
 export class ListPayrollQueryDto {

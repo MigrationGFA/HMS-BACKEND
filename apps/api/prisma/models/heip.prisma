@@ -1,0 +1,188 @@
+// HEIP — Hospital Executive Intelligence Platform (daily staff reports).
+// Additive tables only. HOD routing reuses HR_DEPARTMENT_HEADS (do not duplicate).
+
+/// Form definition for a department (+ optional role). Versioned via HeipTemplateVersions.
+model HeipReportTemplates {
+  TEMPLATE_ID          Int       @id @default(autoincrement())
+  CODE                 String    @unique @db.VarChar(60)
+  NAME                 String    @db.VarChar(200)
+  DEPARTMENT_ID        Int?
+  /// Optional role / designation filter (e.g. NURSE). Null = department default.
+  ROLE_NAME            String?   @db.VarChar(80)
+  /// daily | shift | weekly
+  FREQUENCY            String    @default("daily") @db.VarChar(20)
+  /// Hour (0–23) for daily deadline on next calendar day (hospital UTC date).
+  DEADLINE_HOUR        Int       @default(10)
+  DEADLINE_GRACE_HOURS Int       @default(2)
+  IS_ACTIVE            Boolean   @default(true)
+  CREATED_BY_ID        Int?
+  CREATED_BY           String?   @db.VarChar(100)
+  CREATED_DATE         DateTime  @default(now())
+  UPDATED_BY_ID        Int?
+  UPDATED_BY           String?   @db.VarChar(100)
+  UPDATED_DATE         DateTime?
+
+  versions HeipTemplateVersions[]
+  reports  HeipReports[]
+
+  @@index([DEPARTMENT_ID])
+  @@index([IS_ACTIVE])
+  @@index([ROLE_NAME])
+  @@map("HEIP_REPORT_TEMPLATES")
+}
+
+model HeipTemplateVersions {
+  VERSION_ID     Int       @id @default(autoincrement())
+  TEMPLATE_ID    Int
+  VERSION_NO     Int
+  /// Array of field defs: { key, label, type, required?, min?, max?, options?, metricKey?, autoFillSource?, critical?, helpText? }
+  FIELD_SCHEMA   Json
+  /// Draft | Published
+  STATUS         String    @default("Draft") @db.VarChar(20)
+  PUBLISHED_AT   DateTime?
+  PUBLISHED_BY_ID Int?
+  PUBLISHED_BY   String?   @db.VarChar(100)
+  CREATED_BY_ID  Int?
+  CREATED_BY     String?   @db.VarChar(100)
+  CREATED_DATE   DateTime  @default(now())
+  UPDATED_BY_ID  Int?
+  UPDATED_BY     String?   @db.VarChar(100)
+  UPDATED_DATE   DateTime?
+
+  template HeipReportTemplates @relation(fields: [TEMPLATE_ID], references: [TEMPLATE_ID])
+  reports  HeipReports[]
+
+  @@unique([TEMPLATE_ID, VERSION_NO])
+  @@index([TEMPLATE_ID, STATUS])
+  @@map("HEIP_TEMPLATE_VERSIONS")
+}
+
+/// Staff daily / shift report. Amendment = new row with PREVIOUS_REPORT_ID.
+model HeipReports {
+  REPORT_ID            Int       @id @default(autoincrement())
+  TEMPLATE_ID          Int
+  TEMPLATE_VERSION_ID  Int
+  EMPLOYEE_ID          Int
+  USER_ID              Int?
+  DEPARTMENT_ID        Int?
+  REPORT_DATE          DateTime  @db.Date
+  /// Morning | Afternoon | Night | null (daily)
+  SHIFT                String?   @db.VarChar(40)
+  /// Draft | Submitted | Returned | Approved | Missed
+  STATUS               String    @default("Draft") @db.VarChar(30)
+  LATE                 Boolean   @default(false)
+  PREVIOUS_REPORT_ID   Int?
+  AMENDMENT_REASON     String?   @db.Text
+  SUBMITTED_AT         DateTime?
+  APPROVED_AT          DateTime?
+  APPROVED_BY_ID       Int?
+  /// User label or SYSTEM_NO_HOD
+  APPROVED_BY          String?   @db.VarChar(100)
+  RETURN_COMMENT       String?   @db.Text
+  CREATED_BY_ID        Int?
+  CREATED_BY           String?   @db.VarChar(100)
+  CREATED_DATE         DateTime  @default(now())
+  UPDATED_BY_ID        Int?
+  UPDATED_BY           String?   @db.VarChar(100)
+  UPDATED_DATE         DateTime?
+
+  template        HeipReportTemplates  @relation(fields: [TEMPLATE_ID], references: [TEMPLATE_ID])
+  templateVersion HeipTemplateVersions @relation(fields: [TEMPLATE_VERSION_ID], references: [VERSION_ID])
+  previousReport  HeipReports?         @relation("HeipReportAmendments", fields: [PREVIOUS_REPORT_ID], references: [REPORT_ID])
+  amendments      HeipReports[]        @relation("HeipReportAmendments")
+  values          HeipReportValues[]
+  events          HeipReportEvents[]
+  redFlags        HeipRedFlags[]
+
+  @@index([REPORT_DATE, DEPARTMENT_ID])
+  @@index([EMPLOYEE_ID, REPORT_DATE])
+  @@index([STATUS])
+  @@index([TEMPLATE_ID, REPORT_DATE])
+  @@index([PREVIOUS_REPORT_ID])
+  @@map("HEIP_REPORTS")
+}
+
+model HeipReportValues {
+  VALUE_ID            Int       @id @default(autoincrement())
+  REPORT_ID           Int
+  FIELD_KEY           String    @db.VarChar(80)
+  METRIC_KEY          String?   @db.VarChar(80)
+  VALUE_TEXT          String?   @db.Text
+  VALUE_NUMBER        Decimal?  @db.Decimal(18, 4)
+  VALUE_JSON          Json?
+  SYSTEM_VALUE_NUMBER Decimal?  @db.Decimal(18, 4)
+  SYSTEM_VALUE_TEXT   String?   @db.Text
+  OVERRIDE_REASON     String?   @db.Text
+  CREATED_DATE        DateTime  @default(now())
+  UPDATED_DATE        DateTime?
+
+  report HeipReports @relation(fields: [REPORT_ID], references: [REPORT_ID], onDelete: Cascade)
+
+  @@unique([REPORT_ID, FIELD_KEY])
+  @@index([METRIC_KEY])
+  @@index([REPORT_ID])
+  @@map("HEIP_REPORT_VALUES")
+}
+
+model HeipReportEvents {
+  EVENT_ID     Int      @id @default(autoincrement())
+  REPORT_ID    Int
+  /// draft | submit | return | approve | amend | miss | late | system
+  EVENT_TYPE   String   @db.VarChar(40)
+  FROM_STATUS  String?  @db.VarChar(30)
+  TO_STATUS    String?  @db.VarChar(30)
+  COMMENT      String?  @db.Text
+  ACTOR_ID     Int?
+  ACTOR_LABEL  String?  @db.VarChar(100)
+  CREATED_DATE DateTime @default(now())
+
+  report HeipReports @relation(fields: [REPORT_ID], references: [REPORT_ID], onDelete: Cascade)
+
+  @@index([REPORT_ID])
+  @@index([CREATED_DATE])
+  @@map("HEIP_REPORT_EVENTS")
+}
+
+model HeipRedFlags {
+  FLAG_ID       Int       @id @default(autoincrement())
+  REPORT_ID     Int
+  FIELD_KEY     String    @db.VarChar(80)
+  METRIC_KEY    String?   @db.VarChar(80)
+  TRIGGER_OP    String    @db.VarChar(20)
+  TRIGGER_VALUE String?   @db.VarChar(100)
+  OBSERVED_VALUE String?  @db.VarChar(200)
+  DEPARTMENT_ID Int?
+  EMPLOYEE_ID   Int?
+  ACKED_AT      DateTime?
+  ACKED_BY_ID   Int?
+  ACKED_BY      String?   @db.VarChar(100)
+  ACK_NOTE      String?   @db.Text
+  CREATED_DATE  DateTime  @default(now())
+
+  report HeipReports @relation(fields: [REPORT_ID], references: [REPORT_ID], onDelete: Cascade)
+
+  @@index([ACKED_AT])
+  @@index([REPORT_ID])
+  @@index([DEPARTMENT_ID])
+  @@index([CREATED_DATE])
+  @@map("HEIP_RED_FLAGS")
+}
+
+model HeipDepartmentSummaries {
+  SUMMARY_ID    Int       @id @default(autoincrement())
+  DEPARTMENT_ID Int
+  REPORT_DATE   DateTime  @db.Date
+  BODY          String    @db.Text
+  AUTHOR_EMPLOYEE_ID Int?
+  AUTHOR_USER_ID Int?
+  CREATED_BY_ID Int?
+  CREATED_BY    String?   @db.VarChar(100)
+  CREATED_DATE  DateTime  @default(now())
+  UPDATED_BY_ID Int?
+  UPDATED_BY    String?   @db.VarChar(100)
+  UPDATED_DATE  DateTime?
+
+  @@unique([DEPARTMENT_ID, REPORT_DATE])
+  @@index([REPORT_DATE])
+  @@map("HEIP_DEPARTMENT_SUMMARIES")
+}

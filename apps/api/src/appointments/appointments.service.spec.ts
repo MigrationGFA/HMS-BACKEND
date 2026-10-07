@@ -70,6 +70,8 @@ describe('AppointmentsService', () => {
       findFirst: jest.fn(),
       update: jest.fn(),
     },
+    patientCards: { findFirst: jest.fn() },
+    users: { findFirst: jest.fn() },
     $transaction: jest.fn(),
   };
 
@@ -226,6 +228,8 @@ describe('AppointmentsService', () => {
         HOSPITAL_NO: 'FNPH-2026-00001',
         CARD_NO: 'FNPH-2026-00001',
       });
+      prisma.patientCards.findFirst.mockResolvedValue(null);
+      prisma.users.findFirst.mockResolvedValue(null);
       prisma.serviceBookings.create.mockResolvedValue({
         BOOKING_ID: 12,
         BOOKING_NO: 'TMP',

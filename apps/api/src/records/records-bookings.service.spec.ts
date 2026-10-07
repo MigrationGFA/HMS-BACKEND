@@ -41,13 +41,29 @@ describe('RecordsService online bookings', () => {
       );
     });
 
-    it('returns resume payload for NEW bookings', async () => {
+    it('rejects unpaid NEW bookings', async () => {
+      appointments.getStaffBooking.mockResolvedValue({
+        bookingId: 3,
+        bookingNo: 'APT-3',
+        patientType: 'NEW',
+        status: 'Booked',
+        personId: 22,
+        paymentStatus: 'Pending',
+        amountDue: 5000,
+      });
+      await expect(service.convertOnlineBooking(3)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+
+    it('returns resume payload for paid NEW bookings', async () => {
       appointments.getStaffBooking.mockResolvedValue({
         bookingId: 2,
         bookingNo: 'APT-1',
         patientType: 'NEW',
         status: 'Booked',
         personId: 22,
+        paymentStatus: 'Paid',
       });
       const resumeSpy = jest
         .spyOn(service, 'resumeRegistration')

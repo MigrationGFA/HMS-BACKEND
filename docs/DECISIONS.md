@@ -365,3 +365,49 @@ Frontend dual-paths via `nursing-ops.ts` when `VITE_USE_API=true`.
 **Rationale:** Matches hospital HR ownership of staff compensation while letting Finance inspect totals.
 
 **Consequences:** Finance UI can view payroll; only HR (and FULL_ACCESS admins) can generate/lock runs.
+
+---
+
+## ADR-HR-SELF-001: Leave approval is Staff → HOD → HR
+
+**Status:** Accepted  
+**Date:** 2026-10-07  
+**Plan ref:** [HR_SELF_SERVICE_PLAN.md](./HR_SELF_SERVICE_PLAN.md)
+
+**Context:** Staff needed self-service leave without giving clinical roles full `hr:*` desk permissions. Single-step HR approve was insufficient for department accountability.
+
+**Decision:**
+- Self-service APIs live under `/api/me/hr/*` and always resolve the employee from `USERS.EMPLOYEE_ID` (never trust client `employeeId`).
+- New additive permissions `hr:self:read` and `hr:self:leave` on all staff roles except Patient.
+- Leave statuses: `PendingHod` → `PendingHr` → `Approved` | `Rejected` | `Cancelled`. Existing `Pending` rows migrate to `PendingHr`.
+- Department heads stored in `HR_DEPARTMENT_HEADS` (not a new RBAC role). HOD/deputy authorisation is assignment-based.
+- If no HOD is assigned for the employee’s department, or the requester **is** the HOD/deputy, the request skips to `PendingHr`.
+- Working days = Mon–Fri minus `HR_PUBLIC_HOLIDAYS` (D3). Leave year = calendar year (D2). Flat entitlements per leave type (D5).
+- HR may override `PendingHod` with a mandatory note (`hr:leave:override` audit).
+- Notifications: in-app + email (Resend) when configured; SMS not used.
+
+**Alternatives considered:** CMD as second approver for HODs; grade-based entitlements; staff clock-in for attendance — deferred per plan §9.
+
+**Consequences:** HEIP daily reports can reuse `HR_DEPARTMENT_HEADS`. HR desk leave UI must filter by the new statuses. Staff must be bidirectionally linked (`USERS.EMPLOYEE_ID` ↔ `HR_EMPLOYEES.USER_ID`) before My HR works.
+
+---
+
+## ADR-HEIP-001: Daily reports are hybrid attestation + HOD gate + CMD rollup
+
+**Status:** Accepted  
+**Date:** 2026-10-07  
+**Plan ref:** [HEIP_DAILY_REPORTS_PLAN.md](./HEIP_DAILY_REPORTS_PLAN.md)
+
+**Context:** CMD needed hospital-wide daily intelligence without trusting demo dashboards or silent system-only stats. Pure free-text reports are unverifiable; pure analytics miss human attestation (restraint, handover, security).
+
+**Decision:**
+- Staff submit **Daily Reports** from versioned templates (`HEIP_REPORT_*`); system **auto-fills** known metrics; overrides require a reason (dual storage of system vs entered values).
+- HOD review uses existing `HR_DEPARTMENT_HEADS` (no new RBAC role). No HOD / submitter-is-HOD → auto-`Approved` with `APPROVED_BY=SYSTEM_NO_HOD`.
+- CMD sees **Submitted** (pending HOD) and **Approved** on executive views; **critical** field triggers create red flags + notify on **submit** (H2).
+- Executive readers: CMD, SUPER_ADMIN, ADMIN, BOARD (`heip:executive:read` / `heip:redflag:ack`) (H6).
+- Amendments after approve create a new report linked via `PREVIOUS_REPORT_ID` and require re-approval.
+- Phase 1 module id `heip`; FE `/account/heip` + `/dashboard/cmd/heip*`.
+
+**Alternatives considered:** Fully automatic CMD dashboard from analytics only; SMS alerts; grade-based reporting exemptions — deferred.
+
+**Consequences:** Templates must stay short (~10–15 fields). Pilot before hospital-wide. Records `RECORD_REPORT_SNAPSHOTS` remain unrelated.

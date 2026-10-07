@@ -65,6 +65,7 @@ import { SuperAdminModule } from './super-admin/super-admin.module';
 import { GovernanceModule } from './governance/governance.module';
 import { AdministrationModule } from './administration/administration.module';
 import { HrModule } from './hr/hr.module';
+import { HeipModule } from './heip/heip.module';
 import { SupportRequestsModule } from './support-requests/support-requests.module';
 import { ClinicalPharmacyModule } from './clinical-pharmacy/clinical-pharmacy.module';
 import { CmsModule } from './cms/cms.module';
@@ -136,6 +137,7 @@ import { CmsModule } from './cms/cms.module';
     GovernanceModule,
     AdministrationModule,
     HrModule,
+    HeipModule,
     SupportRequestsModule,
     ClinicalPharmacyModule,
     CmsModule,

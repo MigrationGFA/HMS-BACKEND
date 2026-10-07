@@ -29,6 +29,8 @@
     "db:migrate-csv": "node scripts/migrate-legacy-csv.mjs",
     "db:drop-extra": "node scripts/drop-extra-tables.mjs",
     "db:drop-extra:confirm": "node scripts/drop-extra-tables.mjs --yes",
+    "hr:backfill-links": "node scripts/backfill-hr-employee-links.mjs",
+    "hr:backfill-links:apply": "node scripts/backfill-hr-employee-links.mjs --apply",
     "typecheck": "tsc -p apps/api/tsconfig.app.json --noEmit",
     "audit": "npm audit"
   },

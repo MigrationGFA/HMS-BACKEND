@@ -340,6 +340,8 @@ async function main() {
   await seedPatientPortalLink();
   await seedNonClinicalSmokeData();
   await seedHrDemoEmployees();
+  await seedHeipTemplates();
+  await seedHeipDemoData();
 }
 
 /** Link patient@ test user to a demo PERSONS row for portal APIs. */
@@ -502,103 +504,328 @@ async function seedNonClinicalSmokeData() {
   }
 }
 
-/** Sample HR employees + link hr@ USERS.EMPLOYEE_ID for leave self-service tests. */
+/**
+ * Ensure every staff TEST_ACCOUNT (except PATIENT) has an HR_EMPLOYEES row
+ * and USERS.EMPLOYEE_ID ↔ HR_EMPLOYEES.USER_ID link for My HR / HEIP.
+ */
 async function seedHrDemoEmployees() {
-  const hrUser = await prisma.users.findFirst({
-    where: {
-      EMAIL_ADDRESS: { equals: 'hr@fnpharo.gov.ng', mode: 'insensitive' },
-    },
-  });
-
-  const ensureEmployee = async (input: {
-    employeeNo: string;
-    firstName: string;
-    lastName: string;
-    departmentName: string;
-    designation: string;
-    employmentType: string;
-    email?: string;
-    baseSalary?: number;
-    userId?: number;
-  }) => {
-    const existing = await prisma.hrEmployees.findUnique({
-      where: { EMPLOYEE_NO: input.employeeNo },
-    });
-    if (existing) return existing;
-    return prisma.hrEmployees.create({
-      data: {
-        EMPLOYEE_NO: input.employeeNo,
-        FIRST_NAME: input.firstName,
-        LAST_NAME: input.lastName,
-        DEPARTMENT_NAME: input.departmentName,
-        DESIGNATION: input.designation,
-        EMPLOYMENT_TYPE: input.employmentType,
-        STATUS: 'Active',
-        EMAIL: input.email ?? null,
-        BASE_SALARY: input.baseSalary ?? 250000,
-        USER_ID: input.userId ?? null,
-        DATE_JOINED: new Date('2020-01-15'),
-        CREATED_BY: 'SYSTEM',
-      },
-    });
+  const deptId = async (code: string, name: string): Promise<number | null> => {
+    try {
+      return await ensureHeipDepartment(code, name);
+    } catch {
+      return null;
+    }
   };
 
-  const hrEmployee = await ensureEmployee({
-    employeeNo: 'FNPH-HR-001',
-    firstName: hrUser?.FIRST_NAME ?? 'Human',
-    lastName: hrUser?.LAST_NAME ?? 'Resources',
-    departmentName: 'Human Resources',
-    designation: 'HR Officer',
-    employmentType: 'Permanent',
-    email: 'hr@fnpharo.gov.ng',
-    baseSalary: 320000,
-    userId: hrUser?.USER_ID,
-  });
+  const nursingDeptId = await deptId('NUR', 'Nursing');
+  const pharmacyDeptId = await deptId('PHARM', 'Pharmacy');
+  const cashierDeptId = await deptId('CASH', 'Cashier / Revenue');
+  const opcDeptId = await deptId('OPC', 'OPC Psychiatry');
+  const labDeptId = await deptId('LAB', 'Laboratory');
+  const radDeptId = await deptId('RAD', 'Radiology');
+  const hrDeptId = await deptId('HR', 'Human Resources');
+  const finDeptId = await deptId('FIN', 'Finance');
+  const recDeptId = await deptId('REC', 'Health Records');
+  const itDeptId = await deptId('ICT', 'Information Technology');
+  const admDeptId = await deptId('ADM', 'Administration');
+  const storeDeptId = await deptId('STR', 'General Stores');
+  const fleetDeptId = await deptId('FLT', 'Fleet / Transport');
+  const kitchenDeptId = await deptId('KIT', 'Nutrition / Kitchen');
 
-  await ensureEmployee({
-    employeeNo: 'FNPH-NUR-001',
-    firstName: 'Blessing',
-    lastName: 'Okonkwo',
-    departmentName: 'Nursing',
-    designation: 'Senior Nurse',
-    employmentType: 'Permanent',
-    email: 'nurse.demo@fnpharo.gov.ng',
-    baseSalary: 280000,
-  });
+  type StaffLink = {
+    email: string;
+    employeeNo: string;
+    departmentId: number | null;
+    departmentName: string;
+    designation: string;
+    baseSalary?: number;
+  };
 
-  await ensureEmployee({
-    employeeNo: 'FNPH-DOC-001',
-    firstName: 'Adewale',
-    lastName: 'Ogunleye',
-    departmentName: 'Surgery',
-    designation: 'Consultant',
-    employmentType: 'Permanent',
-    email: 'doctor.demo@fnpharo.gov.ng',
-    baseSalary: 750000,
-  });
+  const links: StaffLink[] = [
+    {
+      email: 'superadmin@fnpharo.gov.ng',
+      employeeNo: 'FNPH-SA-001',
+      departmentId: itDeptId,
+      departmentName: 'Information Technology',
+      designation: 'Super Admin',
+      baseSalary: 900000,
+    },
+    {
+      email: 'board@fnpharo.gov.ng',
+      employeeNo: 'FNPH-BRD-001',
+      departmentId: admDeptId,
+      departmentName: 'Administration',
+      designation: 'Board Chair',
+      baseSalary: 850000,
+    },
+    {
+      email: 'cmd@fnpharo.gov.ng',
+      employeeNo: 'FNPH-CMD-001',
+      departmentId: admDeptId,
+      departmentName: 'Administration',
+      designation: 'Chief Medical Director',
+      baseSalary: 950000,
+    },
+    {
+      email: 'admin@fnpharo.gov.ng',
+      employeeNo: 'FNPH-ADM-001',
+      departmentId: admDeptId,
+      departmentName: 'Administration',
+      designation: 'Hospital Admin',
+      baseSalary: 520000,
+    },
+    {
+      email: 'finance@fnpharo.gov.ng',
+      employeeNo: 'FNPH-FIN-001',
+      departmentId: finDeptId,
+      departmentName: 'Finance',
+      designation: 'Finance Officer',
+      baseSalary: 380000,
+    },
+    {
+      email: 'hr@fnpharo.gov.ng',
+      employeeNo: 'FNPH-HR-001',
+      departmentId: hrDeptId,
+      departmentName: 'Human Resources',
+      designation: 'HR Officer',
+      baseSalary: 320000,
+    },
+    {
+      email: 'doctor@fnpharo.gov.ng',
+      employeeNo: 'FNPH-DOC-001',
+      departmentId: opcDeptId,
+      departmentName: 'OPC Psychiatry',
+      designation: 'Consultant Psychiatrist',
+      baseSalary: 750000,
+    },
+    {
+      email: 'nurse@fnpharo.gov.ng',
+      employeeNo: 'FNPH-NUR-001',
+      departmentId: nursingDeptId,
+      departmentName: 'Nursing',
+      designation: 'Senior Nurse',
+      baseSalary: 280000,
+    },
+    {
+      email: 'pharmacist@fnpharo.gov.ng',
+      employeeNo: 'FNPH-PHARM-001',
+      departmentId: pharmacyDeptId,
+      departmentName: 'Pharmacy',
+      designation: 'Pharmacist',
+      baseSalary: 300000,
+    },
+    {
+      email: 'lab@fnpharo.gov.ng',
+      employeeNo: 'FNPH-LAB-001',
+      departmentId: labDeptId,
+      departmentName: 'Laboratory',
+      designation: 'Lab Scientist',
+      baseSalary: 290000,
+    },
+    {
+      email: 'radiology@fnpharo.gov.ng',
+      employeeNo: 'FNPH-RAD-001',
+      departmentId: radDeptId,
+      departmentName: 'Radiology',
+      designation: 'Radiology Officer',
+      baseSalary: 290000,
+    },
+    {
+      email: 'psychopc@fnpharo.gov.ng',
+      employeeNo: 'FNPH-OPC-001',
+      departmentId: opcDeptId,
+      departmentName: 'OPC Psychiatry',
+      designation: 'Psychiatric OPC Officer',
+      baseSalary: 310000,
+    },
+    {
+      email: 'psychology@fnpharo.gov.ng',
+      employeeNo: 'FNPH-PSY-001',
+      departmentId: opcDeptId,
+      departmentName: 'OPC Psychiatry',
+      designation: 'Clinical Psychologist',
+      baseSalary: 320000,
+    },
+    {
+      email: 'cap@fnpharo.gov.ng',
+      employeeNo: 'FNPH-CAP-001',
+      departmentId: opcDeptId,
+      departmentName: 'OPC Psychiatry',
+      designation: 'Child & Adolescent Clinician',
+      baseSalary: 320000,
+    },
+    {
+      email: 'addiction@fnpharo.gov.ng',
+      employeeNo: 'FNPH-ADD-001',
+      departmentId: opcDeptId,
+      departmentName: 'OPC Psychiatry',
+      designation: 'Addiction Rehab Officer',
+      baseSalary: 300000,
+    },
+    {
+      email: 'psychogeriatrics@fnpharo.gov.ng',
+      employeeNo: 'FNPH-GER-001',
+      departmentId: opcDeptId,
+      departmentName: 'OPC Psychiatry',
+      designation: 'Psychogeriatrics Officer',
+      baseSalary: 300000,
+    },
+    {
+      email: 'physiotherapy@fnpharo.gov.ng',
+      employeeNo: 'FNPH-PT-001',
+      departmentId: admDeptId,
+      departmentName: 'Allied Health',
+      designation: 'Physiotherapist',
+      baseSalary: 270000,
+    },
+    {
+      email: 'speech@fnpharo.gov.ng',
+      employeeNo: 'FNPH-ST-001',
+      departmentId: admDeptId,
+      departmentName: 'Allied Health',
+      designation: 'Speech Therapist',
+      baseSalary: 270000,
+    },
+    {
+      email: 'nutrition@fnpharo.gov.ng',
+      employeeNo: 'FNPH-NUT-001',
+      departmentId: kitchenDeptId,
+      departmentName: 'Nutrition / Kitchen',
+      designation: 'Dietitian',
+      baseSalary: 260000,
+    },
+    {
+      email: 'socialwork@fnpharo.gov.ng',
+      employeeNo: 'FNPH-SW-001',
+      departmentId: admDeptId,
+      departmentName: 'Social Work',
+      designation: 'Social Worker',
+      baseSalary: 260000,
+    },
+    {
+      email: 'icu@fnpharo.gov.ng',
+      employeeNo: 'FNPH-ICU-001',
+      departmentId: nursingDeptId,
+      departmentName: 'Nursing',
+      designation: 'ICU Nurse',
+      baseSalary: 300000,
+    },
+    {
+      email: 'cashier@fnpharo.gov.ng',
+      employeeNo: 'FNPH-CASH-001',
+      departmentId: cashierDeptId,
+      departmentName: 'Cashier / Revenue',
+      designation: 'Cashier',
+      baseSalary: 220000,
+    },
+    {
+      email: 'records@fnpharo.gov.ng',
+      employeeNo: 'FNPH-REC-001',
+      departmentId: recDeptId,
+      departmentName: 'Health Records',
+      designation: 'Records Officer',
+      baseSalary: 250000,
+    },
+    {
+      email: 'it@fnpharo.gov.ng',
+      employeeNo: 'FNPH-IT-001',
+      departmentId: itDeptId,
+      departmentName: 'Information Technology',
+      designation: 'IT Support',
+      baseSalary: 280000,
+    },
+    {
+      email: 'staff@fnpharo.gov.ng',
+      employeeNo: 'FNPH-STF-001',
+      departmentId: admDeptId,
+      departmentName: 'Administration',
+      designation: 'General Staff',
+      baseSalary: 200000,
+    },
+    {
+      email: 'student@fnpharo.gov.ng',
+      employeeNo: 'FNPH-STU-001',
+      departmentId: admDeptId,
+      departmentName: 'Training',
+      designation: 'Student Trainee',
+      baseSalary: 0,
+    },
+    {
+      email: 'stores@fnpharo.gov.ng',
+      employeeNo: 'FNPH-STR-001',
+      departmentId: storeDeptId,
+      departmentName: 'General Stores',
+      designation: 'Stores Officer',
+      baseSalary: 240000,
+    },
+    {
+      email: 'fleet@fnpharo.gov.ng',
+      employeeNo: 'FNPH-FLT-001',
+      departmentId: fleetDeptId,
+      departmentName: 'Fleet / Transport',
+      designation: 'Fleet Officer',
+      baseSalary: 240000,
+    },
+  ];
 
-  if (hrUser && hrUser.EMPLOYEE_ID !== hrEmployee.EMPLOYEE_ID) {
-    await prisma.users.update({
-      where: { USER_ID: hrUser.USER_ID },
-      data: {
-        EMPLOYEE_ID: hrEmployee.EMPLOYEE_ID,
-        UPDATED_BY: 'SYSTEM',
-        UPDATED_DATE: new Date(),
-      },
+  let linked = 0;
+  for (const row of links) {
+    const user = await prisma.users.findFirst({
+      where: { EMAIL_ADDRESS: { equals: row.email, mode: 'insensitive' } },
     });
-    // Keep bidirectional link if model has USER_ID on employee
-    if (hrEmployee.USER_ID !== hrUser.USER_ID) {
-      await prisma.hrEmployees.update({
-        where: { EMPLOYEE_ID: hrEmployee.EMPLOYEE_ID },
-        data: { USER_ID: hrUser.USER_ID },
+    if (!user) continue;
+
+    let employee = await prisma.hrEmployees.findUnique({
+      where: { EMPLOYEE_NO: row.employeeNo },
+    });
+    if (!employee) {
+      employee = await prisma.hrEmployees.create({
+        data: {
+          EMPLOYEE_NO: row.employeeNo,
+          FIRST_NAME: user.FIRST_NAME ?? row.email.split('@')[0],
+          LAST_NAME: user.LAST_NAME ?? 'Staff',
+          DEPARTMENT_ID: row.departmentId,
+          DEPARTMENT_NAME: row.departmentName,
+          DESIGNATION: row.designation,
+          EMPLOYMENT_TYPE: 'Permanent',
+          STATUS: 'Active',
+          EMAIL: row.email,
+          BASE_SALARY: row.baseSalary ?? 250000,
+          USER_ID: user.USER_ID,
+          DATE_JOINED: new Date('2020-01-15'),
+          CREATED_BY: 'SYSTEM',
+        },
+      });
+    } else {
+      employee = await prisma.hrEmployees.update({
+        where: { EMPLOYEE_ID: employee.EMPLOYEE_ID },
+        data: {
+          DEPARTMENT_ID: row.departmentId ?? employee.DEPARTMENT_ID,
+          DEPARTMENT_NAME: row.departmentName,
+          DESIGNATION: row.designation,
+          EMAIL: row.email,
+          USER_ID: user.USER_ID,
+          STATUS: 'Active',
+          UPDATED_BY: 'SYSTEM',
+          UPDATED_DATE: new Date(),
+        },
       });
     }
-    console.log(
-      `Linked hr@fnpharo.gov.ng → EMPLOYEE_ID ${hrEmployee.EMPLOYEE_ID}`,
-    );
-  } else {
-    console.log('HR demo employees present (FNPH-HR-001 / NUR-001 / DOC-001)');
+
+    if (user.EMPLOYEE_ID !== employee.EMPLOYEE_ID) {
+      await prisma.users.update({
+        where: { USER_ID: user.USER_ID },
+        data: {
+          EMPLOYEE_ID: employee.EMPLOYEE_ID,
+          UPDATED_BY: 'SYSTEM',
+          UPDATED_DATE: new Date(),
+        },
+      });
+    }
+    linked += 1;
   }
+
+  console.log(`Linked ${linked} staff test accounts to HR employee records.`);
 }
 
 /**
@@ -2299,6 +2526,846 @@ async function seedDiagnosesDemo() {
     });
   }
   console.log(`Seeded ${codes.length} patient diagnoses for person #${person.PERSON_ID}.`);
+}
+
+type HeipSeedField = {
+  key: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  metricKey?: string;
+  autoFillSource?: string;
+  critical?: { op: 'gt' | 'eq' | 'truthy'; value?: number | boolean };
+  helpText?: string;
+  min?: number;
+};
+
+async function ensureHeipDepartment(
+  code: string,
+  name: string,
+): Promise<number> {
+  const existing = await prisma.departments.findFirst({
+    where: { CODE: { equals: code, mode: 'insensitive' } },
+    select: { DEPARTMENT_ID: true },
+  });
+  if (existing) return existing.DEPARTMENT_ID;
+  const byName = await prisma.departments.findFirst({
+    where: { NAME: { equals: name, mode: 'insensitive' } },
+    select: { DEPARTMENT_ID: true },
+  });
+  if (byName) return byName.DEPARTMENT_ID;
+  const created = await prisma.departments.create({
+    data: {
+      CODE: code,
+      NAME: name,
+      STATUS: 'Active',
+      CREATED_BY: 'SYSTEM',
+    },
+  });
+  return created.DEPARTMENT_ID;
+}
+
+/**
+ * HEIP Phase 1 — publish starter templates (Nursing shift, Pharmacy, Cashier).
+ */
+async function seedHeipTemplates() {
+  const nursingDeptId = await ensureHeipDepartment('NUR', 'Nursing');
+  const pharmacyDeptId = await ensureHeipDepartment('PHARM', 'Pharmacy');
+  const cashierDeptId = await ensureHeipDepartment('CASH', 'Cashier / Revenue');
+  const opcDeptId = await ensureHeipDepartment('OPC', 'OPC Psychiatry');
+
+  const nursingFields: HeipSeedField[] = [
+    { key: 'census_start', label: 'Census at start of shift', type: 'number', required: true, metricKey: 'patients_seen', min: 0 },
+    { key: 'census_end', label: 'Census at end of shift', type: 'number', required: true, min: 0 },
+    { key: 'admissions', label: 'Admissions this shift', type: 'number', required: true, metricKey: 'admissions', autoFillSource: 'admissions.today', min: 0 },
+    { key: 'discharges', label: 'Discharges this shift', type: 'number', required: true, metricKey: 'discharges', autoFillSource: 'admissions.discharges_today', min: 0 },
+    { key: 'transfers', label: 'Transfers', type: 'number', required: true, min: 0 },
+    { key: 'deaths', label: 'Deaths', type: 'number', required: true, metricKey: 'deaths', min: 0, critical: { op: 'gt', value: 0 } },
+    { key: 'absconding', label: 'Absconding / AWOL', type: 'number', required: true, metricKey: 'absconding', min: 0, critical: { op: 'gt', value: 0 } },
+    { key: 'restraint', label: 'Restraint / seclusion used', type: 'boolean', required: true },
+    { key: 'aggression', label: 'Aggression incidents', type: 'number', metricKey: 'incidents', autoFillSource: 'nursing.incidents_today', min: 0 },
+    { key: 'falls', label: 'Falls', type: 'number', min: 0 },
+    { key: 'special_obs', label: 'Special observation patients', type: 'number', min: 0 },
+    { key: 'drug_round_done', label: 'Drug round completed', type: 'boolean', required: true },
+    { key: 'handover', label: 'Handover notes', type: 'longtext', required: true },
+  ];
+
+  const pharmacyFields: HeipSeedField[] = [
+    { key: 'rx_dispensed', label: 'Prescriptions dispensed', type: 'number', required: true, metricKey: 'rx_dispensed', autoFillSource: 'pharmacy.rx_dispensed_today', min: 0 },
+    { key: 'walkin_sales', label: 'Walk-in / OTC sales', type: 'number', required: true, autoFillSource: 'pharmacy.walkin_sales_today', min: 0 },
+    { key: 'stock_outs', label: 'Stock-outs / at reorder', type: 'number', required: true, metricKey: 'stock_outs', autoFillSource: 'pharmacy.stock_outs', min: 0, critical: { op: 'gt', value: 0 } },
+    { key: 'near_expiry', label: 'Near-expiry items flagged', type: 'number', min: 0 },
+    { key: 'controlled_check', label: 'Controlled-drug check done', type: 'boolean', required: true },
+    { key: 'issues', label: 'Issues / escalations', type: 'longtext' },
+    { key: 'work_summary', label: 'Work summary', type: 'longtext', required: true },
+    { key: 'plan_tomorrow', label: 'Plan for tomorrow', type: 'text' },
+  ];
+
+  const cashierFields: HeipSeedField[] = [
+    { key: 'opening_float', label: 'Opening float (₦)', type: 'currency', required: true, min: 0 },
+    { key: 'receipts_count', label: 'Receipts count', type: 'number', required: true, autoFillSource: 'cashier.receipts_count_today', min: 0 },
+    { key: 'collections_total', label: 'Collections total (₦)', type: 'currency', required: true, metricKey: 'revenue_collected', autoFillSource: 'cashier.receipts_total_today', min: 0 },
+    { key: 'refunds', label: 'Refunds (₦)', type: 'currency', min: 0 },
+    { key: 'shortage_overage', label: 'Shortage / overage (₦)', type: 'currency' },
+    { key: 'lodgement', label: 'Lodgement done', type: 'boolean', required: true },
+    { key: 'channels_notes', label: 'Channel notes (cash/POS/transfer)', type: 'longtext' },
+    { key: 'challenges', label: 'Challenges / escalations', type: 'longtext' },
+  ];
+
+  const doctorFields: HeipSeedField[] = [
+    { key: 'patients_new', label: 'New patients seen', type: 'number', required: true, metricKey: 'patients_seen', min: 0 },
+    { key: 'patients_fu', label: 'Follow-up patients seen', type: 'number', required: true, metricKey: 'patients_seen', min: 0 },
+    { key: 'emergencies', label: 'Emergencies / crises attended', type: 'number', required: true, metricKey: 'emergencies', min: 0, critical: { op: 'gt', value: 5 } },
+    { key: 'admissions_requested', label: 'Admission requests', type: 'number', required: true, metricKey: 'admissions', autoFillSource: 'admissions.today', min: 0 },
+    { key: 'referrals_made', label: 'Referrals made', type: 'number', required: true, metricKey: 'referrals', min: 0 },
+    { key: 'procedures', label: 'Procedures / ECT / injections', type: 'number', min: 0 },
+    { key: 'ward_rounds', label: 'Ward rounds completed', type: 'boolean', required: true },
+    { key: 'serious_events', label: 'Serious clinical events', type: 'number', required: true, metricKey: 'incidents', min: 0, critical: { op: 'gt', value: 0 } },
+    { key: 'work_summary', label: 'Clinical work summary', type: 'longtext', required: true },
+    { key: 'plan_tomorrow', label: 'Plan for tomorrow', type: 'text' },
+  ];
+
+  const upsertPublished = async (input: {
+    code: string;
+    name: string;
+    departmentId: number;
+    roleName: string | null;
+    frequency: 'daily' | 'shift';
+    fields: HeipSeedField[];
+  }) => {
+    let template = await prisma.heipReportTemplates.findUnique({
+      where: { CODE: input.code },
+    });
+    if (!template) {
+      template = await prisma.heipReportTemplates.create({
+        data: {
+          CODE: input.code,
+          NAME: input.name,
+          DEPARTMENT_ID: input.departmentId,
+          ROLE_NAME: input.roleName,
+          FREQUENCY: input.frequency,
+          DEADLINE_HOUR: 10,
+          DEADLINE_GRACE_HOURS: 2,
+          IS_ACTIVE: true,
+          CREATED_BY: 'SYSTEM',
+        },
+      });
+    } else {
+      template = await prisma.heipReportTemplates.update({
+        where: { TEMPLATE_ID: template.TEMPLATE_ID },
+        data: {
+          NAME: input.name,
+          DEPARTMENT_ID: input.departmentId,
+          ROLE_NAME: input.roleName,
+          FREQUENCY: input.frequency,
+          IS_ACTIVE: true,
+          UPDATED_BY: 'SYSTEM',
+          UPDATED_DATE: new Date(),
+        },
+      });
+    }
+
+    const published = await prisma.heipTemplateVersions.findFirst({
+      where: { TEMPLATE_ID: template.TEMPLATE_ID, STATUS: 'Published' },
+      orderBy: { VERSION_NO: 'desc' },
+    });
+
+    if (published) {
+      await prisma.heipTemplateVersions.update({
+        where: { VERSION_ID: published.VERSION_ID },
+        data: {
+          FIELD_SCHEMA: input.fields,
+          UPDATED_BY: 'SYSTEM',
+          UPDATED_DATE: new Date(),
+        },
+      });
+      return;
+    }
+
+    const draft = await prisma.heipTemplateVersions.findFirst({
+      where: { TEMPLATE_ID: template.TEMPLATE_ID, STATUS: 'Draft' },
+      orderBy: { VERSION_NO: 'desc' },
+    });
+
+    if (draft) {
+      await prisma.heipTemplateVersions.update({
+        where: { VERSION_ID: draft.VERSION_ID },
+        data: {
+          FIELD_SCHEMA: input.fields,
+          STATUS: 'Published',
+          PUBLISHED_AT: new Date(),
+          PUBLISHED_BY: 'SYSTEM',
+          UPDATED_BY: 'SYSTEM',
+          UPDATED_DATE: new Date(),
+        },
+      });
+      return;
+    }
+
+    const latest = await prisma.heipTemplateVersions.findFirst({
+      where: { TEMPLATE_ID: template.TEMPLATE_ID },
+      orderBy: { VERSION_NO: 'desc' },
+    });
+    await prisma.heipTemplateVersions.create({
+      data: {
+        TEMPLATE_ID: template.TEMPLATE_ID,
+        VERSION_NO: (latest?.VERSION_NO ?? 0) + 1,
+        FIELD_SCHEMA: input.fields,
+        STATUS: 'Published',
+        PUBLISHED_AT: new Date(),
+        PUBLISHED_BY: 'SYSTEM',
+        CREATED_BY: 'SYSTEM',
+      },
+    });
+  };
+
+  await upsertPublished({
+    code: 'HEIP-NURSING-SHIFT',
+    name: 'Ward nursing — per shift',
+    departmentId: nursingDeptId,
+    roleName: 'NURSE',
+    frequency: 'shift',
+    fields: nursingFields,
+  });
+  await upsertPublished({
+    code: 'HEIP-PHARMACY-DAILY',
+    name: 'Pharmacy — daily',
+    departmentId: pharmacyDeptId,
+    roleName: 'PHARMACIST',
+    frequency: 'daily',
+    fields: pharmacyFields,
+  });
+  await upsertPublished({
+    code: 'HEIP-CASHIER-DAILY',
+    name: 'Cashier — daily',
+    departmentId: cashierDeptId,
+    roleName: 'CASHIER',
+    frequency: 'daily',
+    fields: cashierFields,
+  });
+  await upsertPublished({
+    code: 'HEIP-DOCTOR-DAILY',
+    name: 'Doctor / clinic — daily',
+    departmentId: opcDeptId,
+    roleName: 'DOCTOR',
+    frequency: 'daily',
+    fields: doctorFields,
+  });
+
+  console.log(
+    `Seeded HEIP published templates (Nursing=${nursingDeptId}, Pharmacy=${pharmacyDeptId}, Cashier=${cashierDeptId}, Doctor/OPC=${opcDeptId}).`,
+  );
+}
+
+/** Demo HEIP reports / red flags / dept summaries for CMD + staff pilot logins. */
+async function seedHeipDemoData() {
+  const DEMO_BY = 'SYSTEM_HEIP_DEMO';
+
+  const nursingDeptId = await ensureHeipDepartment('NUR', 'Nursing');
+  const pharmacyDeptId = await ensureHeipDepartment('PHARM', 'Pharmacy');
+  const cashierDeptId = await ensureHeipDepartment('CASH', 'Cashier / Revenue');
+  const opcDeptId = await ensureHeipDepartment('OPC', 'OPC Psychiatry');
+
+  const ensureEmployee = async (input: {
+    employeeNo: string;
+    firstName: string;
+    lastName: string;
+    departmentId: number;
+    departmentName: string;
+    designation: string;
+    email?: string;
+    userId?: number;
+  }) => {
+    const existing = await prisma.hrEmployees.findUnique({
+      where: { EMPLOYEE_NO: input.employeeNo },
+    });
+    if (existing) {
+      return prisma.hrEmployees.update({
+        where: { EMPLOYEE_ID: existing.EMPLOYEE_ID },
+        data: {
+          DEPARTMENT_ID: input.departmentId,
+          DEPARTMENT_NAME: input.departmentName,
+          DESIGNATION: input.designation,
+          EMAIL: input.email ?? existing.EMAIL,
+          USER_ID: input.userId ?? existing.USER_ID,
+          STATUS: 'Active',
+          UPDATED_BY: 'SYSTEM',
+          UPDATED_DATE: new Date(),
+        },
+      });
+    }
+    return prisma.hrEmployees.create({
+      data: {
+        EMPLOYEE_NO: input.employeeNo,
+        FIRST_NAME: input.firstName,
+        LAST_NAME: input.lastName,
+        DEPARTMENT_ID: input.departmentId,
+        DEPARTMENT_NAME: input.departmentName,
+        DESIGNATION: input.designation,
+        EMPLOYMENT_TYPE: 'Permanent',
+        STATUS: 'Active',
+        EMAIL: input.email ?? null,
+        BASE_SALARY: 280000,
+        USER_ID: input.userId ?? null,
+        DATE_JOINED: new Date('2020-01-15'),
+        CREATED_BY: 'SYSTEM',
+      },
+    });
+  };
+
+  const linkUser = async (
+    user: { USER_ID: number; EMPLOYEE_ID: number | null } | null,
+    employee: { EMPLOYEE_ID: number; USER_ID: number | null },
+  ) => {
+    if (!user) return;
+    if (user.EMPLOYEE_ID !== employee.EMPLOYEE_ID) {
+      await prisma.users.update({
+        where: { USER_ID: user.USER_ID },
+        data: {
+          EMPLOYEE_ID: employee.EMPLOYEE_ID,
+          UPDATED_BY: 'SYSTEM',
+          UPDATED_DATE: new Date(),
+        },
+      });
+    }
+    if (employee.USER_ID !== user.USER_ID) {
+      await prisma.hrEmployees.update({
+        where: { EMPLOYEE_ID: employee.EMPLOYEE_ID },
+        data: { USER_ID: user.USER_ID },
+      });
+    }
+  };
+
+  const nurseUser = await prisma.users.findFirst({
+    where: { EMAIL_ADDRESS: { equals: 'nurse@fnpharo.gov.ng', mode: 'insensitive' } },
+  });
+  const pharmacistUser = await prisma.users.findFirst({
+    where: { EMAIL_ADDRESS: { equals: 'pharmacist@fnpharo.gov.ng', mode: 'insensitive' } },
+  });
+  const cashierUser = await prisma.users.findFirst({
+    where: { EMAIL_ADDRESS: { equals: 'cashier@fnpharo.gov.ng', mode: 'insensitive' } },
+  });
+  const doctorUser = await prisma.users.findFirst({
+    where: { EMAIL_ADDRESS: { equals: 'doctor@fnpharo.gov.ng', mode: 'insensitive' } },
+  });
+  const nurseEmp = await ensureEmployee({
+    employeeNo: 'FNPH-NUR-001',
+    firstName: nurseUser?.FIRST_NAME ?? 'Blessing',
+    lastName: nurseUser?.LAST_NAME ?? 'Okonkwo',
+    departmentId: nursingDeptId,
+    departmentName: 'Nursing',
+    designation: 'Senior Nurse',
+    email: nurseUser?.EMAIL_ADDRESS ?? 'nurse@fnpharo.gov.ng',
+    userId: nurseUser?.USER_ID,
+  });
+  const pharmEmp = await ensureEmployee({
+    employeeNo: 'FNPH-PHARM-001',
+    firstName: pharmacistUser?.FIRST_NAME ?? 'Sodiq',
+    lastName: pharmacistUser?.LAST_NAME ?? 'Yusuf',
+    departmentId: pharmacyDeptId,
+    departmentName: 'Pharmacy',
+    designation: 'Pharmacist',
+    email: pharmacistUser?.EMAIL_ADDRESS ?? 'pharmacist@fnpharo.gov.ng',
+    userId: pharmacistUser?.USER_ID,
+  });
+  const cashEmp = await ensureEmployee({
+    employeeNo: 'FNPH-CASH-001',
+    firstName: cashierUser?.FIRST_NAME ?? 'Cashier',
+    lastName: cashierUser?.LAST_NAME ?? 'Desk',
+    departmentId: cashierDeptId,
+    departmentName: 'Cashier / Revenue',
+    designation: 'Cashier',
+    email: cashierUser?.EMAIL_ADDRESS ?? 'cashier@fnpharo.gov.ng',
+    userId: cashierUser?.USER_ID,
+  });
+  const doctorEmp = await ensureEmployee({
+    employeeNo: 'FNPH-DOC-001',
+    firstName: doctorUser?.FIRST_NAME ?? 'Test',
+    lastName: doctorUser?.LAST_NAME ?? 'Doctor',
+    departmentId: opcDeptId,
+    departmentName: 'OPC Psychiatry',
+    designation: 'Consultant Psychiatrist',
+    email: doctorUser?.EMAIL_ADDRESS ?? 'doctor@fnpharo.gov.ng',
+    userId: doctorUser?.USER_ID,
+  });
+  // Dedicated HOD row (no user steal — doctor stays on FNPH-DOC-001).
+  const nursingHodEmp = await ensureEmployee({
+    employeeNo: 'FNPH-HOD-NUR-001',
+    firstName: 'Ngozi',
+    lastName: 'Adeyemi',
+    departmentId: nursingDeptId,
+    departmentName: 'Nursing',
+    designation: 'Head of Nursing',
+    email: 'hod.nursing@fnpharo.gov.ng',
+  });
+
+  await linkUser(nurseUser, nurseEmp);
+  await linkUser(pharmacistUser, pharmEmp);
+  await linkUser(cashierUser, cashEmp);
+  await linkUser(doctorUser, doctorEmp);
+  await prisma.hrDepartmentHeads.upsert({
+    where: { DEPARTMENT_ID: nursingDeptId },
+    create: {
+      DEPARTMENT_ID: nursingDeptId,
+      HEAD_EMPLOYEE_ID: nursingHodEmp.EMPLOYEE_ID,
+      CREATED_BY: DEMO_BY,
+    },
+    update: {
+      HEAD_EMPLOYEE_ID: nursingHodEmp.EMPLOYEE_ID,
+      UPDATED_BY: DEMO_BY,
+      UPDATED_DATE: new Date(),
+    },
+  });
+  await prisma.hrDepartmentHeads.upsert({
+    where: { DEPARTMENT_ID: pharmacyDeptId },
+    create: {
+      DEPARTMENT_ID: pharmacyDeptId,
+      HEAD_EMPLOYEE_ID: pharmEmp.EMPLOYEE_ID,
+      CREATED_BY: DEMO_BY,
+    },
+    update: {
+      HEAD_EMPLOYEE_ID: pharmEmp.EMPLOYEE_ID,
+      UPDATED_BY: DEMO_BY,
+      UPDATED_DATE: new Date(),
+    },
+  });
+  await prisma.hrDepartmentHeads.upsert({
+    where: { DEPARTMENT_ID: cashierDeptId },
+    create: {
+      DEPARTMENT_ID: cashierDeptId,
+      HEAD_EMPLOYEE_ID: cashEmp.EMPLOYEE_ID,
+      CREATED_BY: DEMO_BY,
+    },
+    update: {
+      HEAD_EMPLOYEE_ID: cashEmp.EMPLOYEE_ID,
+      UPDATED_BY: DEMO_BY,
+      UPDATED_DATE: new Date(),
+    },
+  });
+  await prisma.hrDepartmentHeads.upsert({
+    where: { DEPARTMENT_ID: opcDeptId },
+    create: {
+      DEPARTMENT_ID: opcDeptId,
+      HEAD_EMPLOYEE_ID: doctorEmp.EMPLOYEE_ID,
+      CREATED_BY: DEMO_BY,
+    },
+    update: {
+      HEAD_EMPLOYEE_ID: doctorEmp.EMPLOYEE_ID,
+      UPDATED_BY: DEMO_BY,
+      UPDATED_DATE: new Date(),
+    },
+  });
+
+  const templates = await prisma.heipReportTemplates.findMany({
+    where: {
+      CODE: {
+        in: [
+          'HEIP-NURSING-SHIFT',
+          'HEIP-PHARMACY-DAILY',
+          'HEIP-CASHIER-DAILY',
+          'HEIP-DOCTOR-DAILY',
+        ],
+      },
+    },
+    include: {
+      versions: {
+        where: { STATUS: 'Published' },
+        orderBy: { VERSION_NO: 'desc' },
+        take: 1,
+      },
+    },
+  });
+  const byCode = new Map(templates.map((t) => [t.CODE, t]));
+  const nursingTpl = byCode.get('HEIP-NURSING-SHIFT');
+  const pharmacyTpl = byCode.get('HEIP-PHARMACY-DAILY');
+  const cashierTpl = byCode.get('HEIP-CASHIER-DAILY');
+  const doctorTpl = byCode.get('HEIP-DOCTOR-DAILY');
+  if (
+    !nursingTpl?.versions[0] ||
+    !pharmacyTpl?.versions[0] ||
+    !cashierTpl?.versions[0] ||
+    !doctorTpl?.versions[0]
+  ) {
+    console.log('HEIP demo data skipped — published templates missing.');
+    return;
+  }
+
+  // Refresh demo rows only (idempotent re-seed).
+  const oldDemo = await prisma.heipReports.findMany({
+    where: { CREATED_BY: DEMO_BY },
+    select: { REPORT_ID: true },
+  });
+  if (oldDemo.length) {
+    await prisma.heipReports.deleteMany({
+      where: { REPORT_ID: { in: oldDemo.map((r) => r.REPORT_ID) } },
+    });
+  }
+  await prisma.heipDepartmentSummaries.deleteMany({
+    where: { CREATED_BY: DEMO_BY },
+  });
+
+  const utcDate = (offsetDays: number): Date => {
+    const d = new Date();
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth();
+    const day = d.getUTCDate() + offsetDays;
+    return new Date(Date.UTC(y, m, day));
+  };
+
+  type ValueInput = {
+    fieldKey: string;
+    metricKey?: string;
+    number?: number;
+    text?: string;
+  };
+
+  const createReport = async (input: {
+    templateId: number;
+    versionId: number;
+    employeeId: number;
+    userId: number | null;
+    departmentId: number;
+    reportDate: Date;
+    shift: string | null;
+    status: 'Submitted' | 'Approved' | 'Missed' | 'Draft';
+    late?: boolean;
+    values: ValueInput[];
+    redFlags?: Array<{
+      fieldKey: string;
+      metricKey?: string;
+      op: string;
+      triggerValue: string;
+      observed: string;
+    }>;
+  }) => {
+    const submittedAt =
+      input.status === 'Draft' || input.status === 'Missed'
+        ? null
+        : new Date(input.reportDate.getTime() + 8 * 3600_000);
+    const approvedAt =
+      input.status === 'Approved'
+        ? new Date(input.reportDate.getTime() + 10 * 3600_000)
+        : null;
+
+    const report = await prisma.heipReports.create({
+      data: {
+        TEMPLATE_ID: input.templateId,
+        TEMPLATE_VERSION_ID: input.versionId,
+        EMPLOYEE_ID: input.employeeId,
+        USER_ID: input.userId,
+        DEPARTMENT_ID: input.departmentId,
+        REPORT_DATE: input.reportDate,
+        SHIFT: input.shift,
+        STATUS: input.status,
+        LATE: input.late ?? false,
+        SUBMITTED_AT: submittedAt,
+        APPROVED_AT: approvedAt,
+        APPROVED_BY: approvedAt ? 'SYSTEM_HOD_DEMO' : null,
+        CREATED_BY: DEMO_BY,
+        events: {
+          create: [
+            {
+              EVENT_TYPE: input.status === 'Missed' ? 'miss' : 'submit',
+              FROM_STATUS: 'Draft',
+              TO_STATUS: input.status === 'Approved' ? 'Submitted' : input.status,
+              ACTOR_LABEL: DEMO_BY,
+            },
+            ...(input.status === 'Approved'
+              ? [
+                  {
+                    EVENT_TYPE: 'approve',
+                    FROM_STATUS: 'Submitted',
+                    TO_STATUS: 'Approved',
+                    ACTOR_LABEL: 'SYSTEM_HOD_DEMO',
+                  },
+                ]
+              : []),
+          ],
+        },
+        values: {
+          create: input.values.map((v) => ({
+            FIELD_KEY: v.fieldKey,
+            METRIC_KEY: v.metricKey ?? null,
+            VALUE_NUMBER: v.number != null ? v.number : null,
+            VALUE_TEXT: v.text ?? (v.number != null ? String(v.number) : null),
+          })),
+        },
+        redFlags: input.redFlags?.length
+          ? {
+              create: input.redFlags.map((f) => ({
+                FIELD_KEY: f.fieldKey,
+                METRIC_KEY: f.metricKey ?? null,
+                TRIGGER_OP: f.op,
+                TRIGGER_VALUE: f.triggerValue,
+                OBSERVED_VALUE: f.observed,
+                DEPARTMENT_ID: input.departmentId,
+                EMPLOYEE_ID: input.employeeId,
+              })),
+            }
+          : undefined,
+      },
+    });
+    return report;
+  };
+
+  // Last 7 days inclusive (today = 0).
+  for (let dayOffset = -6; dayOffset <= 0; dayOffset++) {
+    const reportDate = utcDate(dayOffset);
+    const dayIndex = dayOffset + 6; // 0..6
+    const isToday = dayOffset === 0;
+    const abscond = isToday ? 1 : 0;
+    const deaths = dayOffset === -2 ? 1 : 0;
+    const stockOuts = isToday || dayOffset === -1 ? 3 + dayIndex : dayIndex % 2;
+
+    await createReport({
+      templateId: nursingTpl.TEMPLATE_ID,
+      versionId: nursingTpl.versions[0].VERSION_ID,
+      employeeId: nurseEmp.EMPLOYEE_ID,
+      userId: nurseUser?.USER_ID ?? null,
+      departmentId: nursingDeptId,
+      reportDate,
+      shift: 'Morning',
+      status: dayOffset === -5 ? 'Missed' : isToday ? 'Submitted' : 'Approved',
+      late: dayOffset === -3,
+      values: [
+        { fieldKey: 'census_start', metricKey: 'patients_seen', number: 28 + dayIndex },
+        { fieldKey: 'census_end', number: 30 + dayIndex },
+        { fieldKey: 'admissions', metricKey: 'admissions', number: 2 + (dayIndex % 3) },
+        { fieldKey: 'discharges', metricKey: 'discharges', number: 1 + (dayIndex % 2) },
+        { fieldKey: 'transfers', number: dayIndex % 2 },
+        { fieldKey: 'deaths', metricKey: 'deaths', number: deaths },
+        { fieldKey: 'absconding', metricKey: 'absconding', number: abscond },
+        { fieldKey: 'restraint', text: dayIndex % 4 === 0 ? 'true' : 'false' },
+        { fieldKey: 'aggression', metricKey: 'incidents', number: dayIndex % 3 },
+        { fieldKey: 'falls', number: 0 },
+        { fieldKey: 'special_obs', number: 4 },
+        { fieldKey: 'drug_round_done', text: 'true' },
+        {
+          fieldKey: 'handover',
+          text: `Morning shift handover (demo day ${dayIndex + 1}). Ward stable; ${abscond ? '1 absconding flagged.' : 'no AWOL.'}`,
+        },
+      ],
+      redFlags:
+        abscond > 0
+          ? [
+              {
+                fieldKey: 'absconding',
+                metricKey: 'absconding',
+                op: 'gt',
+                triggerValue: '0',
+                observed: String(abscond),
+              },
+            ]
+          : deaths > 0
+            ? [
+                {
+                  fieldKey: 'deaths',
+                  metricKey: 'deaths',
+                  op: 'gt',
+                  triggerValue: '0',
+                  observed: String(deaths),
+                },
+              ]
+            : undefined,
+    });
+
+    await createReport({
+      templateId: pharmacyTpl.TEMPLATE_ID,
+      versionId: pharmacyTpl.versions[0].VERSION_ID,
+      employeeId: pharmEmp.EMPLOYEE_ID,
+      userId: pharmacistUser?.USER_ID ?? null,
+      departmentId: pharmacyDeptId,
+      reportDate,
+      shift: null,
+      status: isToday ? 'Submitted' : 'Approved',
+      values: [
+        { fieldKey: 'rx_dispensed', metricKey: 'rx_dispensed', number: 85 + dayIndex * 4 },
+        { fieldKey: 'walkin_sales', number: 40 + dayIndex * 2 },
+        { fieldKey: 'stock_outs', metricKey: 'stock_outs', number: stockOuts },
+        { fieldKey: 'near_expiry', number: 2 },
+        { fieldKey: 'controlled_check', text: 'true' },
+        {
+          fieldKey: 'issues',
+          text: stockOuts > 0 ? `${stockOuts} lines at reorder (demo).` : 'None',
+        },
+        {
+          fieldKey: 'work_summary',
+          text: `Pharmacy daily ops (demo). Dispensed ${85 + dayIndex * 4} Rx.`,
+        },
+        { fieldKey: 'plan_tomorrow', text: 'Restock antipsychotics; CD count AM.' },
+      ],
+      redFlags:
+        stockOuts > 0 && isToday
+          ? [
+              {
+                fieldKey: 'stock_outs',
+                metricKey: 'stock_outs',
+                op: 'gt',
+                triggerValue: '0',
+                observed: String(stockOuts),
+              },
+            ]
+          : undefined,
+    });
+
+    await createReport({
+      templateId: cashierTpl.TEMPLATE_ID,
+      versionId: cashierTpl.versions[0].VERSION_ID,
+      employeeId: cashEmp.EMPLOYEE_ID,
+      userId: cashierUser?.USER_ID ?? null,
+      departmentId: cashierDeptId,
+      reportDate,
+      shift: null,
+      status: dayOffset === -4 ? 'Missed' : isToday ? 'Approved' : 'Approved',
+      late: isToday,
+      values: [
+        { fieldKey: 'opening_float', number: 50000 },
+        { fieldKey: 'receipts_count', number: 62 + dayIndex * 3 },
+        {
+          fieldKey: 'collections_total',
+          metricKey: 'revenue_collected',
+          number: 1_850_000 + dayIndex * 95_000,
+        },
+        { fieldKey: 'refunds', number: 12_000 },
+        { fieldKey: 'shortage_overage', number: dayIndex === 6 ? -2500 : 0 },
+        { fieldKey: 'lodgement', text: 'true' },
+        {
+          fieldKey: 'channels_notes',
+          text: 'POS 48% · Transfer 30% · Cash 22% (demo)',
+        },
+        { fieldKey: 'challenges', text: isToday ? 'TERM-04 reconciliation pending (demo).' : '' },
+      ],
+    });
+
+    const serious = dayOffset === -1 ? 1 : 0;
+    await createReport({
+      templateId: doctorTpl.TEMPLATE_ID,
+      versionId: doctorTpl.versions[0].VERSION_ID,
+      employeeId: doctorEmp.EMPLOYEE_ID,
+      userId: doctorUser?.USER_ID ?? null,
+      departmentId: opcDeptId,
+      reportDate,
+      shift: null,
+      status: isToday ? 'Submitted' : 'Approved',
+      values: [
+        { fieldKey: 'patients_new', metricKey: 'patients_seen', number: 6 + (dayIndex % 4) },
+        { fieldKey: 'patients_fu', metricKey: 'patients_seen', number: 12 + dayIndex },
+        { fieldKey: 'emergencies', metricKey: 'emergencies', number: 1 + (dayIndex % 2) },
+        { fieldKey: 'admissions_requested', metricKey: 'admissions', number: dayIndex % 3 },
+        { fieldKey: 'referrals_made', metricKey: 'referrals', number: 2 },
+        { fieldKey: 'procedures', number: dayIndex % 2 },
+        { fieldKey: 'ward_rounds', text: 'true' },
+        { fieldKey: 'serious_events', metricKey: 'incidents', number: serious },
+        {
+          fieldKey: 'work_summary',
+          text: `OPC clinic day (demo ${dayIndex + 1}). New + FU clinics completed; ward round done.`,
+        },
+        { fieldKey: 'plan_tomorrow', text: 'GMPC consults; review pending admissions.' },
+      ],
+      redFlags:
+        serious > 0
+          ? [
+              {
+                fieldKey: 'serious_events',
+                metricKey: 'incidents',
+                op: 'gt',
+                triggerValue: '0',
+                observed: String(serious),
+              },
+            ]
+          : undefined,
+    });
+  }
+
+  const today = utcDate(0);
+  await prisma.heipDepartmentSummaries.upsert({
+    where: {
+      DEPARTMENT_ID_REPORT_DATE: {
+        DEPARTMENT_ID: nursingDeptId,
+        REPORT_DATE: today,
+      },
+    },
+    create: {
+      DEPARTMENT_ID: nursingDeptId,
+      REPORT_DATE: today,
+      BODY: 'Nursing HOD summary (demo): census rising; one absconding incident escalated to security. Drug rounds complete on Male Acute.',
+      AUTHOR_EMPLOYEE_ID: nursingHodEmp.EMPLOYEE_ID,
+      CREATED_BY: DEMO_BY,
+    },
+    update: {
+      BODY: 'Nursing HOD summary (demo): census rising; one absconding incident escalated to security. Drug rounds complete on Male Acute.',
+      AUTHOR_EMPLOYEE_ID: nursingHodEmp.EMPLOYEE_ID,
+      UPDATED_BY: DEMO_BY,
+      UPDATED_DATE: new Date(),
+    },
+  });
+  await prisma.heipDepartmentSummaries.upsert({
+    where: {
+      DEPARTMENT_ID_REPORT_DATE: {
+        DEPARTMENT_ID: pharmacyDeptId,
+        REPORT_DATE: today,
+      },
+    },
+    create: {
+      DEPARTMENT_ID: pharmacyDeptId,
+      REPORT_DATE: today,
+      BODY: 'Pharmacy HOD summary (demo): high outpatient volume; stock-outs on 3 lines — procurement chase opened.',
+      AUTHOR_EMPLOYEE_ID: pharmEmp.EMPLOYEE_ID,
+      CREATED_BY: DEMO_BY,
+    },
+    update: {
+      BODY: 'Pharmacy HOD summary (demo): high outpatient volume; stock-outs on 3 lines — procurement chase opened.',
+      AUTHOR_EMPLOYEE_ID: pharmEmp.EMPLOYEE_ID,
+      UPDATED_BY: DEMO_BY,
+      UPDATED_DATE: new Date(),
+    },
+  });
+  await prisma.heipDepartmentSummaries.upsert({
+    where: {
+      DEPARTMENT_ID_REPORT_DATE: {
+        DEPARTMENT_ID: cashierDeptId,
+        REPORT_DATE: today,
+      },
+    },
+    create: {
+      DEPARTMENT_ID: cashierDeptId,
+      REPORT_DATE: today,
+      BODY: 'Cashier HOD summary (demo): collections on target; POS terminal TERM-04 mismatch under review.',
+      AUTHOR_EMPLOYEE_ID: cashEmp.EMPLOYEE_ID,
+      CREATED_BY: DEMO_BY,
+    },
+    update: {
+      BODY: 'Cashier HOD summary (demo): collections on target; POS terminal TERM-04 mismatch under review.',
+      AUTHOR_EMPLOYEE_ID: cashEmp.EMPLOYEE_ID,
+      UPDATED_BY: DEMO_BY,
+      UPDATED_DATE: new Date(),
+    },
+  });
+  await prisma.heipDepartmentSummaries.upsert({
+    where: {
+      DEPARTMENT_ID_REPORT_DATE: {
+        DEPARTMENT_ID: opcDeptId,
+        REPORT_DATE: today,
+      },
+    },
+    create: {
+      DEPARTMENT_ID: opcDeptId,
+      REPORT_DATE: today,
+      BODY: 'OPC HOD summary (demo): clinic throughput steady; admission requests queued for Records.',
+      AUTHOR_EMPLOYEE_ID: doctorEmp.EMPLOYEE_ID,
+      CREATED_BY: DEMO_BY,
+    },
+    update: {
+      BODY: 'OPC HOD summary (demo): clinic throughput steady; admission requests queued for Records.',
+      AUTHOR_EMPLOYEE_ID: doctorEmp.EMPLOYEE_ID,
+      UPDATED_BY: DEMO_BY,
+      UPDATED_DATE: new Date(),
+    },
+  });
+
+  console.log(
+    'Seeded HEIP demo data (7 days × Nursing/Pharmacy/Cashier/Doctor reports, red flags, dept summaries).',
+  );
 }
 
 main()

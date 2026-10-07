@@ -1,0 +1,18 @@
+---
+description: Mandatory checkbox discipline for Fixes/Phases markdown trackers; do not skip phases
+alwaysApply: true
+---
+
+# Docs trackers (Fixes / Phases)
+
+When implementing work described in markdown trackers under `docs/` (e.g. `PROD_KNOWN_ISSUES.md`, `*_PLAN.md`, CSV/clinical phase docs):
+
+1. Follow the tracker — do not invent a parallel unchecked todo list.
+2. Complete items in phase order; do not start the next phase until exit criteria pass.
+3. **Always update the `.md` file:** set `- [ ]` → `- [x]` and phase status `⬜` → `✅` when a fix or phase item is finished.
+4. Mark the checkbox **before** continuing to the next fix or phase (same session / same PR body of work).
+5. When all bullets in a phase are done, tick `**Phase X complete**` and update the master status table.
+6. Append a document-history or CHANGELOG note when a phase completes.
+7. Respect "Out of scope" sections unless the user explicitly expands scope.
+
+Also follow root `AGENTS.md` for naming, module layout, and Nest patterns.

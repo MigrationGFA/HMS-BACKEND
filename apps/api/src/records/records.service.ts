@@ -1229,6 +1229,17 @@ export class RecordsService {
         'Booking has no linked person — cannot convert',
       );
     }
+    if (booking.paymentStatus === 'Pending') {
+      throw new ConflictException({
+        message:
+          'Service fee is unpaid — send patient to Cashier before convert',
+        bookingId: booking.bookingId,
+        bookingNo: booking.bookingNo,
+        amountDue: booking.amountDue,
+        feeBreakdown: booking.feeBreakdown,
+        paymentStatus: booking.paymentStatus,
+      });
+    }
 
     const resume = await this.resumeRegistration({
       personId: booking.personId,
