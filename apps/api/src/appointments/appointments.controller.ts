@@ -67,7 +67,7 @@ export class AppointmentsController {
    * Purpose: Doctor sets external telemedicine meeting link for ONLINE booking
    */
   @Patch('bookings/:bookingId/meeting-url')
-  @RequirePermissions(PERMISSIONS.ENCOUNTER_UPDATE)
+  @RequirePermissions(PERMISSIONS.ENCOUNTER_UPDATE, PERMISSIONS.PATIENT_UPDATE)
   async setMeetingUrl(
     @Param('bookingId', ParseIntPipe) bookingId: number,
     @Body() dto: SetMeetingUrlDto,

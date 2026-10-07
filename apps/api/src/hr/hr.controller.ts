@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -23,18 +25,23 @@ import {
   CreateDocumentDto,
   CreateHrEmployeeDto,
   CreateLeaveRequestDto,
+  CreatePublicHolidayDto,
   DecideLeaveDto,
+  OverrideLeaveDto,
   ListAttendanceQueryDto,
   ListEmployeesQueryDto,
   ListLeaveQueryDto,
   ListPayrollQueryDto,
+  ListPublicHolidaysQueryDto,
   RunPayrollDto,
   UpdateAppraisalDto,
   UpdateAttendanceDto,
   UpdateDisciplinaryDto,
   UpdateHrEmployeeDto,
   UpdateLeaveRequestDto,
+  UpdateLeaveTypeDto,
   UpdatePayrollLineDto,
+  UpsertDepartmentHeadDto,
 } from './dto/hr.dto';
 
 @Controller('hr')
@@ -316,5 +323,72 @@ export class HrController {
     return {
       data: await this.hrService.updatePayrollLine(id, lineId, dto, user),
     };
+  }
+
+  // --- Phase 1: department heads, leave types, public holidays ---
+
+  @Get('department-heads')
+  @RequirePermissions(PERMISSIONS.HR_EMPLOYEE_READ, PERMISSIONS.HR_EMPLOYEE_UPDATE)
+  async listDepartmentHeads() {
+    return { data: await this.hrService.listDepartmentHeads() };
+  }
+
+  @Put('department-heads')
+  @RequirePermissions(PERMISSIONS.HR_EMPLOYEE_UPDATE)
+  async upsertDepartmentHead(
+    @Body() dto: UpsertDepartmentHeadDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.hrService.upsertDepartmentHead(dto, user) };
+  }
+
+  @Get('leave-types')
+  @RequirePermissions(PERMISSIONS.HR_SELF_READ, PERMISSIONS.HR_LEAVE_READ)
+  async listLeaveTypes() {
+    return { data: await this.hrService.listLeaveTypes() };
+  }
+
+  @Patch('leave-types/:id')
+  @RequirePermissions(PERMISSIONS.HR_LEAVE_UPDATE)
+  async updateLeaveType(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateLeaveTypeDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.hrService.updateLeaveType(id, dto, user) };
+  }
+
+  @Get('public-holidays')
+  @RequirePermissions(PERMISSIONS.HR_SELF_READ, PERMISSIONS.HR_LEAVE_READ)
+  async listPublicHolidays(@Query() query: ListPublicHolidaysQueryDto) {
+    return { data: await this.hrService.listPublicHolidays(query) };
+  }
+
+  @Post('public-holidays')
+  @RequirePermissions(PERMISSIONS.HR_EMPLOYEE_UPDATE)
+  async createPublicHoliday(
+    @Body() dto: CreatePublicHolidayDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.hrService.createPublicHoliday(dto, user) };
+  }
+
+  @Delete('public-holidays/:id')
+  @RequirePermissions(PERMISSIONS.HR_EMPLOYEE_UPDATE)
+  async deletePublicHoliday(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.hrService.deletePublicHoliday(id, user) };
+  }
+
+  @Post('leave-requests/:id/override')
+  @RequirePermissions(PERMISSIONS.HR_LEAVE_APPROVE)
+  async overrideLeave(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: OverrideLeaveDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return { data: await this.hrService.overrideLeave(id, dto, user) };
   }
 }

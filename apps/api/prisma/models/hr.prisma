@@ -64,6 +64,37 @@ model HrLeaveTypes {
   @@map("HR_LEAVE_TYPES")
 }
 
+/// HR Self-Service Phase 1 — one head (+ optional deputy) per logical
+/// billing DEPARTMENT_ID. Drives leave routing (Staff -> HOD -> HR) and is
+/// shared with HEIP daily reports (do not duplicate this model there).
+model HrDepartmentHeads {
+  ID                 Int       @id @default(autoincrement())
+  DEPARTMENT_ID      Int       @unique
+  HEAD_EMPLOYEE_ID   Int
+  DEPUTY_EMPLOYEE_ID Int?
+  CREATED_BY_ID      Int?
+  CREATED_BY         String?   @db.VarChar(100)
+  CREATED_DATE       DateTime  @default(now())
+  UPDATED_BY_ID      Int?
+  UPDATED_BY         String?   @db.VarChar(100)
+  UPDATED_DATE       DateTime?
+
+  @@map("HR_DEPARTMENT_HEADS")
+}
+
+/// HR Self-Service Phase 1 (D3 = yes) — small HR-maintained list of public
+/// holidays excluded from leave working-day counts.
+model HrPublicHolidays {
+  HOLIDAY_ID    Int      @id @default(autoincrement())
+  HOLIDAY_DATE  DateTime @unique @db.Date
+  NAME          String   @db.VarChar(150)
+  CREATED_BY_ID Int?
+  CREATED_BY    String?  @db.VarChar(100)
+  CREATED_DATE  DateTime @default(now())
+
+  @@map("HR_PUBLIC_HOLIDAYS")
+}
+
 model HrAttendance {
   ATTENDANCE_ID Int       @id @default(autoincrement())
   EMPLOYEE_ID   Int
@@ -90,27 +121,32 @@ model HrAttendance {
 }
 
 model HrLeaveRequests {
-  LEAVE_ID       Int       @id @default(autoincrement())
-  EMPLOYEE_ID    Int
-  LEAVE_TYPE_ID  Int?
+  LEAVE_ID             Int       @id @default(autoincrement())
+  EMPLOYEE_ID          Int
+  LEAVE_TYPE_ID        Int?
   /// Annual | Sick | Maternity | Casual | Study | Other
-  LEAVE_TYPE     String    @db.VarChar(40)
-  START_DATE     DateTime  @db.Date
-  END_DATE       DateTime  @db.Date
-  DAYS           Decimal   @db.Decimal(6, 1)
-  REASON         String?   @db.Text
-  /// Pending | Approved | Rejected | Cancelled
-  STATUS         String    @default("Pending") @db.VarChar(30)
-  APPROVED_BY_ID Int?
-  APPROVED_BY    String?   @db.VarChar(100)
-  APPROVED_AT    DateTime?
-  DECISION_NOTE  String?   @db.Text
-  CREATED_BY_ID  Int?
-  CREATED_BY     String?   @db.VarChar(100)
-  CREATED_DATE   DateTime  @default(now())
-  UPDATED_BY_ID  Int?
-  UPDATED_BY     String?   @db.VarChar(100)
-  UPDATED_DATE   DateTime?
+  LEAVE_TYPE           String    @db.VarChar(40)
+  START_DATE           DateTime  @db.Date
+  END_DATE             DateTime  @db.Date
+  DAYS                 Decimal   @db.Decimal(6, 1)
+  REASON               String?   @db.Text
+  /// PendingHod | PendingHr | Approved | Rejected | Cancelled
+  STATUS               String    @default("PendingHod") @db.VarChar(30)
+  APPROVED_BY_ID       Int?
+  APPROVED_BY          String?   @db.VarChar(100)
+  APPROVED_AT          DateTime?
+  DECISION_NOTE        String?   @db.Text
+  HOD_DECISION_BY_ID   Int?
+  HOD_DECISION_BY      String?   @db.VarChar(100)
+  HOD_DECISION_AT      DateTime?
+  HOD_NOTE             String?   @db.Text
+  APPROVER_EMPLOYEE_ID Int?
+  CREATED_BY_ID        Int?
+  CREATED_BY           String?   @db.VarChar(100)
+  CREATED_DATE         DateTime  @default(now())
+  UPDATED_BY_ID        Int?
+  UPDATED_BY           String?   @db.VarChar(100)
+  UPDATED_DATE         DateTime?
 
   employee  HrEmployees   @relation(fields: [EMPLOYEE_ID], references: [EMPLOYEE_ID])
   leaveType HrLeaveTypes? @relation(fields: [LEAVE_TYPE_ID], references: [LEAVE_TYPE_ID])

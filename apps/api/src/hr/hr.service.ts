@@ -22,19 +22,30 @@ import {
   CreateDocumentDto,
   CreateHrEmployeeDto,
   CreateLeaveRequestDto,
+  CreatePublicHolidayDto,
   DecideLeaveDto,
+  OverrideLeaveDto,
   ListAttendanceQueryDto,
   ListEmployeesQueryDto,
   ListLeaveQueryDto,
   ListPayrollQueryDto,
+  ListPublicHolidaysQueryDto,
   RunPayrollDto,
   UpdateAppraisalDto,
   UpdateAttendanceDto,
   UpdateDisciplinaryDto,
   UpdateHrEmployeeDto,
   UpdateLeaveRequestDto,
+  UpdateLeaveTypeDto,
   UpdatePayrollLineDto,
+  UpsertDepartmentHeadDto,
 } from './dto/hr.dto';
+import { HrSelfService } from './hr-self.service';
+import {
+  countWorkingDays,
+  parseDateOnlyUtc,
+  toDateOnlyIso,
+} from './leave-rules';
 
 function actorLabel(user: AuthUser): string {
   return (
@@ -99,20 +110,12 @@ function todayDateOnly(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-function isDateInRange(
-  day: Date,
-  start: Date,
-  end: Date,
-): boolean {
-  const t = day.getTime();
-  return t >= start.getTime() && t <= end.getTime();
-}
-
 @Injectable()
 export class HrService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly hrSelf: HrSelfService,
   ) {}
 
   private canLeaveApprove(user: AuthUser): boolean {
@@ -134,6 +137,69 @@ export class HrService {
       select: { EMPLOYEE_ID: true },
     });
     return row?.EMPLOYEE_ID ?? null;
+  }
+
+  /**
+   * Keep USERS.EMPLOYEE_ID in sync with HR_EMPLOYEES.USER_ID whenever an
+   * employee record is linked/relinked/unlinked to a staff login. Must be
+   * called inside the same $transaction as the HR_EMPLOYEES write.
+   *
+   * - `newUserId === undefined` → caller did not touch the link; no-op.
+   * - `newUserId === null` → unlink (clear both sides).
+   * - `newUserId` already linked (via USERS.EMPLOYEE_ID or another
+   *   HR_EMPLOYEES.USER_ID) to a different employee → ConflictException.
+   * - Re-linking away from `previousUserId` clears that user's EMPLOYEE_ID.
+   */
+  private async syncUserEmployeeLink(
+    tx: Prisma.TransactionClient,
+    employeeId: number | null,
+    newUserId: number | null | undefined,
+    previousUserId: number | null,
+  ): Promise<void> {
+    if (newUserId === undefined) return;
+    if (newUserId === previousUserId) return;
+
+    if (newUserId != null) {
+      const [targetUser, employeeWithUser] = await Promise.all([
+        tx.users.findUnique({
+          where: { USER_ID: newUserId },
+          select: { EMPLOYEE_ID: true },
+        }),
+        tx.hrEmployees.findUnique({
+          where: { USER_ID: newUserId },
+          select: { EMPLOYEE_ID: true },
+        }),
+      ]);
+
+      if (
+        targetUser?.EMPLOYEE_ID != null &&
+        targetUser.EMPLOYEE_ID !== employeeId
+      ) {
+        throw new ConflictException(
+          `This user is already linked to employee #${targetUser.EMPLOYEE_ID}`,
+        );
+      }
+      if (employeeWithUser && employeeWithUser.EMPLOYEE_ID !== employeeId) {
+        throw new ConflictException(
+          `This user is already linked to employee #${employeeWithUser.EMPLOYEE_ID}`,
+        );
+      }
+    }
+
+    // Re-linking away from a previous user: clear their EMPLOYEE_ID.
+    if (previousUserId != null && previousUserId !== newUserId) {
+      await tx.users.update({
+        where: { USER_ID: previousUserId },
+        data: { EMPLOYEE_ID: null },
+      });
+    }
+
+    if (newUserId != null && employeeId != null) {
+      await tx.users.update({
+        where: { USER_ID: newUserId },
+        data: { EMPLOYEE_ID: employeeId },
+      });
+    }
   }
 
   private mapEmployee(row: HrEmployees) {
@@ -217,6 +283,11 @@ export class HrService {
     APPROVED_BY: string | null;
     APPROVED_AT: Date | null;
     DECISION_NOTE: string | null;
+    HOD_DECISION_BY_ID?: number | null;
+    HOD_DECISION_BY?: string | null;
+    HOD_DECISION_AT?: Date | null;
+    HOD_NOTE?: string | null;
+    APPROVER_EMPLOYEE_ID?: number | null;
     CREATED_BY: string | null;
     CREATED_DATE: Date;
     UPDATED_BY: string | null;
@@ -236,6 +307,11 @@ export class HrService {
       approvedBy: row.APPROVED_BY,
       approvedAt: row.APPROVED_AT?.toISOString() ?? null,
       decisionNote: row.DECISION_NOTE,
+      hodDecisionById: row.HOD_DECISION_BY_ID ?? null,
+      hodDecisionBy: row.HOD_DECISION_BY ?? null,
+      hodDecisionAt: row.HOD_DECISION_AT?.toISOString() ?? null,
+      hodNote: row.HOD_NOTE ?? null,
+      approverEmployeeId: row.APPROVER_EMPLOYEE_ID ?? null,
       createdBy: row.CREATED_BY,
       createdAt: row.CREATED_DATE.toISOString(),
       updatedBy: row.UPDATED_BY,
@@ -614,7 +690,14 @@ export class HrService {
     const label = actorLabel(user);
     const now = new Date();
     try {
-      const row = await this.prisma.hrEmployees.create({
+      const row = await this.prisma.$transaction(async (tx) => {
+        // Pre-check the link before creating so we fail fast with a clear
+        // 409 instead of a raw unique-constraint error.
+        if (dto.userId != null) {
+          await this.syncUserEmployeeLink(tx, null, dto.userId, null);
+        }
+
+        const created = await tx.hrEmployees.create({
         data: {
           EMPLOYEE_NO: dto.employeeNo.trim(),
           USER_ID: dto.userId ?? null,
@@ -651,6 +734,16 @@ export class HrService {
           CREATED_BY: label,
           CREATED_DATE: now,
         },
+        });
+
+        if (dto.userId != null) {
+          await tx.users.update({
+            where: { USER_ID: dto.userId },
+            data: { EMPLOYEE_ID: created.EMPLOYEE_ID },
+          });
+        }
+
+        return created;
       });
 
       await this.audit.log({
@@ -675,7 +768,7 @@ export class HrService {
   }
 
   async updateEmployee(id: number, dto: UpdateHrEmployeeDto, user: AuthUser) {
-    await this.ensureEmployee(id);
+    const existing = await this.ensureEmployee(id);
     const label = actorLabel(user);
     const now = new Date();
 
@@ -768,9 +861,14 @@ export class HrService {
       UPDATED_DATE: now,
     };
 
-    const row = await this.prisma.hrEmployees.update({
-      where: { EMPLOYEE_ID: id },
-      data,
+    const row = await this.prisma.$transaction(async (tx) => {
+      if (dto.userId !== undefined) {
+        await this.syncUserEmployeeLink(tx, id, dto.userId, existing.USER_ID);
+      }
+      return tx.hrEmployees.update({
+        where: { EMPLOYEE_ID: id },
+        data,
+      });
     });
 
     await this.audit.log({
@@ -988,18 +1086,50 @@ export class HrService {
       throw new BadRequestException('employeeId is required');
     }
 
-    await this.ensureEmployee(employeeId!);
+    const employee = await this.ensureEmployee(employeeId!);
+    const start = parseDateOnlyUtc(dto.startDate);
+    const end = parseDateOnlyUtc(dto.endDate);
+    if (end.getTime() < start.getTime()) {
+      throw new BadRequestException('endDate must be on or after startDate');
+    }
+
+    const holidays = await this.prisma.hrPublicHolidays.findMany({
+      where: { HOLIDAY_DATE: { gte: start, lte: end } },
+      select: { HOLIDAY_DATE: true },
+    });
+    const holidayIsos = holidays.map((h) => toDateOnlyIso(h.HOLIDAY_DATE));
+    const days = countWorkingDays(start, end, holidayIsos);
+    if (days <= 0) {
+      throw new BadRequestException(
+        'Leave range contains no working days (Mon–Fri excluding public holidays)',
+      );
+    }
+
+    // Route: no HOD / requester is HOD or deputy → PendingHr; else PendingHod
+    let status: 'PendingHod' | 'PendingHr' = 'PendingHr';
+    if (employee.DEPARTMENT_ID != null) {
+      const head = await this.prisma.hrDepartmentHeads.findUnique({
+        where: { DEPARTMENT_ID: employee.DEPARTMENT_ID },
+      });
+      if (
+        head &&
+        head.HEAD_EMPLOYEE_ID !== employee.EMPLOYEE_ID &&
+        head.DEPUTY_EMPLOYEE_ID !== employee.EMPLOYEE_ID
+      ) {
+        status = 'PendingHod';
+      }
+    }
 
     const row = await this.prisma.hrLeaveRequests.create({
       data: {
         EMPLOYEE_ID: employeeId!,
         LEAVE_TYPE_ID: dto.leaveTypeId ?? null,
         LEAVE_TYPE: dto.leaveType,
-        START_DATE: parseDateOnly(dto.startDate),
-        END_DATE: parseDateOnly(dto.endDate),
-        DAYS: new Prisma.Decimal(dto.days),
+        START_DATE: start,
+        END_DATE: end,
+        DAYS: new Prisma.Decimal(days),
         REASON: dto.reason?.trim() ?? null,
-        STATUS: 'Pending',
+        STATUS: status,
         CREATED_BY_ID: user.id,
         CREATED_BY: label,
         CREATED_DATE: now,
@@ -1012,6 +1142,7 @@ export class HrService {
       entityId: row.LEAVE_ID,
       userId: user.id,
       createdBy: label,
+      newValue: { status, days, source: 'hr-desk' },
     });
 
     return this.mapLeave(row);
@@ -1022,12 +1153,41 @@ export class HrService {
       where: { LEAVE_ID: id },
     });
     if (!existing) throw new NotFoundException('Leave request not found');
-    if (existing.STATUS !== 'Pending') {
-      throw new ConflictException('Only pending leave requests can be updated');
+    if (
+      existing.STATUS !== 'PendingHod' &&
+      existing.STATUS !== 'PendingHr'
+    ) {
+      throw new ConflictException(
+        'Only PendingHod/PendingHr leave requests can be updated',
+      );
     }
 
     const label = actorLabel(user);
     const now = new Date();
+    const start =
+      dto.startDate !== undefined
+        ? parseDateOnlyUtc(dto.startDate)
+        : existing.START_DATE;
+    const end =
+      dto.endDate !== undefined
+        ? parseDateOnlyUtc(dto.endDate)
+        : existing.END_DATE;
+    let days = existing.DAYS;
+    if (dto.startDate !== undefined || dto.endDate !== undefined) {
+      const holidays = await this.prisma.hrPublicHolidays.findMany({
+        where: { HOLIDAY_DATE: { gte: start, lte: end } },
+        select: { HOLIDAY_DATE: true },
+      });
+      const computed = countWorkingDays(
+        start,
+        end,
+        holidays.map((h) => toDateOnlyIso(h.HOLIDAY_DATE)),
+      );
+      days = new Prisma.Decimal(computed);
+    } else if (dto.days !== undefined) {
+      days = new Prisma.Decimal(dto.days);
+    }
+
     const row = await this.prisma.hrLeaveRequests.update({
       where: { LEAVE_ID: id },
       data: {
@@ -1035,13 +1195,9 @@ export class HrService {
           ? { LEAVE_TYPE_ID: dto.leaveTypeId }
           : {}),
         ...(dto.leaveType !== undefined ? { LEAVE_TYPE: dto.leaveType } : {}),
-        ...(dto.startDate !== undefined
-          ? { START_DATE: parseDateOnly(dto.startDate) }
-          : {}),
-        ...(dto.endDate !== undefined
-          ? { END_DATE: parseDateOnly(dto.endDate) }
-          : {}),
-        ...(dto.days !== undefined ? { DAYS: new Prisma.Decimal(dto.days) } : {}),
+        ...(dto.startDate !== undefined ? { START_DATE: start } : {}),
+        ...(dto.endDate !== undefined ? { END_DATE: end } : {}),
+        DAYS: days,
         ...(dto.reason !== undefined ? { REASON: dto.reason } : {}),
         ...(dto.status === 'Cancelled' ? { STATUS: 'Cancelled' } : {}),
         UPDATED_BY_ID: user.id,
@@ -1061,23 +1217,15 @@ export class HrService {
     return this.mapLeave(row);
   }
 
-  private async applyOnLeaveIfInRange(employeeId: number, start: Date, end: Date) {
-    const today = todayDateOnly();
-    if (isDateInRange(today, start, end)) {
-      await this.prisma.hrEmployees.update({
-        where: { EMPLOYEE_ID: employeeId },
-        data: { STATUS: 'OnLeave' },
-      });
-    }
-  }
-
   async approveLeave(id: number, dto: DecideLeaveDto, user: AuthUser) {
     const existing = await this.prisma.hrLeaveRequests.findUnique({
       where: { LEAVE_ID: id },
     });
     if (!existing) throw new NotFoundException('Leave request not found');
-    if (existing.STATUS !== 'Pending') {
-      throw new ConflictException('Leave request is not pending');
+    if (existing.STATUS !== 'PendingHr') {
+      throw new ConflictException(
+        'HR can only approve leave in PendingHr status',
+      );
     }
 
     if (
@@ -1089,6 +1237,7 @@ export class HrService {
 
     const label = actorLabel(user);
     const now = new Date();
+    const approverEmpId = await this.actorEmployeeId(user.id);
     const row = await this.prisma.hrLeaveRequests.update({
       where: { LEAVE_ID: id },
       data: {
@@ -1097,16 +1246,30 @@ export class HrService {
         APPROVED_BY: label,
         APPROVED_AT: now,
         DECISION_NOTE: dto.decisionNote?.trim() ?? null,
+        APPROVER_EMPLOYEE_ID: approverEmpId,
         UPDATED_BY_ID: user.id,
         UPDATED_BY: label,
         UPDATED_DATE: now,
       },
     });
 
-    await this.applyOnLeaveIfInRange(
+    await this.hrSelf.applyFinalApprovalEffects(
       existing.EMPLOYEE_ID,
       existing.START_DATE,
       existing.END_DATE,
+      user.id,
+      label,
+    );
+
+    const emp = await this.prisma.hrEmployees.findUnique({
+      where: { EMPLOYEE_ID: existing.EMPLOYEE_ID },
+      select: { USER_ID: true },
+    });
+    await this.hrSelf.notifyLeaveOutcome(
+      emp?.USER_ID,
+      id,
+      true,
+      dto.decisionNote,
     );
 
     await this.audit.log({
@@ -1125,8 +1288,10 @@ export class HrService {
       where: { LEAVE_ID: id },
     });
     if (!existing) throw new NotFoundException('Leave request not found');
-    if (existing.STATUS !== 'Pending') {
-      throw new ConflictException('Leave request is not pending');
+    if (existing.STATUS !== 'PendingHr') {
+      throw new ConflictException(
+        'HR can only reject leave in PendingHr status',
+      );
     }
 
     const label = actorLabel(user);
@@ -1145,12 +1310,87 @@ export class HrService {
       },
     });
 
+    const emp = await this.prisma.hrEmployees.findUnique({
+      where: { EMPLOYEE_ID: existing.EMPLOYEE_ID },
+      select: { USER_ID: true },
+    });
+    await this.hrSelf.notifyLeaveOutcome(
+      emp?.USER_ID,
+      id,
+      false,
+      dto.decisionNote,
+    );
+
     await this.audit.log({
       type: 'hr:leave:reject',
       entity: 'HR_LEAVE_REQUESTS',
       entityId: id,
       userId: user.id,
       createdBy: label,
+    });
+
+    return this.mapLeave(row);
+  }
+
+  /** HR override of PendingHod → Approved (mandatory note). */
+  async overrideLeave(id: number, dto: OverrideLeaveDto, user: AuthUser) {
+    const existing = await this.prisma.hrLeaveRequests.findUnique({
+      where: { LEAVE_ID: id },
+    });
+    if (!existing) throw new NotFoundException('Leave request not found');
+    if (existing.STATUS !== 'PendingHod') {
+      throw new ConflictException(
+        'Override only applies to PendingHod leave requests',
+      );
+    }
+
+    if (
+      existing.EMPLOYEE_ID === (await this.actorEmployeeId(user.id)) &&
+      !this.canSelfApproveLeave(user)
+    ) {
+      throw new ForbiddenException('You cannot override your own leave request');
+    }
+
+    const label = actorLabel(user);
+    const now = new Date();
+    const note = dto.decisionNote.trim();
+    const approverEmpId = await this.actorEmployeeId(user.id);
+    const row = await this.prisma.hrLeaveRequests.update({
+      where: { LEAVE_ID: id },
+      data: {
+        STATUS: 'Approved',
+        APPROVED_BY_ID: user.id,
+        APPROVED_BY: label,
+        APPROVED_AT: now,
+        DECISION_NOTE: note,
+        APPROVER_EMPLOYEE_ID: approverEmpId,
+        UPDATED_BY_ID: user.id,
+        UPDATED_BY: label,
+        UPDATED_DATE: now,
+      },
+    });
+
+    await this.hrSelf.applyFinalApprovalEffects(
+      existing.EMPLOYEE_ID,
+      existing.START_DATE,
+      existing.END_DATE,
+      user.id,
+      label,
+    );
+
+    const emp = await this.prisma.hrEmployees.findUnique({
+      where: { EMPLOYEE_ID: existing.EMPLOYEE_ID },
+      select: { USER_ID: true },
+    });
+    await this.hrSelf.notifyLeaveOutcome(emp?.USER_ID, id, true, note);
+
+    await this.audit.log({
+      type: 'hr:leave:override',
+      entity: 'HR_LEAVE_REQUESTS',
+      entityId: id,
+      userId: user.id,
+      createdBy: label,
+      newValue: { note },
     });
 
     return this.mapLeave(row);
@@ -1721,5 +1961,225 @@ export class HrService {
     });
 
     return this.mapPayrollLine(updatedLine);
+  }
+
+  // -------------------------------------------------------------------------
+  // HR Self-Service Phase 1 — department heads, leave types, public holidays
+  // -------------------------------------------------------------------------
+
+  private mapDepartmentHead(row: {
+    ID: number;
+    DEPARTMENT_ID: number;
+    HEAD_EMPLOYEE_ID: number;
+    DEPUTY_EMPLOYEE_ID: number | null;
+    CREATED_BY: string | null;
+    CREATED_DATE: Date;
+    UPDATED_BY: string | null;
+    UPDATED_DATE: Date | null;
+  }) {
+    return {
+      id: row.ID,
+      departmentId: row.DEPARTMENT_ID,
+      headEmployeeId: row.HEAD_EMPLOYEE_ID,
+      deputyEmployeeId: row.DEPUTY_EMPLOYEE_ID,
+      createdBy: row.CREATED_BY,
+      createdAt: row.CREATED_DATE.toISOString(),
+      updatedBy: row.UPDATED_BY,
+      updatedAt: row.UPDATED_DATE?.toISOString() ?? null,
+    };
+  }
+
+  private mapLeaveType(row: {
+    LEAVE_TYPE_ID: number;
+    CODE: string;
+    NAME: string;
+    DAYS_PER_YEAR: number;
+    IS_ACTIVE: boolean;
+  }) {
+    return {
+      leaveTypeId: row.LEAVE_TYPE_ID,
+      code: row.CODE,
+      name: row.NAME,
+      daysPerYear: row.DAYS_PER_YEAR,
+      isActive: row.IS_ACTIVE,
+    };
+  }
+
+  private mapPublicHoliday(row: {
+    HOLIDAY_ID: number;
+    HOLIDAY_DATE: Date;
+    NAME: string;
+    CREATED_BY: string | null;
+    CREATED_DATE: Date;
+  }) {
+    return {
+      holidayId: row.HOLIDAY_ID,
+      date: dateOnly(row.HOLIDAY_DATE),
+      name: row.NAME,
+      createdBy: row.CREATED_BY,
+      createdAt: row.CREATED_DATE.toISOString(),
+    };
+  }
+
+  async listDepartmentHeads() {
+    const rows = await this.prisma.hrDepartmentHeads.findMany({
+      orderBy: { DEPARTMENT_ID: 'asc' },
+    });
+    return { items: rows.map((r) => this.mapDepartmentHead(r)) };
+  }
+
+  async upsertDepartmentHead(dto: UpsertDepartmentHeadDto, user: AuthUser) {
+    await this.ensureEmployee(dto.headEmployeeId);
+    if (dto.deputyEmployeeId != null) {
+      await this.ensureEmployee(dto.deputyEmployeeId);
+    }
+
+    const label = actorLabel(user);
+    const now = new Date();
+    const existing = await this.prisma.hrDepartmentHeads.findUnique({
+      where: { DEPARTMENT_ID: dto.departmentId },
+    });
+
+    const row = existing
+      ? await this.prisma.hrDepartmentHeads.update({
+          where: { DEPARTMENT_ID: dto.departmentId },
+          data: {
+            HEAD_EMPLOYEE_ID: dto.headEmployeeId,
+            DEPUTY_EMPLOYEE_ID: dto.deputyEmployeeId ?? null,
+            UPDATED_BY_ID: user.id,
+            UPDATED_BY: label,
+            UPDATED_DATE: now,
+          },
+        })
+      : await this.prisma.hrDepartmentHeads.create({
+          data: {
+            DEPARTMENT_ID: dto.departmentId,
+            HEAD_EMPLOYEE_ID: dto.headEmployeeId,
+            DEPUTY_EMPLOYEE_ID: dto.deputyEmployeeId ?? null,
+            CREATED_BY_ID: user.id,
+            CREATED_BY: label,
+            CREATED_DATE: now,
+          },
+        });
+
+    await this.audit.log({
+      type: existing
+        ? 'hr:department-head:update'
+        : 'hr:department-head:create',
+      entity: 'HR_DEPARTMENT_HEADS',
+      entityId: row.ID,
+      userId: user.id,
+      createdBy: label,
+      newValue: {
+        departmentId: dto.departmentId,
+        headEmployeeId: dto.headEmployeeId,
+        deputyEmployeeId: dto.deputyEmployeeId ?? null,
+      },
+    });
+
+    return this.mapDepartmentHead(row);
+  }
+
+  async listLeaveTypes() {
+    const rows = await this.prisma.hrLeaveTypes.findMany({
+      orderBy: { NAME: 'asc' },
+    });
+    return { items: rows.map((r) => this.mapLeaveType(r)) };
+  }
+
+  async updateLeaveType(id: number, dto: UpdateLeaveTypeDto, user: AuthUser) {
+    const existing = await this.prisma.hrLeaveTypes.findUnique({
+      where: { LEAVE_TYPE_ID: id },
+    });
+    if (!existing) throw new NotFoundException('Leave type not found');
+
+    const label = actorLabel(user);
+    const row = await this.prisma.hrLeaveTypes.update({
+      where: { LEAVE_TYPE_ID: id },
+      data: {
+        ...(dto.name !== undefined ? { NAME: dto.name.trim() } : {}),
+        ...(dto.daysPerYear !== undefined
+          ? { DAYS_PER_YEAR: dto.daysPerYear }
+          : {}),
+        ...(dto.isActive !== undefined ? { IS_ACTIVE: dto.isActive } : {}),
+      },
+    });
+
+    await this.audit.log({
+      type: 'hr:leave-type:update',
+      entity: 'HR_LEAVE_TYPES',
+      entityId: id,
+      userId: user.id,
+      createdBy: label,
+    });
+
+    return this.mapLeaveType(row);
+  }
+
+  async listPublicHolidays(query: ListPublicHolidaysQueryDto) {
+    const where: Prisma.HrPublicHolidaysWhereInput = {};
+    if (query.year != null) {
+      where.HOLIDAY_DATE = {
+        gte: new Date(Date.UTC(query.year, 0, 1)),
+        lte: new Date(Date.UTC(query.year, 11, 31, 23, 59, 59, 999)),
+      };
+    }
+    const rows = await this.prisma.hrPublicHolidays.findMany({
+      where,
+      orderBy: { HOLIDAY_DATE: 'asc' },
+    });
+    return { items: rows.map((r) => this.mapPublicHoliday(r)) };
+  }
+
+  async createPublicHoliday(dto: CreatePublicHolidayDto, user: AuthUser) {
+    const label = actorLabel(user);
+    try {
+      const row = await this.prisma.hrPublicHolidays.create({
+        data: {
+          HOLIDAY_DATE: parseDateOnly(dto.date),
+          NAME: dto.name.trim(),
+          CREATED_BY_ID: user.id,
+          CREATED_BY: label,
+          CREATED_DATE: new Date(),
+        },
+      });
+
+      await this.audit.log({
+        type: 'hr:public-holiday:create',
+        entity: 'HR_PUBLIC_HOLIDAYS',
+        entityId: row.HOLIDAY_ID,
+        userId: user.id,
+        createdBy: label,
+      });
+
+      return this.mapPublicHoliday(row);
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException('A holiday already exists on this date');
+      }
+      throw e;
+    }
+  }
+
+  async deletePublicHoliday(id: number, user: AuthUser) {
+    const existing = await this.prisma.hrPublicHolidays.findUnique({
+      where: { HOLIDAY_ID: id },
+    });
+    if (!existing) throw new NotFoundException('Public holiday not found');
+
+    await this.prisma.hrPublicHolidays.delete({ where: { HOLIDAY_ID: id } });
+
+    await this.audit.log({
+      type: 'hr:public-holiday:delete',
+      entity: 'HR_PUBLIC_HOLIDAYS',
+      entityId: id,
+      userId: user.id,
+      createdBy: actorLabel(user),
+    });
+
+    return { deleted: true };
   }
 }

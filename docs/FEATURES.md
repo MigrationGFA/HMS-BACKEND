@@ -318,6 +318,8 @@ Adapters: `mock` (sandbox ACTIVE), `curably` (aggregator; env `CURABLY_*`), dire
 | Governance | ✅ | `/api/governance/*` |
 | Administration | ✅ | `/api/administration` |
 | HR | ✅ | `/api/hr/*` — Phases A–E live (employees, attendance, leave, appraisals, disciplinary, documents, payroll). FE `/dashboard/hr/*` |
+| My HR (staff self-service) | ✅ | `/api/me/hr/*` — leave (HOD→HR), attendance, Final appraisals, Locked payslips, profile. FE `/account/hr/*`. HOD team queue when assigned in `HR_DEPARTMENT_HEADS`. Plan: [HR_SELF_SERVICE_PLAN.md](./HR_SELF_SERVICE_PLAN.md) |
+| HEIP daily reports | ✅ | `/api/heip/*` — staff Daily Report (auto-fill + HOD approve), CMD executive dashboard/red flags/compliance, template admin. FE `/account/heip`, `/dashboard/cmd/heip*`. Plan: [HEIP_DAILY_REPORTS_PLAN.md](./HEIP_DAILY_REPORTS_PLAN.md) |
 
 ## Non-Clinical Operations (Phases F–K)
 

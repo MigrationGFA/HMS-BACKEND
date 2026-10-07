@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -35,6 +36,10 @@ export class CreatePortalAppointmentDto {
   @IsString()
   @MaxLength(5)
   startTime!: string;
+
+  /** Visit mode — never store catalog BOTH; must be PHYSICAL or ONLINE */
+  @IsIn(['PHYSICAL', 'ONLINE'])
+  mode!: 'PHYSICAL' | 'ONLINE';
 
   @IsOptional()
   @IsString()

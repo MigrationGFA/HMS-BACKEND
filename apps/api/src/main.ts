@@ -16,6 +16,12 @@ async function bootstrap() {
       'app.corsOrigins',
       true,
     );
+    const nodeEnv = configService.get<string>('app.nodeEnv', 'development');
+    if (nodeEnv === 'production' && corsOrigins === true) {
+      console.warn(
+        '[CORS] FRONTEND_URL / CORS_ORIGINS is unset — reflecting any origin. Set explicit origins for production.',
+      );
+    }
     app.enableCors({
       origin: corsOrigins,
       credentials: true,

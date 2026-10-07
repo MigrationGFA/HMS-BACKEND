@@ -291,7 +291,15 @@ export class AppointmentsService {
       item: `OTP issued for person ${person.PERSON_ID}`,
     });
 
+    const emailConfigured = this.email.isConfigured();
     let emailDelivered = false;
+
+    if (emailConfigured && !person.E_MAIL?.trim()) {
+      throw new BadRequestException(
+        'Patient has no email on file — cannot send verification code',
+      );
+    }
+
     if (person.E_MAIL?.trim()) {
       const sent = await this.email.send({
         to: person.E_MAIL.trim(),
@@ -303,25 +311,25 @@ export class AppointmentsService {
         text: `Your verification code is ${code}. It expires in 15 minutes.`,
       });
       emailDelivered = sent.delivered;
-    } else if (this.email.isConfigured()) {
-      throw new BadRequestException(
-        'Patient has no email on file — cannot send verification code',
-      );
+      if (emailConfigured && !emailDelivered) {
+        throw new BadRequestException(
+          'Could not send verification email — please try again later',
+        );
+      }
     }
 
-    const exposeCode = !this.email.isConfigured() || !emailDelivered;
+    // On-screen code only when Resend is not configured (local/dev). Never when email is live.
+    const exposeCode = !emailConfigured;
 
     return {
       personId: person.PERSON_ID,
       verificationId: row.VERIFICATION_ID,
       expiresAt: expiresAt.toISOString(),
-      /** Only returned when Resend is not delivering (dev/testing fallback) */
+      /** Only returned when Resend is not configured (dev/testing fallback) */
       displayCode: exposeCode ? code : undefined,
       channelHint: emailDelivered
         ? 'Code sent to your email'
-        : person.E_MAIL
-          ? 'Shown on screen for testing (configure RESEND_API_KEY to email codes)'
-          : 'Shown on screen for testing (add email to receive codes via Resend)',
+        : 'Shown on screen for testing (configure RESEND_API_KEY to email codes)',
       phoneMasked: maskPhone(phone),
       emailMasked: person.E_MAIL
         ? `${person.E_MAIL[0]}***@${person.E_MAIL.split('@')[1] ?? '…'}`

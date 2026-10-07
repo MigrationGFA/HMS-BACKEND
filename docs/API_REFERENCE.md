@@ -2297,6 +2297,77 @@ Query params for stats: `timezoneOffsetMinutes`
 
 ---
 
+### HEIP — daily staff reports (`/heip`)
+
+Configurable daily/shift attestation → HOD review → CMD executive intelligence. Ownership from JWT → `USERS.EMPLOYEE_ID`. HOD auth via `HR_DEPARTMENT_HEADS`.
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET/POST | `/heip/templates` | List / create templates | `heip:template:manage` |
+| GET/PATCH | `/heip/templates/:id` | Get / update template | `heip:template:manage` |
+| POST | `/heip/templates/:id/versions` | Save draft field schema | `heip:template:manage` |
+| POST | `/heip/templates/:id/publish` | Publish version | `heip:template:manage` |
+| GET | `/heip/templates/resolve-mine` | Resolved template for current staff | `heip:report:submit` |
+| GET | `/heip/me/today` | Today’s form + auto-fill + draft | `heip:report:submit` |
+| POST | `/heip/me/draft` | Autosave draft values | `heip:report:submit` |
+| POST | `/heip/me/submit` | Submit (criticals → red flags) | `heip:report:submit` |
+| GET | `/heip/me/history` | Own reports | `heip:report:submit` |
+| GET | `/heip/me/reports/:id` | Own report detail | `heip:report:submit` |
+| POST | `/heip/me/reports/:id/amend` | Amend approved report (re-approval) | `heip:report:submit` |
+| GET | `/heip/team/queue` | HOD pending queue | `heip:report:submit` + HOD assignment |
+| POST | `/heip/team/reports/:id/approve` | HOD approve | HOD assignment |
+| POST | `/heip/team/reports/:id/return` | HOD return + comment | HOD assignment |
+| PUT | `/heip/team/summary` | HOD department summary | HOD assignment |
+| GET | `/heip/executive/overview` | CMD glance + compliance | `heip:executive:read` |
+| GET | `/heip/executive/metrics` | Metric trends | `heip:executive:read` |
+| GET | `/heip/executive/departments/:id` | Department drill-down | `heip:executive:read` |
+| GET | `/heip/executive/reports/:id` | Any report | `heip:executive:read` |
+| GET | `/heip/executive/red-flags` | Critical items | `heip:executive:read` |
+| POST | `/heip/executive/red-flags/:id/ack` | Acknowledge | `heip:redflag:ack` |
+| GET | `/heip/executive/compliance` | Late/missed | `heip:executive:read` |
+| POST | `/heip/executive/run-deadlines` | Mark Late/Missed | `heip:executive:read` |
+
+**Statuses:** `Draft` \| `Submitted` \| `Returned` \| `Approved` \| `Missed`  
+**FE:** `/account/heip`, `/dashboard/cmd/heip*`, template admin under Super Admin / IT
+
+### My HR — staff self-service (`/me/hr`)
+
+Ownership always from JWT → `USERS.EMPLOYEE_ID`. Never pass `employeeId` from the client. Permissions: `hr:self:read`, `hr:self:leave` (all staff roles except Patient).
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET | `/me/hr/summary` | Balances snippet, pending leave, attendance month, latest Final appraisal, latest Locked payslip, `isHod`, employee | `hr:self:read` |
+| GET | `/me/hr/leave` | Own leave requests | `hr:self:read` |
+| GET | `/me/hr/leave/balances` | Per leave-type remaining days (calendar year) | `hr:self:read` |
+| POST | `/me/hr/leave` | Apply (`leaveTypeId` or type, start, end, reason) — days computed server-side | `hr:self:leave` |
+| POST | `/me/hr/leave/:id/cancel` | Cancel own `PendingHod` / `PendingHr` | `hr:self:leave` |
+| GET | `/me/hr/team/leave` | Department pending leave (HOD/deputy only) | `hr:self:leave` |
+| POST | `/me/hr/team/leave/:id/hod-approve` | HOD approve → `PendingHr` | `hr:self:leave` |
+| POST | `/me/hr/team/leave/:id/hod-reject` | HOD reject + note | `hr:self:leave` |
+| GET | `/me/hr/attendance?month=YYYY-MM` | Own attendance for month | `hr:self:read` |
+| GET | `/me/hr/appraisals` | Own **Final** appraisals only | `hr:self:read` |
+| GET | `/me/hr/payslips` | Own lines from **Locked** payroll runs | `hr:self:read` |
+| GET | `/me/hr/payslips/:lineId` | One payslip line (ownership checked) | `hr:self:read` |
+| GET | `/me/hr/profile` | Own employee contact fields | `hr:self:read` |
+| PATCH | `/me/hr/profile` | Update phone, email, next of kin, emergency contact | `hr:self:read` |
+
+**Leave statuses:** `PendingHod` \| `PendingHr` \| `Approved` \| `Rejected` \| `Cancelled`  
+**Audit:** `hr:leave:*`, `hr:leave:override`, `hr:self:profile-update`  
+**FE:** `/account/hr/*` (fnph-aro)
+
+### HR desk additions (self-service related)
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| GET/PUT | `/hr/department-heads` | List / upsert HOD + deputy per department | `hr:employee:read` (GET) / `hr:employee:update` (PUT) |
+| GET | `/hr/leave-types` | List leave types + entitlements | `hr:self:read` or `hr:leave:read` |
+| PATCH | `/hr/leave-types/:id` | Update entitlement / active flag | `hr:leave:update` |
+| GET/POST/DELETE | `/hr/public-holidays` | Public holiday calendar (D3) | read: self/leave; write: `hr:employee:update` |
+| POST | `/hr/leave-requests/:id/override` | HR final-approve from `PendingHod` with note | `hr:leave:approve` |
+| POST | `/hr/leave-requests/:id/approve` | Final approve — **only** from `PendingHr` | `hr:leave:approve` |
+
+---
+
 ### Support requests (`/support-requests`)
 
 Shared staff support tickets (Pharmacy, Doctor, Cashier, Records, Laboratory header Support button → HR queue).

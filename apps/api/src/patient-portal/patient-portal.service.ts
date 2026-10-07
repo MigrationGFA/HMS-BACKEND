@@ -174,6 +174,16 @@ export class PatientPortalService {
       );
     }
 
+    const catalogMode =
+      service.bookingSettings?.DELIVERY_MODE ?? 'PHYSICAL';
+    if (dto.mode === 'ONLINE' && catalogMode === 'PHYSICAL') {
+      throw new BadRequestException('This service does not allow online visits');
+    }
+    if (dto.mode === 'PHYSICAL' && catalogMode === 'ONLINE') {
+      throw new BadRequestException('This service does not allow physical visits');
+    }
+    const deliveryMode: 'PHYSICAL' | 'ONLINE' = dto.mode;
+
     const durationMinutes =
       service.bookingSettings?.DURATION_MINUTES ??
       service.DURATION_MINUTES ??
@@ -202,7 +212,7 @@ export class PatientPortalService {
           APPOINTMENT_DATE: appointmentDate,
           START_TIME: dto.startTime,
           END_TIME: endTime,
-          DELIVERY_MODE: service.bookingSettings?.DELIVERY_MODE ?? 'PHYSICAL',
+          DELIVERY_MODE: deliveryMode,
           PRICE_AMOUNT: price,
           PAYMENT_STATUS: 'Pending',
           NOTES: dto.notes?.trim() ?? null,
